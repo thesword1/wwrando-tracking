@@ -236,6 +236,9 @@ try:
   # client reads) is at the same address whether or not it is applied.
   all_asm_files.remove("offline_mode.asm")
   all_asm_files.append("offline_mode.asm")
+  # The optional in-game tracker goes after that, for the same reason.
+  all_asm_files.remove("tracker.asm")
+  all_asm_files.append("tracker.asm")
   
   # First parse all the asm files into code chunks.
   code_chunks = {}

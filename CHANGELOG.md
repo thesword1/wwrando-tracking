@@ -14,6 +14,7 @@
 * Offline mode supports all six Archipelago placement modes for small keys, big keys, and maps & compasses: Start With (given when starting a new save), Vanilla, Own Dungeon, Any Dungeon (any dungeon of a required boss), Local and Key-Lunacy (the same thing without Archipelago).
 * Offline Swords Optional mode: the swords are still placed in the world, but the logic uses the swordless requirements and never expects you to have a sword (as in the Archipelago world).
 * New "Enable Tuner Logic" option (from the Archipelago world): the logic may expect the Tingle Tuner instead of Bombs for Tingle Chests. .aptww files don't include it, so for Archipelago seeds it is a local setting that only matters for the in-game tracker.
+* In-game tracker runtime foundation: the tracker's C sources (`asm/tracker/`) are compiled into main.dol through the new `asm/patches/tracker.asm`, and `tracker/serialize.py` packs a seed's location, group, entrance and chart tables into a versioned binary format that the C code reads from a 24 KB reserve. The same C code builds on the host with mock RAM for unit tests (`make -C asm/tracker host`). Works for AP and offline seeds; enabled only with the development flag `wwrando.py --tracker` for now, and without it the output is unchanged. See `docs/dev/tracker-runtime.md`.
 
 ### Version 1.11.0 (in progress, not released yet)
 

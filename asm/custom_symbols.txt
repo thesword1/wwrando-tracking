@@ -111,6 +111,20 @@ sys/main.dol:
   test_room_room_index: 0x800531E7
   test_room_override_layer_num: 0x800531EB
   progressive_magic_meter_item_func: 0x803FF0DC
+  tracker_data: 0x803FF124
+  tracker_data_end: 0x80405124
+  trk_tables_valid: 0x80405124
+  trk_seed_tag: 0x804051BC
+  trk_table_flags: 0x804051D8
+  trk_count: 0x804051F4
+  trk_section: 0x8040521C
+  trk_string: 0x80405260
+  trk_get_location: 0x80405294
+  trk_get_group: 0x80405360
+  trk_find_group: 0x80405408
+  trk_get_entrance: 0x804054A8
+  trk_get_trigger: 0x8040554C
+  trk_get_chart: 0x804055DC
 files/rels/d_a_demo_item.rel:
   check_give_item: 0x1344
 files/rels/d_a_npc_bs1.rel:
