@@ -7,7 +7,7 @@
 #include "tracker_types.h"
 
 #define TRK_MAGIC 0x5757544B // "WWTK"
-#define TRK_FORMAT_VERSION 1
+#define TRK_FORMAT_VERSION 2
 #define TRK_HEADER_SIZE 0x20
 #define TRK_DIR_ENTRY_SIZE 8
 
@@ -20,7 +20,8 @@ enum TrkSection {
   TRK_SEC_STRINGS = 5,
   TRK_SEC_LOGIC = 6,
   TRK_SEC_ITEMS = 7,
-  TRK_NUM_SECTIONS = 8,
+  TRK_SEC_STAGES = 8,
+  TRK_NUM_SECTIONS = 9,
 };
 
 // tracker/location_data.py LocationType.
@@ -102,6 +103,11 @@ typedef struct {
   u16 name;
 } TrkChart;
 
+typedef struct {
+  char stage_name[8]; // Not NUL-terminated when 8 characters long
+  u8 group_id;
+} TrkStage;
+
 #define TRK_GET_MAP_ADDR 0x803C4CDC
 #define TRK_COMPLETE_MAP_ADDR 0x803C4CFC
 
@@ -117,5 +123,6 @@ int trk_find_group(u8 group_id);
 void trk_get_entrance(u16 index, TrkEntrance* out);
 void trk_get_trigger(u16 index, TrkTrigger* out);
 void trk_get_chart(u16 index, TrkChart* out);
+void trk_get_stage(u16 index, TrkStage* out);
 
 #endif

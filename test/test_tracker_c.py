@@ -11,9 +11,10 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "gclib"))
 
 from tracker.serialize import Section, serialize_tracker_tables
+from tracker.stages import stage_group_entries
 from test_aptww_fixtures import FIXTURE_PATHS, load_plando
 from test_tracker_serialize import tables_from_plando
-from tracker_c_host import TrackerHost, TrkChart, TrkEntrance, TrkGroup, TrkLocation, TrkTrigger
+from tracker_c_host import TrackerHost, TrkChart, TrkEntrance, TrkGroup, TrkLocation, TrkStage, TrkTrigger
 
 
 def test_invalid_tables(tracker: TrackerHost):
@@ -89,6 +90,13 @@ def test_reader_matches_serializer(tracker: TrackerHost, path: Path):
     assert 0x803C4CFC + entry.salvaged_offset == chart.salvaged_address
     assert entry.salvaged_mask == chart.salvaged_mask
     assert tracker.string(entry.name) == chart.name
+
+  stages = stage_group_entries(tables.stage_groups, {group.id for group in groups})
+  assert stages
+  assert lib.trk_count(Section.STAGES) == len(stages)
+  for i, (stage_name, group_id) in enumerate(stages):
+    entry = tracker.get("trk_get_stage", TrkStage, i)
+    assert (entry.stage_name.decode("ascii"), entry.group_id) == (stage_name, group_id)
 
   assert lib.trk_count(Section.LOGIC) == 0
   assert lib.trk_count(Section.ITEMS) == 0

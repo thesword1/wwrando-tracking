@@ -65,6 +65,7 @@ Verified facts:
 - **B11. No item spoilers, ever:** the tracker shows only checked/unchecked/in-logic state, never what item is at a location.
 - Out of scope (note for later): notes; hints (would only matter for AP).
 - Triforce shard count on the Quest Status screen's Triforce (`n/8`): added later at the owner's request, part of the in-game tracker.
+- Tracker lists in dungeons and caves (Z on the dungeon map or the Quest Status screen opens the current place's list, since the sea chart can't be opened there): added later at the owner's request.
 
 ### C. Engineering process
 - **C1. Trunk-based Git:** trunk = `master`. Every change on a short-lived `feature/<name>` (or `fix/`, `docs/`, `ci/`) branch → PR into `master` with a description of what/why → agent merges its own PRs (GitHub doesn't allow self-approval; merge without required review). Branch protection may be added later. Commit messages and PR bodies use the attribution lines configured in the session.
