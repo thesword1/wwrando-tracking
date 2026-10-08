@@ -276,10 +276,18 @@ class Logic:
       else:
         location_counts_by_dungeon[dungeon_name] = 1
     
-    dungeon_location_counts = list(location_counts_by_dungeon.values())
-    dungeon_location_counts.sort(reverse=True)
+    # The excluded dungeons are always banned. The rest of the banned dungeons are chosen from the ones that are
+    # neither included nor excluded, so the worst case is when the ones with the most locations get banned.
     num_banned_dungeons = 6 - self.options.num_required_bosses
-    max_banned_locations = sum(dungeon_location_counts[:num_banned_dungeons])
+    excluded_dungeons = set(self.options.excluded_dungeons)
+    max_banned_locations = sum(location_counts_by_dungeon.get(dungeon_name, 0) for dungeon_name in excluded_dungeons)
+    dungeon_location_counts = [
+      count for dungeon_name, count in location_counts_by_dungeon.items()
+      if dungeon_name not in excluded_dungeons
+      and dungeon_name not in self.options.included_dungeons
+    ]
+    dungeon_location_counts.sort(reverse=True)
+    max_banned_locations += sum(dungeon_location_counts[:max(0, num_banned_dungeons - len(excluded_dungeons))])
     
     return max_banned_locations
   

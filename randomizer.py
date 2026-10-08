@@ -78,6 +78,7 @@ RNG_CHANGING_OPTIONS = [
 ]
 
 class TooFewProgressionLocationsError(Exception): pass
+class InvalidOptionsError(Exception): pass
 class InvalidCleanISOError(Exception): pass
 class PermalinkWrongVersionError(Exception): pass
 class PermalinkWrongCommitError(Exception): pass
@@ -264,6 +265,9 @@ class WWRandomizer:
     self.logic.initialize_from_randomizer_state()
     
     if not self.archipelago_mode:
+      if self.boss_reqs.is_enabled():
+        self.boss_reqs.validate_boss_options()
+      
       num_progress_locations = self.logic.get_num_progression_locations()
       max_required_bosses_banned_locations = self.logic.get_max_required_bosses_banned_locations()
       self.all_randomized_progress_items = self.logic.unplaced_progress_items.copy()
@@ -581,6 +585,11 @@ class WWRandomizer:
       elif option.name == "randomized_gear":
         # Handled above.
         continue
+      elif option.choices is not None:
+        # A set of values from a fixed list: one bit per possible value.
+        assert issubclass(typing.get_origin(option.type) or option.type, list)
+        for choice in option.choices:
+          bitswriter.write(int(choice in value), 1)
       else:
         raise Exception(f"Option {option.name} of type {option.type} is not currently supported by the permalink system.")
     
@@ -668,6 +677,9 @@ class WWRandomizer:
       elif option.name == "randomized_gear":
         # Handled above.
         continue
+      elif option.choices is not None:
+        assert issubclass(typing.get_origin(option.type) or option.type, list)
+        options[option.name] = [choice for choice in option.choices if bitsreader.read(1)]
       else:
         raise Exception(f"Option {option.name} of type {option.type} is not currently supported by the permalink system.")
     

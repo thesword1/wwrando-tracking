@@ -4,7 +4,7 @@ from qtpy.QtWidgets import *
 from wwr_ui.qt_init import load_ui_file
 
 from wwr_ui.update_checker import check_for_updates, LATEST_RELEASE_DOWNLOAD_PAGE_URL
-from wwr_ui.offline_options import OfflineOptionWidgets
+from wwr_ui.offline_options import OfflineOptionWidgets, OptionChoicesWidget
 from wwr_ui.inventory import INVENTORY_ITEMS, DEFAULT_STARTING_ITEMS, DEFAULT_RANDOMIZED_ITEMS
 
 import os
@@ -19,7 +19,7 @@ from ruamel.yaml.error import YAMLError
 yaml_dumper = YAML(typ="rt") # Use RoundTripDumper for pretty-formatted dumps.
 
 from options.wwrando_options import Options, SwordMode
-from randomizer import WWRandomizer, TooFewProgressionLocationsError, InvalidCleanISOError, PermalinkWrongVersionError, PermalinkWrongCommitError
+from randomizer import WWRandomizer, TooFewProgressionLocationsError, InvalidOptionsError, InvalidCleanISOError, PermalinkWrongVersionError, PermalinkWrongCommitError
 from aptww import APTWWFileError, read_ap_plando_file
 from version import VERSION
 from wwrando_paths import SETTINGS_PATH, ASSETS_PATH, IS_RUNNING_FROM_SOURCE, RANDO_ROOT_PATH
@@ -110,6 +110,8 @@ class WWRandomizerWindow(QMainWindow):
         pass
       elif isinstance(widget, QSpinBox):
         widget.valueChanged.connect(self.update_settings)
+      elif isinstance(widget, OptionChoicesWidget):
+        widget.value_changed.connect(self.update_settings)
       else:
         continue
       
@@ -243,7 +245,7 @@ class WWRandomizerWindow(QMainWindow):
         rando = WWRandomizer(plando.seed, clean_iso_path, output_folder, options, plando, cmd_line_args=self.cmd_line_args)
       else:
         rando = WWRandomizer(seed, clean_iso_path, output_folder, options, cmd_line_args=self.cmd_line_args)
-    except (TooFewProgressionLocationsError, InvalidCleanISOError) as e:
+    except (TooFewProgressionLocationsError, InvalidOptionsError, InvalidCleanISOError) as e:
       error_message = str(e)
       self.randomization_failed(error_message)
       return
@@ -359,6 +361,8 @@ class WWRandomizerWindow(QMainWindow):
         assert issubclass(option.type, int)
         widget.setMinimum(option.minimum)
         widget.setMaximum(option.maximum)
+      elif isinstance(widget, OptionChoicesWidget):
+        assert option.choices is not None
       else:
         continue
       
@@ -628,6 +632,8 @@ class WWRandomizerWindow(QMainWindow):
         print(f"Invalid type for combobox option: {option.type}")
     elif isinstance(widget, QSpinBox):
       return widget.value()
+    elif isinstance(widget, OptionChoicesWidget):
+      return widget.get_value()
     elif isinstance(widget, QListView):
       if widget.model() is None:
         return []
@@ -675,6 +681,10 @@ class WWRandomizerWindow(QMainWindow):
         new_value = self.default_options[option_name] # reset to default in case 0 is not default or in normal range
 
       widget.setValue(new_value)
+    elif isinstance(widget, OptionChoicesWidget):
+      if not isinstance(new_value, list):
+        new_value = self.default_options[option_name]
+      widget.set_value(new_value)
     elif isinstance(widget, QListView):
       if not isinstance(new_value, list):
         new_value = self.default_options[option_name]
@@ -719,6 +729,8 @@ class WWRandomizerWindow(QMainWindow):
     
     if not options.required_bosses:
       should_enable_options["num_required_bosses"] = False
+      should_enable_options["included_dungeons"] = False
+      should_enable_options["excluded_dungeons"] = False
     
     if options.num_location_hints == 0:
       should_enable_options["prioritize_remote_hints"] = False

@@ -7,13 +7,13 @@ class Option(Field):
   
   __slots__ = Field.__slots__ + (
     'description', 'choice_descriptions',
-    'minimum', 'maximum',
+    'minimum', 'maximum', 'choices',
     'permalink', 'hidden', 'unbeatable',
   )
   
   def __init__(self, default, default_factory,
                description: str, choice_descriptions: dict[Any, str],
-               minimum: Optional[int], maximum: Optional[int],
+               minimum: Optional[int], maximum: Optional[int], choices: Optional[list],
                permalink: bool, hidden: bool, unbeatable: bool):
     super().__init__(default, default_factory, init=True, repr=True,
                      hash=None, compare=True, metadata=None, kw_only=True)
@@ -21,6 +21,7 @@ class Option(Field):
     self.choice_descriptions = choice_descriptions
     self.minimum = minimum
     self.maximum = maximum
+    self.choices = choices
     self.permalink = permalink
     self.hidden = hidden
     self.unbeatable = unbeatable
@@ -36,14 +37,15 @@ class Option(Field):
 
 def option(default=MISSING, default_factory=MISSING,
            description="", choice_descriptions={},
-           minimum: Optional[int] = None, maximum: Optional[int] = None,
+           minimum: Optional[int] = None, maximum: Optional[int] = None, choices: Optional[list] = None,
            permalink=True, hidden=False, unbeatable=False) -> Any:
+  """choices: For list options that are sets of values from a fixed list of possible values."""
   if default is MISSING and default_factory is MISSING:
     raise ValueError('must specify either default or default_factory')
   return Option(
     default, default_factory,
     description, choice_descriptions,
-    minimum, maximum,
+    minimum, maximum, choices,
     permalink, hidden, unbeatable
   )
 

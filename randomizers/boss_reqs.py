@@ -5,6 +5,7 @@ from gclib import fs_helpers as fs
 from wwlib.dzx import DZx, ACTR, TGOB, SCOB
 from tweaks import switches_are_contiguous
 from gclib.bmg import TextBoxType
+from options.wwrando_options import REQUIRED_BOSSES_DUNGEONS
 
 BOSS_NAME_TO_SEA_CHART_QUEST_MARKER_INDEX = {
   "Gohma"        : 7,
@@ -72,6 +73,32 @@ class RequiredBossesRandomizer(BaseRandomizer):
     return spoiler_log
   
 
+  def validate_boss_options(self):
+    # Same checks as the APWorld's RequiredBossesRandomizer.validate_boss_options and randomize_required_bosses.
+    from randomizer import InvalidOptionsError
+    
+    if not self.options.progression_dungeons:
+      raise InvalidOptionsError("You cannot make bosses required when progression dungeons are disabled.")
+    
+    included_dungeons = set(self.options.included_dungeons)
+    excluded_dungeons = set(self.options.excluded_dungeons)
+    if included_dungeons & excluded_dungeons:
+      raise InvalidOptionsError(
+        "A conflict was found in the lists of required and banned dungeons for required bosses mode: "
+        + ", ".join(sorted(included_dungeons & excluded_dungeons))
+      )
+    
+    num_required_bosses = self.options.num_required_bosses
+    if len(included_dungeons) > num_required_bosses:
+      raise InvalidOptionsError(
+        "Could not select required bosses: more dungeons are always required than the number of required bosses."
+      )
+    if len(REQUIRED_BOSSES_DUNGEONS) - len(excluded_dungeons) < num_required_bosses:
+      raise InvalidOptionsError(
+        "Could not select required bosses: after removing the excluded dungeons, there are not enough left for the "
+        "number of required bosses."
+      )
+  
   def randomize_required_bosses(self):
     if not self.options.progression_dungeons:
       raise Exception("Cannot make bosses required when progression dungeons are disabled.")
@@ -92,7 +119,16 @@ class RequiredBossesRandomizer(BaseRandomizer):
       # The required bosses are chosen by the AP generator.
       required_boss_item_locations = self.rando.plando.required_bosses
     else:
-      self.required_boss_item_locations = self.rng.sample(possible_boss_item_locations, num_required_bosses)
+      # Choose the required dungeons like the APWorld: the included dungeons, plus random ones that aren't excluded.
+      self.validate_boss_options()
+      required_dungeons = set(self.options.included_dungeons)
+      remaining_dungeons = set(REQUIRED_BOSSES_DUNGEONS) - required_dungeons - set(self.options.excluded_dungeons)
+      num_remaining = num_required_bosses - len(required_dungeons)
+      required_dungeons.update(self.rng.sample(sorted(remaining_dungeons), num_remaining))
+      self.required_boss_item_locations = [
+        loc for loc in possible_boss_item_locations
+        if self.logic.split_location_name_by_zone(loc)[0] in required_dungeons
+      ]
       required_boss_item_locations = self.required_boss_item_locations
     
     for location_name in possible_boss_item_locations:

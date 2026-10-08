@@ -31,6 +31,16 @@ class KeyLunacyMode(StrEnum):
   LOCAL = "Local"
   KEYLUNACY = "Key-Lunacy"
 
+# The dungeons that can be chosen as required in Required Bosses Mode (the dungeon each boss is at the end of).
+REQUIRED_BOSSES_DUNGEONS = [
+  "Dragon Roost Cavern",
+  "Forbidden Woods",
+  "Tower of the Gods",
+  "Forsaken Fortress",
+  "Earth Temple",
+  "Wind Temple",
+]
+
 @dataclass
 class Options(BaseOptions):
   #region Progress locations
@@ -234,6 +244,16 @@ class Options(BaseOptions):
     maximum=6,
     description="Select the number of randomly-chosen bosses that are required in Required Bosses Mode.<br>"
       "The door to Puppet Ganon will not unlock until you've defeated all of these bosses. Nothing in dungeons for other bosses will ever be required.",
+  )
+  included_dungeons: list[str] = option(
+    default_factory=list,
+    choices=REQUIRED_BOSSES_DUNGEONS,
+    description="Dungeons whose bosses are always required in Required Bosses Mode.",
+  )
+  excluded_dungeons: list[str] = option(
+    default_factory=list,
+    choices=REQUIRED_BOSSES_DUNGEONS,
+    description="Dungeons whose bosses are never required in Required Bosses Mode.",
   )
   chest_type_matches_contents: bool = option(
     default=False,
