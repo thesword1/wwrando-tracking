@@ -151,6 +151,7 @@ Each phase = one or more `feature/*` PRs. Planning agent should refine and may r
 | D9 | Tracker runtime written in **C**, compiled with devkitPPC through `asm/assemble.py` `.include "*.c"`, hooked into `dMenu_Fmap_c` and draw via `J2DPrint`/`JUTFont`. Same C core also compiled for host (gcc) for unit tests. | Research |
 | D10 | Tracker option: local randomizer setting, default on, not in `.aptww`; for permalinks it's encoded in our local settings only. | Owner |
 | D12 | Small-key logic uses exact in-game keys-obtained counters per dungeon, not inference. | Owner |
+| D13 | Controls: X = toggle mark, main stick = select location, Z = list page. Save storage at 0x803C532C (80 bytes, zeroed at new game). See docs/dev/memory-map.md. | Research |
 | D11 | Hints: out of scope. Triforce-count icon: out of scope (noted). | Owner |
 
 ## 9. Research findings that shape the plan (summary)
@@ -212,8 +213,8 @@ Branch naming: `feature/*`, `fix/*`, `ci/*`, `docs/*`, `chore/*`, `tooling/*`. O
 | `feature/tracker-detection-and-save` | C: per-dungeon small-keys-obtained counters hooked on item get; check-flag evaluation per descriptor (incl. live-stage fallback + 6 special cases); manual-mark & visited-entrance bitfields in verified save region; stage-change hook records visited entrances (incl. CliPlaH special case). | Dolphin test: set flags via memory engine → tracker state matches. |
 | `feature/tracker-logic-runtime` | Bytecode interpreter; re-eval hooks on item get (`execItemGet` path / AP give-queue) and on Fmap open; results cache. | Host tests match Python evaluator on 1000 random states; in-game eval < 1 frame budget measured. |
 | `feature/tracker-chart-overview` | Hook `dMenu_Fmap_c` draw: per-square `a/r` counters with colour state. | Screenshot test on 3 seeds. |
-| `feature/tracker-square-detail` | Zoomed square view: location list, D-pad selection, toggle button (default proposal: **Y** toggles, verify no conflict with Fmap input), scroll if > fits. | Scripted input test toggles a location; persists after save/reload. |
-| `feature/tracker-list-page` | Separate page (default proposal: **Z** on sea chart opens/closes) listing dungeon & non-island groups with counts → drill into group list with same controls. | Scripted test. |
+| `feature/tracker-square-detail` | Zoomed square view: location list, D-pad selection, toggle button **X** (Y opens chart-compare in vanilla), main stick selects (D-pad Left/Down close the chart), scroll if > fits. | Scripted input test toggles a location; persists after save/reload. |
+| `feature/tracker-list-page` | Separate page (**Z** on sea chart opens/closes; verified free) listing dungeon & non-island groups with counts → drill into group list with same controls. | Scripted test. |
 | `feature/tracker-entrance-reveal` | Show entrance → destination only once visited; locations behind unvisited entrances shown under "Unknown entrance" and out of logic. | Test with ER seed. |
 | `feature/tracker-chart-reveal` | Treasure chart → destination square shown once chart owned (randomized charts). | Test with chart-rando seed. |
 
