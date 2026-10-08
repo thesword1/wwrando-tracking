@@ -46,6 +46,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `asm/tracker/tracker_host.c` | Host build only: mock RAM and the table pointer |
 | `asm/tracker/Makefile` | Host build (`make -C asm/tracker host`) |
 | `tracker/serialize.py` | Table format (documented at the top of the file), serializer and a Python reader |
+| `tracker/logic_compiler.py` | Logic compiler, bytecode format and Python reference evaluator |
 
 Rules for the C code (see the comment in `tracker.c`):
 
@@ -127,6 +128,21 @@ Bit *i* of a bitfield is in byte `i >> 3`, mask `1 << (i & 7)`.
 `tracker_group_counts(group, &checked, &total)` counts one group. The per-frame update also keeps
 all of them in the runtime state.
 
+## Logic
+
+`tweaks.add_in_game_tracker` compiles the seed's logic with `tracker/logic_compiler.py` from the same
+`logic/item_locations.txt` and `logic/macros.txt` the offline fill uses. Options, Tuner logic, sword mode, starting
+items, Start With dungeon items, the chart mapping and the required bosses are resolved at patch time; the bytecode
+only reads items, the small-keys-obtained counters, visited entrances and checked locations. Following the website:
+what's behind a randomized entrance is out of logic until that entrance is visited, mail letters and Knight's Crest
+farming count another location once it's checked or in logic, and required bosses count once their location is
+checked or in logic.
+
+The bytecode is straight-line postfix code: shared subexpressions (macros used several times) are evaluated first
+into result slots, then one slot per tracked location, so an evaluation is one pass with a small stack and no
+recursion. `evaluate_bytecode` is the Python reference. Sizes: 1.5-4.1 KB for the fixtures and all-options offline
+seeds (budget 8 KB, tested), maximum stack depth 33 (limit 64).
+
 ## Runtime state
 
 `TrkState` (`tracker_state.h`) at the `tracker_state` symbol isn't saved. It holds a magic
@@ -149,7 +165,7 @@ and the Dolphin test reads it from RAM.
 | TRIGGERS | 12 B | stage name, room/spawn (0xFF = any), entrance index |
 | CHARTS | 12 B | destination square, chart number, item ID, owned and salvaged byte offset + mask, name |
 | STRINGS | bytes | NUL-terminated ASCII, referenced by offset |
-| LOGIC | bytes | Compiled logic bytecode (Phase 3, empty for now) |
+| LOGIC | bytes | Compiled logic bytecode (`tracker/logic_compiler.py` documents the opcodes) |
 | ITEMS | 8 B | Item-read descriptors for logic (Phase 3, empty for now) |
 
 Locations are ordered by group, so each group's locations are contiguous. The C reader checks the
