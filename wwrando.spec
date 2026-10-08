@@ -1,6 +1,11 @@
 # -*- mode: python -*-
 
+import sys
+
 block_cipher = None
+
+# Must match base_name in build.py.
+app_name = 'wwrando-tracking'
 
 with open("./version.txt") as f:
   randomizer_version = f.read().strip()
@@ -53,21 +58,24 @@ exe = EXE(pyz,
           a.binaries,
           a.zipfiles,
           a.datas,
-          name='The Wind Waker Archipelago Randomizer',
+          name=app_name,
           debug=False,
           strip=False,
           upx=True,
           runtime_tmpdir=None,
+          # On Linux the console flag does nothing and the binary keeps its terminal output (CLI mode needs it).
           console=False,
-          icon="assets/icon.ico" )
+          # PyInstaller only supports executable icons on Windows and macOS.
+          icon="assets/icon.ico" if sys.platform == "win32" else None )
 
-app = BUNDLE(exe,
-          name='The Wind Waker Archipelago Randomizer.app',
+if sys.platform == "darwin":
+  app = BUNDLE(exe,
+          name=app_name + '.app',
           icon="assets/icon.icns",
           bundle_identifier=None,
           info_plist={
               "LSBackgroundOnly": False,
-              "CFBundleDisplayName": "The Wind Waker Archipelago Randomizer",
+              "CFBundleDisplayName": "Wind Waker Randomizer (Tracking)",
               "CFBundleName": "WW Randomizer", # 15 character maximum
               "CFBundleShortVersionString": randomizer_version,
           }
