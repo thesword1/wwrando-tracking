@@ -410,3 +410,25 @@ def test_menu_list_page_scrolls_to_group(entrance_rando: TrackerHost):
   assert menu_input(tracker, last, BTN_Z)
   assert menu_input(tracker, last, BTN_B)
   assert (ui.page_sel, ui.page_scroll) == (len(page) - 1, len(page) - LIST_ROWS)
+
+
+def test_menu_has_page(entrance_rando: TrackerHost):
+  # The "Z: tracker" hint is shown wherever Z opens something: the current group's list or the list page.
+  enter_game(entrance_rando, "kindan", 0, 0)
+  assert entrance_rando.lib.tracker_ui_menu_has_page()
+  enter_game(entrance_rando, "sea", 44, 0)
+  assert entrance_rando.lib.tracker_ui_menu_has_page()
+
+
+def test_menu_has_no_page(tracker: TrackerHost):
+  # Only Outset's locations tracked: no list-page groups, so only Outset's stages have something to open.
+  from tracker.locations import STATIC_LOCATIONS
+  from tracker.serialize import build_tracker_tables, serialize_tracker_tables
+  tables = build_tracker_tables([loc for loc in STATIC_LOCATIONS if loc.startswith("Outset Island - ")], None, {}, None, None)
+  tracker.set_tables(serialize_tracker_tables(tables, 1))
+  tracker.tables = tables
+  assert page_groups(tracker) == []
+  enter_game(tracker, "sea", 44, 0)
+  assert not tracker.lib.tracker_ui_menu_has_page()
+  enter_game(tracker, "LinkUG", 0, 0)
+  assert tracker.lib.tracker_ui_menu_has_page()
