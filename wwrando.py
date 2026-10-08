@@ -43,7 +43,7 @@ def make_argparser() -> argparse.ArgumentParser:
   )
   parser.add_argument(
     '--aptww', type=str, metavar="PATH",
-    help="Randomize using the specified Archipelago .aptww file. Implies --noui.",
+    help="Randomize for Archipelago using the specified .aptww file. Implies --noui. Without it, an offline seed is generated.",
   )
   parser.add_argument(
     '--clean-iso', type=str, metavar="PATH",
@@ -233,6 +233,9 @@ def run_no_ui(args):
   for option_name, option_value in settings.items():
     if option_name not in options.by_name():
       continue
+    if option_value is None:
+      # Options the GUI has no widget for in the current mode are saved as null; keep their defaults.
+      continue
     options[option_name] = option_value
   
   seed = settings.get("seed")
@@ -257,12 +260,15 @@ def run_no_ui(args):
   if args.autoseed:
     rando_kwargs["seed"] = seedgen.make_random_seed_name()
   
-  if args.aptww:
-    from aptww import APTWWFileError, read_ap_plando_file
+  if not (args.bulk or args.stagesearch or args.printflags or args.disassemble):
     if not args.dry and not os.path.isfile(clean_iso_path):
       sys.exit("Error: Must specify path to your vanilla Wind Waker ISO (North American version) with --clean-iso PATH.")
     if not os.path.isdir(output_folder):
       sys.exit("Error: Must specify a valid output folder for the randomized files with --output-folder PATH.")
+  
+  if args.aptww:
+    # Archipelago mode. Without an .aptww file, an offline seed is generated from the saved settings instead.
+    from aptww import APTWWFileError, read_ap_plando_file
     if not os.path.isfile(args.aptww):
       sys.exit(f"Error: APTWW file not found: {args.aptww}")
     try:
@@ -272,11 +278,8 @@ def run_no_ui(args):
     # The seed is determined by the multiworld, not by the saved settings.
     rando_kwargs["seed"] = plando.seed
     rando_kwargs["plando"] = plando
-  elif not (args.dry or args.bulk or args.stagesearch or args.printflags or args.disassemble):
-    sys.exit(
-      "Error: An Archipelago .aptww file is required to randomize (pass it with --aptww PATH).\n"
-      "Offline randomization without Archipelago is not available yet."
-    )
+  elif not rando_kwargs["seed"]:
+    rando_kwargs["seed"] = seedgen.make_random_seed_name()
   
   if args.profile:
     profiler = cProfile.Profile()

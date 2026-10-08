@@ -106,7 +106,7 @@ class WWRandomizer:
     clean_iso_path,
     randomized_output_folder,
     options: Options,
-    plando: Plando,
+    plando: Plando | None = None,
     cmd_line_args=None,
   ):
     self.fully_initialized = False
@@ -117,8 +117,14 @@ class WWRandomizer:
     self.logs_output_folder = self.randomized_output_folder
     self.options = options
     self.seed = self.sanitize_seed(seed)
+    # Archipelago mode when an .aptww plando is given: the multiworld decides item placement, charts, required bosses
+    # and entrances, and items are delivered by the AP client. Otherwise the seed is generated locally (offline mode).
     self.plando = plando
-    self.permalink = None
+    self.archipelago_mode = plando is not None
+    if self.archipelago_mode:
+      self.permalink = None
+    else:
+      self.permalink = self.encode_permalink(self.seed, self.options)
     self.seed_hash = self.get_seed_hash()
     
     if cmd_line_args is None:
@@ -128,7 +134,8 @@ class WWRandomizer:
     self.dry_run = self.options.dry_run
     self.disassemble = cmd_line_args.disassemble
     self.export_disc_to_folder = cmd_line_args.exportfolder
-    self.no_logs = True
+    # The AP spoiler log comes from the multiworld, so logs are only written for offline seeds.
+    self.no_logs = self.archipelago_mode or cmd_line_args.nologs
     self.bulk_test = cmd_line_args.bulk
     if self.bulk_test:
       self.dry_run = True
@@ -199,7 +206,21 @@ class WWRandomizer:
     
     # Starting items. This list is read by the Logic when initializing your currently owned items list.
     self.starting_items = ["Boat's Sail"]
-    
+    if not self.archipelago_mode:
+      self.starting_items += self.options.starting_gear
+      
+      if self.options.sword_mode == SwordMode.START_WITH_SWORD:
+        self.starting_items.append("Progressive Sword")
+      # Add starting Triforce Shards.
+      num_starting_triforce_shards = self.options.num_starting_triforce_shards
+      for i in range(num_starting_triforce_shards):
+        self.starting_items.append("Triforce Shard %d" % (i+1))
+      
+      for i in range(self.options.starting_pohs):
+        self.starting_items.append("Piece of Heart")
+      
+      for i in range(self.options.starting_hcs):
+        self.starting_items.append("Heart Container")
     
     self.custom_model_name = self.options.custom_player_model
     self.using_custom_sail_texture = False
@@ -227,7 +248,7 @@ class WWRandomizer:
       self.pigs,
       # Extra Starting Items must be randomized before items and enemies which depend on the
       # starting items list, but after bosses and entrances since it needs logic.
-      # self.extra_start_items,
+      self.extra_start_items,
       # Enemies must be randomized before items in order for the enemy logic to properly take into
       # account what items you do and don't start with.
       self.enemies,
@@ -237,6 +258,19 @@ class WWRandomizer:
     ]
     
     self.logic.initialize_from_randomizer_state()
+    
+    if not self.archipelago_mode:
+      num_progress_locations = self.logic.get_num_progression_locations()
+      max_required_bosses_banned_locations = self.logic.get_max_required_bosses_banned_locations()
+      self.all_randomized_progress_items = self.logic.unplaced_progress_items.copy()
+      if num_progress_locations - max_required_bosses_banned_locations < len(self.all_randomized_progress_items):
+        error_message = "Not enough progress locations to place all progress items.\n\n"
+        error_message += "Total progress items: %d\n" % len(self.all_randomized_progress_items)
+        error_message += "Progress locations with current options: %d\n" % num_progress_locations
+        if max_required_bosses_banned_locations > 0:
+          error_message += "Maximum Required Bosses Mode banned locations: %d\n" % max_required_bosses_banned_locations
+        error_message += "\nYou need to check more of the progress location options in order to give the randomizer enough space to place all the items."
+        raise TooFewProgressionLocationsError(error_message)
     
     # We need to determine if the user's selected options result in a dungeons-only-start.
     # Dungeons-only-start meaning that the only locations accessible at the start of the run are dungeon locations.
@@ -278,6 +312,9 @@ class WWRandomizer:
     if not self.dry_run:
       max_progress_val += 15 # Applying post-randomization tweaks.
       max_progress_val += 2000 # Saving the ISO.
+    
+    if not self.no_logs:
+      max_progress_val += 30 # Writing logs.
     
     return max_progress_val
   
@@ -372,6 +409,12 @@ class WWRandomizer:
         yield("Saving randomized ISO...", progress_completed+int(percentage_done*9))
       progress_completed += 2000
     # print(f"{(time.perf_counter_ns()-start)//1_000_000:6d}: Saving ISO")
+    
+    if not self.archipelago_mode:
+      yield("Writing logs...", progress_completed)
+      if not self.options.do_not_generate_spoiler_log:
+        self.write_spoiler_log()
+      self.write_non_spoiler_log()
   
   def apply_necessary_tweaks(self):
     patcher.apply_patch(self, "custom_data")
@@ -450,7 +493,10 @@ class WWRandomizer:
     tweaks.check_hide_ship_sail(self)
     customizer.change_player_custom_colors(self)
     
-    tweaks.apply_pre_randomization_changes_for_archipelago(self)
+    if self.archipelago_mode:
+      tweaks.apply_pre_randomization_changes_for_archipelago(self)
+    else:
+      tweaks.apply_pre_randomization_changes_for_offline(self)
   
   def apply_necessary_post_randomization_tweaks(self):
     if self.randomize_items:
@@ -460,7 +506,8 @@ class WWRandomizer:
       tweaks.update_item_names_in_letter_advertising_rock_spire_shop(self)
     tweaks.prevent_fire_mountain_lava_softlock(self)
     
-    tweaks.apply_post_randomization_changes_for_archipelago(self)
+    if self.archipelago_mode:
+      tweaks.apply_post_randomization_changes_for_archipelago(self)
   
   @classmethod
   def sanitize_seed(cls, seed):
@@ -931,15 +978,21 @@ class WWRandomizer:
       jpc.save()
       self.gcm.changed_files[jpc_path] = jpc.data
     
-    # Remove reserved characters from player name before writing as file name.
-    cleaned_name = "".join(c for c in self.plando.name if c not in '<>:"/\\|?*')
-    
+    output_name = self.get_output_name()
     if self.export_disc_to_folder:
-      output_folder_path = os.path.join(self.randomized_output_folder, "TWW %s (%s)" % (self.seed, cleaned_name))
+      output_folder_path = os.path.join(self.randomized_output_folder, output_name)
       yield from self.gcm.export_disc_to_folder_with_changed_files(output_folder_path)
     else:
-      output_file_path = os.path.join(self.randomized_output_folder, "TWW %s (%s).iso" % (self.seed, cleaned_name))
+      output_file_path = os.path.join(self.randomized_output_folder, output_name + ".iso")
       yield from self.gcm.export_disc_to_iso_with_changed_files(output_file_path)
+  
+  def get_output_name(self):
+    if self.archipelago_mode:
+      # Remove reserved characters from player name before writing as file name.
+      cleaned_name = "".join(c for c in self.plando.name if c not in '<>:"/\\|?*')
+      return "TWW %s (%s)" % (self.seed, cleaned_name)
+    else:
+      return "WW Random %s" % self.seed
   
   def convert_string_to_integer_md5(self, string):
     return int(hashlib.md5(string.encode('utf-8')).hexdigest(), 16)
@@ -998,6 +1051,8 @@ class WWRandomizer:
     header = ""
     
     header += "The Wind Waker Archipelago Randomizer Version %s\n" % VERSION
+    if not self.archipelago_mode:
+      header += "Offline seed (generated without Archipelago)\n"
     
     if self.permalink:
       header += "Permalink: %s\n" % self.permalink
@@ -1051,6 +1106,9 @@ class WWRandomizer:
   
   def write_spoiler_log(self):
     if self.no_logs:
+      if self.randomize_items and not self.archipelago_mode:
+        # We still calculate progression spheres even if we're not going to write them anywhere to catch more errors in testing.
+        self.items.calculate_playthrough_progression_spheres()
       return
     
     spoiler_log = self.get_log_header()
@@ -1069,7 +1127,7 @@ class WWRandomizer:
     
     spoiler_log += self.charts.write_to_spoiler_log()
     
-    if self.randomize_items:
+    if self.hints.is_enabled():
       spoiler_log += self.hints.write_to_spoiler_log()
     
     os.makedirs(self.logs_output_folder, exist_ok=True)

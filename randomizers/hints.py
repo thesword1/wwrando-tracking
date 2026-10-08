@@ -196,7 +196,8 @@ class HintsRandomizer(BaseRandomizer):
     self.chart_name_to_sunken_treasure = {}
   
   def is_enabled(self) -> bool:
-    return bool(self.rando.randomize_items)
+    # Hints are only placed for Archipelago seeds. Offline seeds don't have hints (yet).
+    return bool(self.rando.randomize_items) and self.rando.archipelago_mode
   
   @property
   def progress_randomize_duration_weight(self) -> int:
@@ -668,28 +669,27 @@ class HintsRandomizer(BaseRandomizer):
         break
       
       
-      if not self.options.keylunacy:
-        # If the player gained access to any small keys, we need to give them the keys without counting that as a new sphere.
-        newly_accessible_predetermined_item_locations = [
-          loc for loc in locations_in_this_sphere
-          if loc in self.logic.prerandomization_item_locations
-        ]
-        newly_accessible_small_key_locations = [
-          loc for loc in newly_accessible_predetermined_item_locations
-          if self.logic.prerandomization_item_locations[loc].endswith(" Small Key")
-        ]
-        if newly_accessible_small_key_locations:
-          for small_key_location_name in newly_accessible_small_key_locations:
-            item_name = self.logic.prerandomization_item_locations[small_key_location_name]
-            assert item_name.endswith(" Small Key")
-            
-            self.path_logic.add_owned_item(item_name)
-            # Remove small key from owned items if it was from the location we want to check
-            if small_key_location_name == location_to_check:
-              self.path_logic.remove_owned_item(item_name)
+      # If the player gained access to any small keys, we need to give them the keys without counting that as a new sphere.
+      newly_accessible_predetermined_item_locations = [
+        loc for loc in locations_in_this_sphere
+        if loc in self.logic.prerandomization_item_locations
+      ]
+      newly_accessible_small_key_locations = [
+        loc for loc in newly_accessible_predetermined_item_locations
+        if self.logic.prerandomization_item_locations[loc].endswith(" Small Key")
+      ]
+      if newly_accessible_small_key_locations:
+        for small_key_location_name in newly_accessible_small_key_locations:
+          item_name = self.logic.prerandomization_item_locations[small_key_location_name]
+          assert item_name.endswith(" Small Key")
           
-          previously_accessible_locations += newly_accessible_small_key_locations
-          continue # Redo this loop iteration with the small key locations no longer being considered 'remaining'.
+          self.path_logic.add_owned_item(item_name)
+          # Remove small key from owned items if it was from the location we want to check
+          if small_key_location_name == location_to_check:
+            self.path_logic.remove_owned_item(item_name)
+        
+        previously_accessible_locations += newly_accessible_small_key_locations
+        continue # Redo this loop iteration with the small key locations no longer being considered 'remaining'.
       
       
       for location_name in locations_in_this_sphere:
@@ -820,8 +820,8 @@ class HintsRandomizer(BaseRandomizer):
       if item_name in items_checked or item_name not in progress_items:
         continue
       
-      # Don't consider dungeon keys when keylunacy is not enabled.
-      if self.logic.is_dungeon_item(item_name) and not self.options.keylunacy:
+      # Don't consider dungeon keys that are placed within their own dungeon.
+      if self.logic.is_dungeon_item(item_name) and not self.logic.can_dungeon_item_be_anywhere(item_name):
         continue
       
       items_checked.append(item_name)
@@ -896,11 +896,11 @@ class HintsRandomizer(BaseRandomizer):
     
     if item_player == self.rando.plando.slot and item_game == "The Wind Waker":
       # Don't hint at Big Keys when they are intentionally placed inisde of their own dungeon.
-      if item_name.endswith(" Big Key") and self.options.randomize_bigkeys in KeyLunacyMode.VANILLA | KeyLunacyMode.DUNGEON:
+      if item_name.endswith(" Big Key") and self.options.randomize_bigkeys in (KeyLunacyMode.VANILLA, KeyLunacyMode.DUNGEON):
           return False
       
       # Don't hint at small keys when they are intentionally placed inisde of their own dungeon.
-      if item_name.endswith(" Small Key") and self.options.randomize_smallkeys in KeyLunacyMode.VANILLA | KeyLunacyMode.DUNGEON:
+      if item_name.endswith(" Small Key") and self.options.randomize_smallkeys in (KeyLunacyMode.VANILLA, KeyLunacyMode.DUNGEON):
           return False
     
     return True
@@ -1096,13 +1096,13 @@ class HintsRandomizer(BaseRandomizer):
         self.path_locations.add("%s - %s" % (placed_item.zone_name, placed_item.specific_location_name))
     
     # Filter out the locations of dungeon keys as being path when key-lunacy is disabled
-    if not self.options.keylunacy:
-      for dungeon_name, dungeon_paths in required_locations_for_paths.items():
-        required_locations_for_paths[dungeon_name] = [
-          placed_item
-          for placed_item in dungeon_paths
-          if not placed_item.item_name.endswith(" Key")
-        ]
+    for dungeon_name, dungeon_paths in required_locations_for_paths.items():
+      required_locations_for_paths[dungeon_name] = [
+        placed_item
+        for placed_item in dungeon_paths
+        if not placed_item.item_name.endswith(" Key")
+        or self.logic.can_dungeon_item_be_anywhere(placed_item.item_name)
+      ]
     
     # Generate path hints.
     # We hint at max `self.max_path_hints` zones at random.

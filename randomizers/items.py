@@ -36,6 +36,27 @@ class ItemRandomizer(BaseRandomizer):
     return "Saving items..."
   
   def _randomize(self):
+    if self.rando.archipelago_mode:
+      self.place_items_from_archipelago_plando()
+      return
+    
+    if any(not self.logic.can_dungeon_item_be_anywhere(item_name) for item_name in self.logic.all_dungeon_items):
+      self.randomize_dungeon_items()
+    
+    self.randomize_progression_items_forward_fill()
+    
+    self.randomize_unique_nonprogress_items()
+    
+    accessible_undone_locations = self.logic.get_accessible_remaining_locations(for_progression=False)
+    inaccessible_locations = [loc for loc in self.logic.remaining_item_locations if loc not in accessible_undone_locations]
+    if inaccessible_locations:
+      print("Inaccessible locations:")
+      for location_name in inaccessible_locations:
+        print(location_name)
+    
+    self.randomize_consumable_items()
+  
+  def place_items_from_archipelago_plando(self):
     for location_name in self.logic.remaining_item_locations:
       if location_name in self.rando.plando.locations:
         item_info = self.rando.plando.locations[location_name]
@@ -67,23 +88,6 @@ class ItemRandomizer(BaseRandomizer):
           # The joke message is modified for Archipelago
           self.logic.done_item_locations[location_name] = "Yellow Rupee (Joke Message)"
         self.logic.done_item_locations_info[location_name]["classification"] = "filler"
-    return
-    
-    if not self.options.keylunacy:
-      self.randomize_dungeon_items()
-    
-    self.randomize_progression_items_forward_fill()
-    
-    self.randomize_unique_nonprogress_items()
-    
-    accessible_undone_locations = self.logic.get_accessible_remaining_locations(for_progression=False)
-    inaccessible_locations = [loc for loc in self.logic.remaining_item_locations if loc not in accessible_undone_locations]
-    if inaccessible_locations:
-      print("Inaccessible locations:")
-      for location_name in inaccessible_locations:
-        print(location_name)
-    
-    self.randomize_consumable_items()
   
   def _save(self):
     for location_name, item_name in self.logic.done_item_locations.items():
@@ -120,9 +124,11 @@ class ItemRandomizer(BaseRandomizer):
     # Places dungeon-specific items first so all the dungeon locations don't get used up by other items.
     
     # Temporarily add all items except for dungeon keys while we randomize them.
+    # (Dungeon items that can be placed anywhere are added too, as they get placed with the other items later.)
     items_to_temporarily_add = [
       item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
       if not self.logic.is_dungeon_item(item_name)
+      or self.logic.can_dungeon_item_be_anywhere(item_name)
     ]
     for item_name in items_to_temporarily_add:
       self.logic.add_owned_item(item_name)
@@ -148,8 +154,8 @@ class ItemRandomizer(BaseRandomizer):
     small_keys_to_place = [
       item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
       if item_name.endswith(" Small Key")
+      and not self.logic.can_dungeon_item_be_anywhere(item_name)
     ]
-    assert len(small_keys_to_place) > 0
     for item_name in small_keys_to_place:
       self.place_dungeon_item(item_name)
       self.logic.add_owned_item(item_name) # Temporarily add small keys to the player's inventory while placing them.
@@ -158,8 +164,8 @@ class ItemRandomizer(BaseRandomizer):
     big_keys_to_place = [
       item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
       if item_name.endswith(" Big Key")
+      and not self.logic.can_dungeon_item_be_anywhere(item_name)
     ]
-    assert len(big_keys_to_place) > 0
     for item_name in big_keys_to_place:
       self.place_dungeon_item(item_name)
       self.logic.add_owned_item(item_name) # Temporarily add big keys to the player's inventory while placing them.
@@ -167,8 +173,8 @@ class ItemRandomizer(BaseRandomizer):
     # Randomize dungeon maps and compasses.
     other_dungeon_items_to_place = [
       item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
-      if item_name.endswith(" Dungeon Map")
-      or item_name.endswith(" Compass")
+      if (item_name.endswith(" Dungeon Map") or item_name.endswith(" Compass"))
+      and not self.logic.can_dungeon_item_be_anywhere(item_name)
     ]
     for item_name in other_dungeon_items_to_place:
       self.place_dungeon_item(item_name)
@@ -497,6 +503,9 @@ class ItemRandomizer(BaseRandomizer):
     chest.save_changes()
 
   def get_ctmc_chest_type_for_item(self, item_name: str, item_info: dict[str, str]):
+    if not self.rando.archipelago_mode:
+      return self.get_offline_ctmc_chest_type_for_item(item_name)
+    
     if item_info["classification"] in ["progression", "progression_skip_balancing", "trap"]:
       if item_info["game"] == "The Wind Waker" and item_name.endswith(" Key"):
         return 1 # Dark wood chest for Wind Waker dungeon keys
@@ -504,6 +513,22 @@ class ItemRandomizer(BaseRandomizer):
         return 2 # Metal chests for progression items
     else:
       return 0 # Light wood chests for non-progression items (filler, useful, skip_balancing)
+  
+  def get_offline_ctmc_chest_type_for_item(self, item_name: str):
+    if item_name not in self.logic.all_progress_items:
+      return 0 # Light wood chests for non-progress items and consumables
+    if not item_name.endswith(" Key"):
+      return 2 # Metal chests for progress items
+    if not self.options.required_bosses:
+      return 1 # Dark wood chest for Small and Big Keys
+    
+    # In required bosses mode, only put the dungeon keys for required dungeons in dark wood chests.
+    # The other keys go into light wood chests.
+    dungeon_short_name = item_name.split()[0]
+    if self.logic.DUNGEON_NAMES[dungeon_short_name] in self.rando.boss_reqs.required_dungeons:
+      return 1
+    else:
+      return 0
 
   def change_event_item(self, arc_path: str, event_index: int, actor_index: int, action_index: int, item_name: str):
     item_id = self.rando.item_name_to_id[item_name]
@@ -681,25 +706,25 @@ class ItemRandomizer(BaseRandomizer):
             break
       
       
-      if not self.options.keylunacy:
-        # If the player gained access to any small keys, we need to give them the keys without counting that as a new sphere.
-        newly_accessible_predetermined_item_locations = [
-          loc for loc in locations_in_this_sphere
-          if loc in self.logic.prerandomization_item_locations
-        ]
-        newly_accessible_small_key_locations = [
-          loc for loc in newly_accessible_predetermined_item_locations
-          if self.logic.prerandomization_item_locations[loc].endswith(" Small Key")
-        ]
-        if newly_accessible_small_key_locations:
-          for small_key_location_name in newly_accessible_small_key_locations:
-            item_name = self.logic.prerandomization_item_locations[small_key_location_name]
-            assert item_name.endswith(" Small Key")
-            
-            logic.add_owned_item(item_name)
+      # If the player gained access to any small keys that were placed inside their own dungeon, we need to give them the keys
+      # without counting that as a new sphere.
+      newly_accessible_predetermined_item_locations = [
+        loc for loc in locations_in_this_sphere
+        if loc in self.logic.prerandomization_item_locations
+      ]
+      newly_accessible_small_key_locations = [
+        loc for loc in newly_accessible_predetermined_item_locations
+        if self.logic.prerandomization_item_locations[loc].endswith(" Small Key")
+      ]
+      if newly_accessible_small_key_locations:
+        for small_key_location_name in newly_accessible_small_key_locations:
+          item_name = self.logic.prerandomization_item_locations[small_key_location_name]
+          assert item_name.endswith(" Small Key")
           
-          previously_accessible_locations += newly_accessible_small_key_locations
-          continue # Redo this loop iteration with the small key locations no longer being considered 'remaining'.
+          logic.add_owned_item(item_name)
+        
+        previously_accessible_locations += newly_accessible_small_key_locations
+        continue # Redo this loop iteration with the small key locations no longer being considered 'remaining'.
       
       
       # Hide duplicated progression items (e.g. Empty Bottles) when they are placed in non-progression locations to avoid confusion and inconsistency.

@@ -132,11 +132,17 @@ def run_cli(*cli_args):
     capture_output=True, text=True, cwd=RANDO_ROOT, timeout=120,
   )
 
-def test_cli_requires_aptww(tmp_path):
-  result = run_cli("--noui", "--output-folder", str(tmp_path))
+def test_cli_requires_clean_iso(tmp_path):
+  result = run_cli("--noui", "--clean-iso", str(tmp_path / "missing.iso"), "--output-folder", str(tmp_path))
   assert result.returncode != 0
-  assert "--aptww" in result.stderr
-  assert "not available yet" in result.stderr
+  assert "--clean-iso" in result.stderr
+
+def test_cli_offline_dry_randomize(tmp_path):
+  result = run_cli("--noui", "--dry", "--seed", "clitest", "--output-folder", str(tmp_path))
+  assert result.returncode == 0, result.stderr
+  assert "Done (dry)" in result.stdout
+  assert (tmp_path / "WW Random clitest - Spoiler Log.txt").is_file()
+  assert (tmp_path / "WW Random clitest - Non-Spoiler Log.txt").is_file()
 
 def test_cli_reports_bad_aptww(tmp_path):
   aptww = write_aptww(tmp_path / "test.aptww", make_plando_dict(Version=[2, 5, 0]))

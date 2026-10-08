@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import Flag, StrEnum, auto
+from enum import StrEnum
 
 from options.base_options import BaseOptions, option
 
@@ -21,13 +21,15 @@ class TrickDifficulty(StrEnum):
   HARD = "Hard"
   VERY_HARD = "Very Hard"
 
-class KeyLunacyMode(Flag):
-  START_WITH = auto()
-  VANILLA = auto()
-  DUNGEON = auto()
-  ANY_DUNGEON = auto()
-  LOCAL = auto()
-  KEYLUNACY = auto()
+# Placement modes for dungeon items (small keys, big keys, maps and compasses), in the same order as the APWorld's
+# DungeonItem option values.
+class KeyLunacyMode(StrEnum):
+  START_WITH = "Start With"
+  VANILLA = "Vanilla"
+  DUNGEON = "Own Dungeon"
+  ANY_DUNGEON = "Any Dungeon"
+  LOCAL = "Local"
+  KEYLUNACY = "Key-Lunacy"
 
 @dataclass
 class Options(BaseOptions):
@@ -153,14 +155,56 @@ class Options(BaseOptions):
   randomize_mapcompass: KeyLunacyMode = option(
     default=KeyLunacyMode.DUNGEON,
     description="Controls how dungeon maps and compasses are randomized.",
+    choice_descriptions={
+      KeyLunacyMode.START_WITH:
+        "Start With Maps & Compasses: You will start the game with the dungeon maps and compasses for all dungeons.",
+      KeyLunacyMode.VANILLA:
+        "Vanilla Maps & Compasses: Dungeon maps and compasses will be kept in their vanilla location (non-randomized).",
+      KeyLunacyMode.DUNGEON:
+        "Own Dungeon Maps & Compasses: Dungeon maps and compasses will be randomized locally within their own dungeon.",
+      KeyLunacyMode.ANY_DUNGEON:
+        "Any Dungeon Maps & Compasses: Dungeon maps and compasses will be randomized locally within any dungeon.",
+      KeyLunacyMode.LOCAL:
+        "Local Maps & Compasses: Dungeon maps and compasses will be randomized locally anywhere. (Without Archipelago, this is the same as Key-Lunacy.)",
+      KeyLunacyMode.KEYLUNACY:
+        "Key-Lunacy: Dungeon maps and compasses can be found anywhere, without restriction.",
+    },
   )
   randomize_smallkeys: KeyLunacyMode = option(
     default=KeyLunacyMode.DUNGEON,
     description="Controls how small keys are randomized.",
+    choice_descriptions={
+      KeyLunacyMode.START_WITH:
+        "Start With Small Keys: You will start the game with the small keys for all dungeons.",
+      KeyLunacyMode.VANILLA:
+        "Vanilla Small Keys: Small keys will be kept in their vanilla location (non-randomized).",
+      KeyLunacyMode.DUNGEON:
+        "Own Dungeon Small Keys: Small keys will be randomized locally within their own dungeon.",
+      KeyLunacyMode.ANY_DUNGEON:
+        "Any Dungeon Small Keys: Small keys will be randomized locally within any dungeon.",
+      KeyLunacyMode.LOCAL:
+        "Local Small Keys: Small keys will be randomized locally anywhere. (Without Archipelago, this is the same as Key-Lunacy.)",
+      KeyLunacyMode.KEYLUNACY:
+        "Key-Lunacy: Small keys can be found in any progression location, if dungeons are randomized.",
+    },
   )
   randomize_bigkeys: KeyLunacyMode = option(
     default=KeyLunacyMode.DUNGEON,
     description="Controls how big keys are randomized.",
+    choice_descriptions={
+      KeyLunacyMode.START_WITH:
+        "Start With Big Keys: You will start the game with the big keys for all dungeons.",
+      KeyLunacyMode.VANILLA:
+        "Vanilla Big Keys: Big keys will be kept in their vanilla location (non-randomized).",
+      KeyLunacyMode.DUNGEON:
+        "Own Dungeon Big Keys: Big keys will be randomized locally within their own dungeon.",
+      KeyLunacyMode.ANY_DUNGEON:
+        "Any Dungeon Big Keys: Big keys will be randomized locally within any dungeon.",
+      KeyLunacyMode.LOCAL:
+        "Local Big Keys: Big keys will be randomized locally anywhere. (Without Archipelago, this is the same as Key-Lunacy.)",
+      KeyLunacyMode.KEYLUNACY:
+        "Key-Lunacy: Big keys can be found in any progression location, if dungeons are randomized.",
+    },
   )
   sword_mode: SwordMode = option(
     default=SwordMode.START_WITH_SWORD,

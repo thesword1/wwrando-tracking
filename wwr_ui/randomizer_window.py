@@ -4,6 +4,7 @@ from qtpy.QtWidgets import *
 from wwr_ui.qt_init import load_ui_file
 
 from wwr_ui.update_checker import check_for_updates, LATEST_RELEASE_DOWNLOAD_PAGE_URL
+from wwr_ui.offline_options import OfflineOptionWidgets
 from wwr_ui.inventory import INVENTORY_ITEMS, DEFAULT_STARTING_ITEMS, DEFAULT_RANDOMIZED_ITEMS
 
 import os
@@ -40,6 +41,8 @@ class WWRandomizerWindow(QMainWindow):
     self.ui = Ui_MainWindow()
     self.ui.setupUi(self)
     
+    self.offline_option_widgets = OfflineOptionWidgets(self)
+    
     self.ui.tab_player_customization.initialize_from_rando_window(self)
     
     self.randomizer_thread = None
@@ -47,6 +50,19 @@ class WWRandomizerWindow(QMainWindow):
     self.cmd_line_args = cmd_line_args
     self.profiling = self.cmd_line_args.profile
     self.auto_seed = self.cmd_line_args.autoseed
+    
+    self.ui.add_gear.clicked.connect(self.add_to_starting_gear)
+    self.randomized_gear_model = QStringListModel()
+    self.randomized_gear_model.setStringList(DEFAULT_RANDOMIZED_ITEMS.copy())
+    
+    self.filtered_rgear = ModelFilterOut()
+    self.filtered_rgear.setSourceModel(self.randomized_gear_model)
+    
+    self.ui.randomized_gear.setModel(self.filtered_rgear)
+    self.ui.remove_gear.clicked.connect(self.remove_from_starting_gear)
+    self.starting_gear_model = QStringListModel()
+    self.starting_gear_model.setStringList(DEFAULT_STARTING_ITEMS.copy())
+    self.ui.starting_gear.setModel(self.starting_gear_model)
     
     # We use an Options instance to represent the defaults instead of directly accessing each options default so that
     # default_factory works correctly.
@@ -62,12 +78,17 @@ class WWRandomizerWindow(QMainWindow):
     
     self.cached_item_locations = Logic.load_and_parse_item_locations()
     
+    self.ui.starting_pohs.valueChanged.connect(self.update_health_label)
+    self.ui.starting_hcs.valueChanged.connect(self.update_health_label)
+    
     self.ui.clean_iso_path.editingFinished.connect(self.update_settings)
     self.ui.output_folder.editingFinished.connect(self.update_settings)
     self.ui.plando_file.editingFinished.connect(self.update_settings)
+    self.ui.seed.editingFinished.connect(self.update_settings)
     self.ui.clean_iso_path_browse_button.clicked.connect(self.browse_for_clean_iso)
     self.ui.output_folder_browse_button.clicked.connect(self.browse_for_output_folder)
     self.ui.plando_file_browse_button.clicked.connect(self.browse_for_plando_file)
+    self.ui.permalink.textEdited.connect(self.permalink_modified)
     
     self.ui.label_for_clean_iso_path.linkActivated.connect(self.show_clean_iso_explanation)
     self.ui.label_for_plando_file.linkActivated.connect(self.show_plando_file_explanation)
@@ -97,17 +118,31 @@ class WWRandomizerWindow(QMainWindow):
       if label_for_option:
         label_for_option.installEventFilter(self)
     
+    self.ui.generate_seed_button.clicked.connect(self.generate_seed)
+    
     self.ui.randomize_button.clicked.connect(self.randomize)
+    self.ui.reset_settings_to_default.clicked.connect(self.reset_settings_to_default)
     self.ui.about_button.clicked.connect(self.open_about)
     
     self.set_option_description(None)
     
     self.update_settings()
+    self.update_health_label()
     
     self.setWindowTitle("The Wind Waker Archipelago Randomizer %s" % VERSION)
     
     icon_path = os.path.join(ASSETS_PATH, "icon.ico")
     self.setWindowIcon(QIcon(icon_path))
+    
+    if self.cmd_line_args.seed:
+      self.ui.seed.setText(self.cmd_line_args.seed)
+    
+    if self.auto_seed:
+      self.generate_seed()
+    
+    if self.cmd_line_args.permalink:
+      self.ui.permalink.setText(self.cmd_line_args.permalink)
+      self.permalink_modified()
     
     self.show()
   
@@ -160,6 +195,9 @@ class WWRandomizerWindow(QMainWindow):
     
     self.ui.current_health.setText(text)
   
+  def is_archipelago_mode_selected(self):
+    return bool(self.ui.plando_file.text().strip())
+  
   def randomize(self):
     clean_iso_path = self.settings["clean_iso_path"].strip()
     output_folder = self.settings["output_folder"].strip()
@@ -171,15 +209,27 @@ class WWRandomizerWindow(QMainWindow):
     self.ui.output_folder.setText(output_folder)
     self.ui.plando_file.setText(plando_file)
     
-    if not os.path.isfile(clean_iso_path):
+    if not self.settings["dry_run"] and not os.path.isfile(clean_iso_path):
       QMessageBox.warning(self, "Vanilla ISO path not specified", "Must specify path to your vanilla Wind Waker ISO (North American version).")
       return
     if not os.path.isdir(output_folder):
       QMessageBox.warning(self, "No output folder specified", "Must specify a valid output folder for the randomized files.")
       return
-    if not os.path.isfile(plando_file):
-      QMessageBox.warning(self, "No AP plando file specified", "Must specify a valid AP plando file.")
+    if plando_file and not os.path.isfile(plando_file):
+      QMessageBox.warning(self, "AP plando file not found", "The selected AP plando file does not exist.\n\nClear the APTWW File field to generate an offline seed instead.")
       return
+    
+    if not plando_file:
+      seed = self.settings["seed"]
+      seed = WWRandomizer.sanitize_seed(seed)
+      
+      if not seed:
+        self.generate_seed()
+        seed = self.settings["seed"]
+      
+      self.settings["seed"] = seed
+      self.ui.seed.setText(seed)
+      self.update_settings()
     
     options = self.get_all_options_from_widget_values()
     
@@ -188,8 +238,11 @@ class WWRandomizerWindow(QMainWindow):
     self.progress_dialog = RandomizerProgressDialog(self, "Randomizing", "Initializing...")
     
     try:
-      plando = read_ap_plando_file(plando_file, options)
-      rando = WWRandomizer(plando.seed, clean_iso_path, output_folder, options, plando, cmd_line_args=self.cmd_line_args)
+      if plando_file:
+        plando = read_ap_plando_file(plando_file, options)
+        rando = WWRandomizer(plando.seed, clean_iso_path, output_folder, options, plando, cmd_line_args=self.cmd_line_args)
+      else:
+        rando = WWRandomizer(seed, clean_iso_path, output_folder, options, cmd_line_args=self.cmd_line_args)
     except (TooFewProgressionLocationsError, InvalidCleanISOError) as e:
       error_message = str(e)
       self.randomization_failed(error_message)
@@ -222,8 +275,12 @@ class WWRandomizerWindow(QMainWindow):
   def randomization_complete(self):
     self.progress_dialog.reset()
     
-    text = """Randomization complete.<br><br>
-      If you get stuck, check the Archipelago spoiler log for your room."""
+    if self.randomizer_thread.randomizer.archipelago_mode:
+      text = """Randomization complete.<br><br>
+        If you get stuck, check the Archipelago spoiler log for your room."""
+    else:
+      text = """Randomization complete.<br><br>
+        If you get stuck, check the progression spoiler log in the output folder."""
     if self.randomizer_thread.randomizer.dry_run:
       text = """Randomization complete.<br><br>
       Note: You chose to do a dry run, meaning <u>no playable ISO was generated</u>.<br>
@@ -243,6 +300,13 @@ class WWRandomizerWindow(QMainWindow):
     
     if self.randomizer_thread is not None:
       self.randomizer_thread.terminate()
+      try:
+        self.randomizer_thread.randomizer.write_error_log(error_message)
+      except Exception as e:
+        # If an error happened when writing the error log just print it and then ignore it.
+        stack_trace = traceback.format_exc()
+        other_error_message = "Failed to write error log:\n" + str(e) + "\n\n" + stack_trace
+        print(other_error_message)
     
     self.randomizer_thread = None
     
@@ -276,6 +340,9 @@ class WWRandomizerWindow(QMainWindow):
       if option.name == "custom_colors":
         continue
       widget = self.findChild(QWidget, option.name)
+      if widget is None:
+        # Options without a widget (e.g. hints, which offline seeds don't have) always keep their defaults.
+        continue
       if isinstance(widget, QAbstractButton):
         assert issubclass(option.type, bool)
       elif isinstance(widget, QComboBox):
@@ -342,9 +409,14 @@ class WWRandomizerWindow(QMainWindow):
       self.ui.output_folder.setText(self.settings["output_folder"])
     if "plando_file" in self.settings:
       self.ui.plando_file.setText(self.settings["plando_file"])
+    if "seed" in self.settings:
+      self.ui.seed.setText(self.settings["seed"])
     
     for option in Options.all():
       if option.name in self.settings:
+        if self.settings[option.name] is None:
+          # Saved by a version of the UI that had no widget for this option.
+          continue
         if option.name in ["custom_color_preset", "custom_colors"]:
           # Colors and color presents not loaded yet, handle this later
           continue
@@ -360,13 +432,20 @@ class WWRandomizerWindow(QMainWindow):
     self.settings["clean_iso_path"] = self.ui.clean_iso_path.text()
     self.settings["output_folder"] = self.ui.output_folder.text()
     self.settings["plando_file"] = self.ui.plando_file.text()
+    self.settings["seed"] = self.ui.seed.text()
     
+    self.ensure_valid_combination_of_options()
     self.ui.tab_player_customization.disable_invalid_cosmetic_options()
+    self.offline_option_widgets.update_for_mode(self.is_archipelago_mode_selected())
     
     for option in Options.all():
       self.settings[option.name] = self.get_option_value(option.name)
     
     self.save_settings()
+    
+    self.encode_permalink()
+    
+    self.update_total_progress_locations()
   
   def update_total_progress_locations(self):
     options = self.get_all_options_from_widget_values()
@@ -533,7 +612,9 @@ class WWRandomizerWindow(QMainWindow):
     
     widget = self.findChild(QWidget, option_name)
     option = Options.by_name()[option_name]
-    if isinstance(widget, QCheckBox) or isinstance(widget, QRadioButton):
+    if widget is None:
+      return self.default_options[option_name]
+    elif isinstance(widget, QCheckBox) or isinstance(widget, QRadioButton):
       return widget.isChecked()
     elif isinstance(widget, QComboBox):
       if issubclass(option.type, StrEnum):
@@ -633,7 +714,7 @@ class WWRandomizerWindow(QMainWindow):
     
     if options.sword_mode == SwordMode.SWORDLESS:
       items_to_filter_out += ["Hurricane Spin"]
-    if options.sword_mode in [SwordMode.SWORDLESS, SwordMode.NO_STARTING_SWORD]:
+    if options.sword_mode in [SwordMode.SWORDLESS, SwordMode.NO_STARTING_SWORD, SwordMode.SWORDS_OPTIONAL]:
       items_to_filter_out += 3 * ["Progressive Sword"]
     
     if not options.required_bosses:
@@ -679,6 +760,8 @@ class WWRandomizerWindow(QMainWindow):
         continue
       widget = self.findChild(QWidget, option.name)
       label_for_option = self.findChild(QLabel, "label_for_" + option.name)
+      if widget is None:
+        continue
       if should_enable_options[option.name]:
         widget.setEnabled(True)
         if label_for_option:

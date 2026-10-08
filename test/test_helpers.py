@@ -1,4 +1,4 @@
-from options.wwrando_options import Options, SwordMode, EntranceMixMode, TrickDifficulty
+from options.wwrando_options import Options, SwordMode, EntranceMixMode, TrickDifficulty, KeyLunacyMode
 
 def enable_all_progression_location_options(options: Options):
   options.progression_dungeons = True
@@ -50,11 +50,30 @@ def disable_all_progression_location_options(options: Options):
   options.progression_island_puzzles = False
   options.progression_dungeon_secrets = False
 
+# The starting items the standalone randomizer used to give by default (the Archipelago world randomizes them instead).
+LEGACY_STARTING_GEAR = [
+  "Wind Waker",
+  "Wind's Requiem",
+  "Progressive Shield",
+  "Progressive Magic Meter",
+  "Ballad of Gales",
+  "Song of Passing",
+]
+
+def start_with_legacy_starting_gear(options: Options):
+  options.starting_gear = sorted(LEGACY_STARTING_GEAR)
+  randomized_gear = options.randomized_gear.copy()
+  for item_name in LEGACY_STARTING_GEAR:
+    randomized_gear.remove(item_name)
+  options.randomized_gear = randomized_gear
+
 def enable_all_options(options: Options):
   enable_all_progression_location_options(options)
   
   options.sword_mode = SwordMode.SWORDLESS
-  options.keylunacy = True
+  options.randomize_smallkeys = KeyLunacyMode.KEYLUNACY
+  options.randomize_bigkeys = KeyLunacyMode.KEYLUNACY
+  options.randomize_mapcompass = KeyLunacyMode.KEYLUNACY
   
   options.mix_entrances = EntranceMixMode.MIX_DUNGEONS
   options.randomize_dungeon_entrances = True

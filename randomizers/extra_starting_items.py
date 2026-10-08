@@ -37,6 +37,7 @@ class ExtraStartingItemsRandomizer(BaseRandomizer):
   
   def is_enabled(self) -> bool:
     return (
+      not self.rando.archipelago_mode and
       self.rando.items.is_enabled() and
       self.options.num_extra_starting_items > 0
     )
@@ -107,8 +108,10 @@ class ExtraStartingItemsRandomizer(BaseRandomizer):
       # don't want to give a progression item if we don't have its bag since
       # it's impossible to see the item until you get delivery bag in that case
       available_items -= DELIVERY_BAG_ITEMS
-    if not self.options.keylunacy:
-      available_items -= set(DUNGEON_PROGRESS_ITEMS)
+    available_items -= set(
+      item_name for item_name in DUNGEON_PROGRESS_ITEMS
+      if not self.logic.can_dungeon_item_be_anywhere(item_name)
+    )
     
     # To avoid treasure charts overwhelming everything when enabled, group them so they have the same weight as any other item
     if set(self.logic.treasure_chart_names).intersection(available_items):

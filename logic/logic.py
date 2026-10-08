@@ -14,7 +14,7 @@ yaml = YAML(typ="safe")
 from logic.item_types import PROGRESS_ITEMS, NONPROGRESS_ITEMS, CONSUMABLE_ITEMS, DUPLICATABLE_CONSUMABLE_ITEMS, DUNGEON_PROGRESS_ITEMS, DUNGEON_NONPROGRESS_ITEMS
 from wwrando_paths import LOGIC_PATH
 from randomizers import entrances
-from options.wwrando_options import Options, SwordMode
+from options.wwrando_options import Options, SwordMode, KeyLunacyMode
 
 class Logic:
   DUNGEON_NAMES = {
@@ -558,8 +558,8 @@ class Logic:
     types = self.item_locations[location_name]["Types"]
     paths = self.item_locations[location_name]["Paths"]
     
-    # Don't allow dungeon items to appear outside their proper dungeon when Key-Lunacy is off.
-    if self.is_dungeon_item(item_name) and not self.options.keylunacy:
+    # Don't allow dungeon items to appear outside their proper dungeon unless their placement mode allows it.
+    if self.is_dungeon_item(item_name) and not self.can_dungeon_item_be_anywhere(item_name):
       short_dungeon_name = item_name.split(" ")[0]
       dungeon_name = self.DUNGEON_NAMES[short_dungeon_name]
       if not self.is_dungeon_location(location_name, dungeon_name_to_match=dungeon_name):
@@ -839,6 +839,23 @@ class Logic:
   
   def is_dungeon_item(self, item_name):
     return (item_name in DUNGEON_PROGRESS_ITEMS or item_name in DUNGEON_NONPROGRESS_ITEMS)
+  
+  @property
+  def all_dungeon_items(self):
+    return DUNGEON_PROGRESS_ITEMS + DUNGEON_NONPROGRESS_ITEMS
+  
+  def get_dungeon_item_mode(self, item_name) -> KeyLunacyMode:
+    assert self.is_dungeon_item(item_name)
+    if item_name.endswith(" Small Key"):
+      return self.options.randomize_smallkeys
+    elif item_name.endswith(" Big Key"):
+      return self.options.randomize_bigkeys
+    else:
+      return self.options.randomize_mapcompass
+  
+  def can_dungeon_item_be_anywhere(self, item_name):
+    # Without Archipelago there is only one world, so "local" placement is the same as Key-Lunacy.
+    return self.get_dungeon_item_mode(item_name) in (KeyLunacyMode.LOCAL, KeyLunacyMode.KEYLUNACY)
   
   def is_dungeon_location(self, location_name, dungeon_name_to_match=None):
     zone_name, specific_location_name = self.split_location_name_by_zone(location_name)

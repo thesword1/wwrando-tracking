@@ -561,13 +561,16 @@ def modify_title_screen_logo(self: WWRandomizer):
   fs.write_u16(data, 0x162, 0x106) # Increase Y pos by 16 pixels (0xF6 -> 0x106)
 
 def update_game_name_icon_and_banners(self: WWRandomizer):
-  # Clean game name, attempting to replace UTF-8 characters with Shift JIS equivalents.
-  cleaned_name = "".join(
-    c for c in unicodedata.normalize("NFKD", self.plando.name)
-    if unicodedata.category(c) != "Mn"
-  ).encode("shift_jis", "replace").decode("shift_jis")
-  
-  new_game_name = "TWW %s (%s)" % (self.seed, cleaned_name)
+  if self.archipelago_mode:
+    # Clean game name, attempting to replace UTF-8 characters with Shift JIS equivalents.
+    cleaned_name = "".join(
+      c for c in unicodedata.normalize("NFKD", self.plando.name)
+      if unicodedata.category(c) != "Mn"
+    ).encode("shift_jis", "replace").decode("shift_jis")
+    
+    new_game_name = "TWW %s (%s)" % (self.seed, cleaned_name)
+  else:
+    new_game_name = "Wind Waker Randomized %s" % self.seed
   banner_data = self.get_raw_file("files/opening.bnr")
   fs.write_magic_str(banner_data, 0x1860, new_game_name, 0x40)
   
@@ -769,45 +772,40 @@ def fix_shop_item_y_offsets(self: WWRandomizer):
       new_y_offset = 20.0
       self.dol.write_data(fs.write_float, display_data_addr+0x10, new_y_offset)
 
-def update_shop_item_descriptions(self: WWRandomizer):
-  if "The Great Sea - Beedle's Shop Ship - 20 Rupee Item" in self.plando.locations:
-    item_info = self.plando.locations["The Great Sea - Beedle's Shop Ship - 20 Rupee Item"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
+def get_item_name_for_message(self: WWRandomizer, location_name: str, ap_nonrandomized_item_name: str):
+  # Returns the name of the item at a location for showing it in a message (shops, auctions, etc).
+  if not self.archipelago_mode:
+    return self.logic.done_item_locations[location_name]
+  
+  if location_name in self.plando.locations:
+    item_info = self.plando.locations[location_name]
+    return f"P{item_info['player']}'s {item_info['name']}"
   else:
-    item_name = "Yellow Rupee"
+    return ap_nonrandomized_item_name
+
+def update_shop_item_descriptions(self: WWRandomizer):
+  item_name = get_item_name_for_message(self, "The Great Sea - Beedle's Shop Ship - 20 Rupee Item", "Yellow Rupee")
   cost = 20
   msg = self.bmg.messages_by_id[3906]
   msg.string = "\\{1A 06 FF 00 00 01}%s  %d Rupees\\{1A 06 FF 00 00 00}" % (item_name, cost)
   msg = self.bmg.messages_by_id[3909]
   msg.string = "%s   %d Rupees\nWill you buy it?\n\\{1A 05 00 00 08}I'll buy it\nNo thanks" % (item_name, cost)
   
-  if "Rock Spire Isle - Beedle's Special Shop Ship - 500 Rupee Item" in self.plando.locations:
-    item_info = self.plando.locations["Rock Spire Isle - Beedle's Special Shop Ship - 500 Rupee Item"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Rock Spire Isle - Beedle's Special Shop Ship - 500 Rupee Item", "Yellow Rupee")
   cost = 500
   msg = self.bmg.messages_by_id[12106]
   msg.string = "\\{1A 06 FF 00 00 01}%s  %d Rupees\n\\{1A 06 FF 00 00 00}This is my last one." % (item_name, cost)
   msg = self.bmg.messages_by_id[12109]
   msg.string = "This \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00} is a mere \\{1A 06 FF 00 00 01}%d Rupees\\{1A 06 FF 00 00 00}!\nBuy it! Buy it! Buy buy buy!\n\\{1A 05 00 00 08}I'll buy it\nNo thanks" % (item_name, cost)
   
-  if "Rock Spire Isle - Beedle's Special Shop Ship - 950 Rupee Item" in self.plando.locations:
-    item_info = self.plando.locations["Rock Spire Isle - Beedle's Special Shop Ship - 950 Rupee Item"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Rock Spire Isle - Beedle's Special Shop Ship - 950 Rupee Item", "Yellow Rupee")
   cost = 950
   msg = self.bmg.messages_by_id[12107]
   msg.string = "\\{1A 06 FF 00 00 01}%s  %d Rupees\n\\{1A 06 FF 00 00 00}This is my last one of these, too." % (item_name, cost)
   msg = self.bmg.messages_by_id[12110]
   msg.string = "This \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00} is only \\{1A 06 FF 00 00 01}%d Rupees\\{1A 06 FF 00 00 00}!\nBuy it! Buy it! Buy buy buy!\n\\{1A 05 00 00 08}I'll buy it\nNo thanks" % (item_name, cost)
   
-  if "Rock Spire Isle - Beedle's Special Shop Ship - 900 Rupee Item" in self.plando.locations:
-    item_info = self.plando.locations["Rock Spire Isle - Beedle's Special Shop Ship - 900 Rupee Item"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Rock Spire Isle - Beedle's Special Shop Ship - 900 Rupee Item", "Yellow Rupee")
   cost = 900
   msg = self.bmg.messages_by_id[12108]
   msg.string = "\\{1A 06 FF 00 00 01}%s  %d Rupees\n\\{1A 06 FF 00 00 00}The price may be high, but it'll pay\noff handsomely in the end!" % (item_name, cost)
@@ -816,44 +814,24 @@ def update_shop_item_descriptions(self: WWRandomizer):
 
 def update_auction_item_names(self: WWRandomizer):
   msg = self.bmg.messages_by_id[7441]
-  if "Windfall Island - 5 Rupee Auction" in self.plando.locations:
-    item_info = self.plando.locations["Windfall Island - 5 Rupee Auction"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Windfall Island - 5 Rupee Auction", "Yellow Rupee")
   msg = self.bmg.messages_by_id[7441]
   msg.string = "\\{1A 06 FF 00 00 01}%s" % item_name
   
-  if "Windfall Island - 40 Rupee Auction" in self.plando.locations:
-    item_info = self.plando.locations["Windfall Island - 40 Rupee Auction"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Windfall Island - 40 Rupee Auction", "Yellow Rupee")
   msg = self.bmg.messages_by_id[7440]
   msg.string = "\\{1A 06 FF 00 00 01}%s" % item_name
   
-  if "Windfall Island - 60 Rupee Auction" in self.plando.locations:
-    item_info = self.plando.locations["Windfall Island - 60 Rupee Auction"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Windfall Island - 60 Rupee Auction", "Yellow Rupee")
   msg = self.bmg.messages_by_id[7442]
   msg.string = "\\{1A 06 FF 00 00 01}%s" % item_name
   
-  if "Windfall Island - 80 Rupee Auction" in self.plando.locations:
-    item_info = self.plando.locations["Windfall Island - 80 Rupee Auction"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Windfall Island - 80 Rupee Auction", "Yellow Rupee")
   msg = self.bmg.messages_by_id[7443]
   msg.string = "\\{1A 06 FF 00 00 01}%s" % item_name
 
 def update_battlesquid_item_names(self: WWRandomizer):
-  if "Windfall Island - Battlesquid - First Prize" in self.plando.locations:
-    item_info = self.plando.locations["Windfall Island - Battlesquid - First Prize"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Windfall Island - Battlesquid - First Prize", "Yellow Rupee")
   msg = self.bmg.messages_by_id[7520]
   msg.string = (
     "\\{1A 05 01 00 8E}Hoorayyy! Yayyy! Yayyy!\nOh, thank you, Mr. Sailor!\n\n\n"
@@ -861,11 +839,7 @@ def update_battlesquid_item_names(self: WWRandomizer):
   )
   msg.word_wrap_string(self.bfn)
   
-  if "Windfall Island - Battlesquid - Second Prize" in self.plando.locations:
-    item_info = self.plando.locations["Windfall Island - Battlesquid - Second Prize"]
-    item_name = f"P{item_info['player']}'s {item_info['name']}"
-  else:
-    item_name = "Yellow Rupee"
+  item_name = get_item_name_for_message(self, "Windfall Island - Battlesquid - Second Prize", "Yellow Rupee")
   msg = self.bmg.messages_by_id[7521]
   msg.string = (
     "\\{1A 05 01 00 8E}Hoorayyy! Yayyy! Yayyy!\nOh, thank you so much, Mr. Sailor!\n\n\n"
@@ -880,23 +854,11 @@ def update_battlesquid_item_names(self: WWRandomizer):
   # msg = self.bmg.messages_by_id[7523]
 
 def update_item_names_in_letter_advertising_rock_spire_shop(self: WWRandomizer):
-  if "Rock Spire Isle - Beedle's Special Shop Ship - 500 Rupee Item" in self.plando.locations:
-    item_info_1 = self.plando.locations["Rock Spire Isle - Beedle's Special Shop Ship - 500 Rupee Item"]
-    item_name_1 = f"P{item_info_1['player']}'s {item_info_1['name']}"
-  else:
-    item_name_1 = "Nothing"
+  item_name_1 = get_item_name_for_message(self, "Rock Spire Isle - Beedle's Special Shop Ship - 500 Rupee Item", "Nothing")
   
-  if "Rock Spire Isle - Beedle's Special Shop Ship - 950 Rupee Item" in self.plando.locations:
-    item_info_2 = self.plando.locations["Rock Spire Isle - Beedle's Special Shop Ship - 950 Rupee Item"]
-    item_name_2 = f"P{item_info_2['player']}'s {item_info_2['name']}"
-  else:
-    item_name_2 = "Nothing"
+  item_name_2 = get_item_name_for_message(self, "Rock Spire Isle - Beedle's Special Shop Ship - 950 Rupee Item", "Nothing")
   
-  if "Rock Spire Isle - Beedle's Special Shop Ship - 900 Rupee Item" in self.plando.locations:
-    item_info_3 = self.plando.locations["Rock Spire Isle - Beedle's Special Shop Ship - 900 Rupee Item"]
-    item_name_3 = f"P{item_info_3['player']}'s {item_info_3['name']}"
-  else:
-    item_name_3 = "Nothing"
+  item_name_3 = get_item_name_for_message(self, "Rock Spire Isle - Beedle's Special Shop Ship - 900 Rupee Item", "Nothing")
   
   msg = self.bmg.messages_by_id[3325]
   
@@ -904,12 +866,20 @@ def update_item_names_in_letter_advertising_rock_spire_shop(self: WWRandomizer):
   unchanged_string_before = "\n".join(lines[0:8]) + "\n"
   unchanged_string_after = "\n".join(lines[12:])
   
-  hint_string = (
-    "Do you have need of \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}, " % item_name_1 +
-    "\\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}, " % item_name_2 +
-    "or \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}? " % item_name_3 +
-    "We have them at special bargain prices."
-  )
+  if self.archipelago_mode:
+    hint_string = (
+      "Do you have need of \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}, " % item_name_1 +
+      "\\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}, " % item_name_2 +
+      "or \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}? " % item_name_3 +
+      "We have them at special bargain prices."
+    )
+  else:
+    hint_string = (
+      "Do you have need of %s \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}, " % (get_indefinite_article(item_name_1), item_name_1) +
+      "%s \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}, " % (get_indefinite_article(item_name_2), item_name_2) +
+      "or %s \\{1A 06 FF 00 00 01}%s\\{1A 06 FF 00 00 00}? " % (get_indefinite_article(item_name_3), item_name_3) +
+      "We have them at special bargain prices."
+    )
   
   # Letters are supposed to have 2 spaces at the start of each line, so word wrap to a reduced width
   # to account for that, and then add the 2 spaces to each line.
@@ -1468,7 +1438,11 @@ def update_skip_rematch_bosses_game_variable(self: WWRandomizer):
 def update_sword_mode_game_variable(self: WWRandomizer):
   sword_mode_address = self.main_custom_symbols["sword_mode"]
   if self.options.sword_mode == SwordMode.START_WITH_SWORD:
-    self.dol.write_data(fs.write_u8, sword_mode_address, 1)
+    if self.archipelago_mode:
+      # The AP client gives the starting sword along with the rest of the starting inventory.
+      self.dol.write_data(fs.write_u8, sword_mode_address, 1)
+    else:
+      self.dol.write_data(fs.write_u8, sword_mode_address, 0)
   elif self.options.sword_mode == SwordMode.NO_STARTING_SWORD:
     self.dol.write_data(fs.write_u8, sword_mode_address, 1)
   elif self.options.sword_mode == SwordMode.SWORDS_OPTIONAL:
@@ -2830,3 +2804,14 @@ def apply_post_randomization_changes_for_archipelago(self: WWRandomizer):
   chart_mapping_address = self.main_custom_symbols["archipelago_charts_mapping"]
   for offset in range(49):
     self.dol.write_data(fs.write_u16, chart_mapping_address + offset * 2, self.plando.charts[offset])
+
+def apply_pre_randomization_changes_for_offline(self: WWRandomizer):
+  # Offline seeds give the player the item at a location as soon as they pick it up, so the Archipelago patch (which
+  # skips item gets for picked up items and waits for the client to deliver them) is not applied.
+  patcher.apply_patch(self, "offline_mode")
+  
+  # Both magic meter item IDs give the next magic meter level, like the other progressive items.
+  item_get_funcs_list = 0x803888C8
+  for magic_meter_item_id in [0xB1, 0xB2]:
+    magic_meter_item_get_func_addr = item_get_funcs_list + magic_meter_item_id*4
+    self.dol.write_data(fs.write_u32, magic_meter_item_get_func_addr, self.main_custom_symbols["progressive_magic_meter_item_func"])
