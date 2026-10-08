@@ -94,8 +94,8 @@ def make_argparser() -> argparse.ArgumentParser:
     help="Preserve vanilla item locations. This speeds up randomization. Source only.",
   )
   parser.add_argument(
-    '--tracker', action='store_true',
-    help="Embed the in-game tracker (in development, off by default).",
+    '--tracker', action=argparse.BooleanOptionalAction, default=None,
+    help="Embed the in-game tracker or not, overriding the \"In-game tracker\" option from the saved settings (on by default).",
   )
   parser.add_argument(
     '--nologs', action='store_true',

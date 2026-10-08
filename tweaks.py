@@ -2819,26 +2819,22 @@ def apply_pre_randomization_changes_for_offline(self: WWRandomizer):
 def add_in_game_tracker(self: WWRandomizer):
   # The in-game tracker (asm/tracker/). Its tables describe this seed's locations, entrances and charts, so this must
   # run after randomization.
-  from tracker.charts import chart_mapping_from_island_chart_names
-  from tracker.entrances import entrance_pairings_from_randomizer
   from tracker.locations import ENTRANCE_CATEGORIES
   from tracker.serialize import build_tracker_tables, compute_seed_tag, serialize_tracker_tables
   
   patcher.apply_patch(self, "tracker")
   
+  # Both modes build the tables from the seed's plando: the .aptww's for Archipelago seeds, and the equivalent one built
+  # from the randomization results for offline seeds.
+  plando = self.get_seed_plando()
   entrance_options = {option_name: getattr(self.options, option_name) for option_name in ENTRANCE_CATEGORIES}
+  active_location_names = list(plando.locations)
+  chart_mapping = plando.charts
+  entrance_pairings = plando.entrances
+  required_bosses = plando.required_bosses if self.options.required_bosses else None
   if self.archipelago_mode:
-    active_location_names = list(self.plando.locations)
-    chart_mapping = self.plando.charts
-    entrance_pairings = self.plando.entrances
-    required_bosses = self.plando.required_bosses if self.options.required_bosses else None
-    seed_tag = compute_seed_tag(f"{self.plando.seed}:{self.plando.slot}:{self.plando.name}")
+    seed_tag = compute_seed_tag(f"{plando.seed}:{plando.slot}:{plando.name}")
   else:
-    progress_locations = self.logic.filter_locations_for_progression(list(self.logic.item_locations))
-    active_location_names = [loc for loc in progress_locations if loc not in self.boss_reqs.banned_locations]
-    chart_mapping = chart_mapping_from_island_chart_names(self.charts.island_number_to_chart_name)
-    entrance_pairings = entrance_pairings_from_randomizer(self.entrances)
-    required_bosses = self.boss_reqs.required_dungeons if self.options.required_bosses else None
     seed_tag = compute_seed_tag(self.permalink)
   tables = build_tracker_tables(active_location_names, chart_mapping, entrance_pairings, entrance_options, required_bosses)
   blob = serialize_tracker_tables(tables, seed_tag)
