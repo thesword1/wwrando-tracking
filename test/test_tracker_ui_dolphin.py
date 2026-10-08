@@ -25,7 +25,7 @@ from test_tracker_serialize import tables_from_plando
 FIXTURE = FIXTURES_DIR / "progression_all.aptww"
 TEST_SPAWN = "sea,44,0"
 
-UI_STATE_FORMAT = ">IIBBBBbBBBBBBBI"
+UI_STATE_FORMAT = ">IIBBBBbBBBBBBBIB3xI"
 VIEW_NONE, VIEW_WORLD, VIEW_SQUARE = 0, 1, 2
 PAGE_NONE, PAGE_GROUPS, PAGE_GROUP = 0, 1, 2
 TOGGLE_MARKED, TOGGLE_UNMARKED, TOGGLE_REFUSED = 1, 2, 3
@@ -40,7 +40,7 @@ def read_ui_state(memory) -> dict:
   data = memory.read_bytes(CUSTOM_SYMBOLS["tracker_ui_state"], struct.calcsize(UI_STATE_FORMAT))
   names = [
     "proc_frame", "draw_frame", "view", "list_group", "sel", "scroll", "stick_dir", "stick_timer", "flash_timer", "last_toggle",
-    "page", "page_sel", "page_scroll", "page_group", "collect_draw_frame",
+    "page", "page_sel", "page_scroll", "page_group", "collect_draw_frame", "menu", "hint_frame",
   ]
   return dict(zip(names, struct.unpack(UI_STATE_FORMAT, data)))
 

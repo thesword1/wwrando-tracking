@@ -90,7 +90,9 @@ typedef struct {
   u8 page_group; // 0x13: group index of the location list shown on TRK_PAGE_GROUP
   u32 collect_draw_frame; // 0x14: TrkState frame_count when the Triforce counter was last drawn (tracker_collect.c)
   u8 menu; // 0x18: enum TrkUiMenu whose input handler last ran
-  u8 pad[0x27]; // 0x19
+  u8 pad1[3]; // 0x19
+  u32 hint_frame; // 0x1C: TrkState frame_count when the "Z: tracker" hint was last drawn (tracker_ui_menu.c)
+  u8 pad[0x20]; // 0x20
 } TrkUiState;
 
 #define TRK_UI_COUNTER_UNKNOWN 0xFF
@@ -112,6 +114,7 @@ u16 tracker_ui_info_lines(u8 group_index, TrkUiInfo* out);
 bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y);
 int tracker_ui_stage_group(void);
 bool tracker_ui_menu_input(int stage_group, u16 buttons, s8 stick_y);
+bool tracker_ui_menu_has_page(void);
 u8 tracker_triforce_count(void);
 void tracker_triforce_text(char* out);
 

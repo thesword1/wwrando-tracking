@@ -8,7 +8,6 @@
 # Needs flatpak Dolphin and WW_ISO_PATH (a vanilla ISO). Only runs with -m dolphin. WW_TRACKER_DOLPHIN_CACHE keeps
 # the built ISOs and in-game savestates.
 
-import struct
 import time
 from pathlib import Path
 
@@ -16,27 +15,19 @@ import pytest
 
 from test_aptww_fixtures import load_plando
 from test_tracker_dolphin import (
-  CUSTOM_SYMBOLS, FIXTURE, build_tracker_iso, make_cache_dir, pytestmark, read_state,  # noqa: F401
+  FIXTURE, build_tracker_iso, make_cache_dir, pytestmark, read_state,  # noqa: F401
 )
 from test_tracker_serialize import tables_from_plando
-from test_tracker_ui_dolphin import PAGE_GROUP, PAGE_GROUPS, PAGE_NONE, TOGGLE_MARKED, SAVE_MANUAL_ADDR, keep_screenshot, run_dolphin
+from test_tracker_ui_dolphin import (
+  PAGE_GROUP, PAGE_GROUPS, PAGE_NONE, SAVE_MANUAL_ADDR, TOGGLE_MARKED, keep_screenshot, read_ui_state, run_dolphin,
+)
 
 FW_SPAWN = "kindan,0,0"
 CAVE_SPAWN = "Cave09,0,0"
 SEA_SPAWN = "sea,44,0"
 
-# TrkUiState up to menu (asm/tracker/tracker_ui.h).
-UI_STATE_FORMAT = ">IIBBBBbBBBBBBBIB"
 MENU_DMAP, MENU_COLLECT = 2, 3
 
-
-def read_ui_state(memory) -> dict:
-  data = memory.read_bytes(CUSTOM_SYMBOLS["tracker_ui_state"], struct.calcsize(UI_STATE_FORMAT))
-  names = [
-    "proc_frame", "draw_frame", "view", "list_group", "sel", "scroll", "stick_dir", "stick_timer", "flash_timer", "last_toggle",
-    "page", "page_sel", "page_scroll", "page_group", "collect_draw_frame", "menu",
-  ]
-  return dict(zip(names, struct.unpack(UI_STATE_FORMAT, data)))
 
 def menu_open(memory, menu: int) -> bool:
   ui = read_ui_state(memory)
@@ -44,6 +35,9 @@ def menu_open(memory, menu: int) -> bool:
 
 def page_drawn(memory) -> bool:
   return read_state(memory)["frame_count"] - read_ui_state(memory)["draw_frame"] <= 2
+
+def hint_drawn(memory) -> bool:
+  return read_state(memory)["frame_count"] - read_ui_state(memory)["hint_frame"] <= 2
 
 
 TABLES = tables_from_plando(load_plando(FIXTURE))
@@ -95,6 +89,8 @@ def test_dungeon_map(tmp_path_factory, tmp_path):
     fw = group_index("Forbidden Woods")
     open_menu(dolphin, ["D_UP"], MENU_DMAP, "The dungeon map didn't open")
     assert not page_drawn(memory)
+    # The "Z: tracker" hint is shown until a page is opened.
+    assert hint_drawn(memory)
     keep_screenshot(dolphin.screenshot(), "dmap")
 
     # Z opens Forbidden Woods' list.
@@ -103,6 +99,8 @@ def test_dungeon_map(tmp_path_factory, tmp_path):
       lambda memory: (state := ui())["page"] == PAGE_GROUP and state["page_group"] == fw and page_drawn(memory), timeout=5,
       message="Z didn't open Forbidden Woods' list",
     )
+    time.sleep(0.3)
+    assert not hint_drawn(memory)
     keep_screenshot(dolphin.screenshot(), "dmap-fw-list")
     mark_first(dolphin, fw)
     keep_screenshot(dolphin.screenshot(), "dmap-fw-list-marked")
@@ -120,7 +118,7 @@ def test_dungeon_map(tmp_path_factory, tmp_path):
     dolphin.pad.press("B")
     dolphin.wait_for(lambda memory: ui()["page"] == PAGE_NONE, timeout=5, message="B didn't close the page")
     time.sleep(0.5)
-    assert menu_open(memory, MENU_DMAP) and not page_drawn(memory)
+    assert menu_open(memory, MENU_DMAP) and not page_drawn(memory) and hint_drawn(memory)
 
     # Z closes the list too, and then B closes the map as usual.
     dolphin.pad.press("Z")
@@ -129,7 +127,7 @@ def test_dungeon_map(tmp_path_factory, tmp_path):
     dolphin.wait_for(lambda memory: ui()["page"] == PAGE_NONE, timeout=5, message="Z didn't close the list")
     dolphin.pad.press("B")
     time.sleep(1.5)
-    assert not menu_open(memory, MENU_DMAP)
+    assert not menu_open(memory, MENU_DMAP) and not hint_drawn(memory)
   finally:
     dolphin.stop()
 
@@ -145,6 +143,7 @@ def test_quest_status_in_cave(tmp_path_factory, tmp_path):
     ui = lambda: read_ui_state(memory)
     savage = group_index("Savage Labyrinth")
     open_quest_status(dolphin)
+    assert hint_drawn(memory)
     keep_screenshot(dolphin.screenshot(), "collect")
 
     dolphin.pad.press("Z")
@@ -152,6 +151,8 @@ def test_quest_status_in_cave(tmp_path_factory, tmp_path):
       lambda memory: (state := ui())["page"] == PAGE_GROUP and state["page_group"] == savage and page_drawn(memory), timeout=5,
       message="Z didn't open the Savage Labyrinth's list",
     )
+    time.sleep(0.3)
+    assert not hint_drawn(memory)
     keep_screenshot(dolphin.screenshot(), "collect-cave-list")
     mark_first(dolphin, savage)
 
@@ -163,10 +164,25 @@ def test_quest_status_in_cave(tmp_path_factory, tmp_path):
     dolphin.pad.press("Z")
     dolphin.wait_for(lambda memory: ui()["page"] == PAGE_NONE, timeout=5, message="Z didn't close the list")
     time.sleep(0.5)
-    assert menu_open(memory, MENU_COLLECT)
+    assert menu_open(memory, MENU_COLLECT) and hint_drawn(memory)
+
+    # The hint isn't drawn over the options window (Options is below the cursor's start, like
+    # test_tracker_collect_dolphin.py), and Z does nothing there.
+    dolphin.pad.tilt(0, -1, duration=0.15)
+    time.sleep(0.3)
+    dolphin.pad.press("A")
+    time.sleep(1.5)
+    assert not hint_drawn(memory)
+    keep_screenshot(dolphin.screenshot(), "collect-options")
+    dolphin.pad.press("Z")
+    time.sleep(0.5)
+    assert ui()["page"] == PAGE_NONE
+    dolphin.pad.press("B")
+    dolphin.wait_for(hint_drawn, timeout=5, message="The hint isn't drawn again after closing the options")
+
     dolphin.pad.press("B")
     time.sleep(1.5)
-    assert not menu_open(memory, MENU_COLLECT)
+    assert not menu_open(memory, MENU_COLLECT) and not hint_drawn(memory)
   finally:
     dolphin.stop()
 

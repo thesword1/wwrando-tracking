@@ -38,6 +38,17 @@ void draw__15dMenu_Collect_cFv(void* collect);
 // The menus are busier than the sea chart, so the panel is made opaque.
 static const TrkColor trk_menu_backing_color = {0xFF, 0xF8, 0xE0, 0xFF};
 
+// The "Z: tracker" hint is placed relative to a pane of the menu that slides and fades with its open, close and page
+// switch animations, in an empty spot: right of the dungeon's name on the dungeon map (the plaque's frame 'dt00'),
+// right of the "Quest Status" title ('tl00'). Both are left of the button icons in the top right corner.
+#define TRK_DMAP_HINT_PANE_OFFSET 0x9E4 // fopMsgM_pane_class mDt00Pane: 40,15-56,97 when idle
+#define TRK_DMAP_HINT_X 285.0f // From the pane's left edge
+#define TRK_DMAP_HINT_Y 6.0f // From the pane's top edge
+#define TRK_COLLECT_HINT_PANE_OFFSET 0x9A8 // fopMsgM_pane_class m9A8 ('tl00'): 246,36-262,101 when idle
+#define TRK_COLLECT_HINT_X 152.0f
+#define TRK_COLLECT_HINT_Y 16.0f
+#define TRK_MENU_HINT_SIZE 14.0f
+
 // Input for a menu. can_open is whether Z may open a page (the menu is idle). Returns whether the menu's own _move
 // may run.
 static bool trk_menu_move(u8* menu, u8 kind, u16 note_offset, bool can_open) {
@@ -61,17 +72,47 @@ static bool trk_menu_move(u8* menu, u8 kind, u16 note_offset, bool can_open) {
   return !shown && !was_shown;
 }
 
-static void trk_menu_draw(u8 kind, JUTFont* font) {
+// "Z: tracker" in a box like the sea chart's counters, faded with the anchor pane (fopMsgM_pane_class at
+// pane_class) relative to its fully shown alpha, so it follows the menu's animations.
+static void trk_draw_menu_hint(const TrkDraw* draw, u8* pane_class, float dx, float dy) {
+  u8* pane = *(u8**)pane_class;
+  u32 alpha = pane[TRK_PANE_ALPHA_OFFSET];
+  u32 init_alpha = pane_class[TRK_PANE_CLASS_INIT_ALPHA_OFFSET];
+  if (!pane[TRK_PANE_VISIBLE_OFFSET] || alpha == 0 || init_alpha == 0) {
+    return;
+  }
+  u32 fade = alpha >= init_alpha ? 0xFF : alpha * 0xFF / init_alpha;
+  float* bounds = (float*)(pane + TRK_PANE_GLOBAL_BOUNDS_OFFSET);
+  float x = bounds[0] + dx;
+  float y = bounds[1] + dy;
+  const char* text = "Z: tracker";
+  float width = trk_text_width(draw->font, text, TRK_MENU_HINT_SIZE);
+  trk_fill_box(draw, x, y, width + 2*TRK_COUNTER_PAD + 2.0f, TRK_MENU_HINT_SIZE + TRK_COUNTER_PAD + 2.0f,
+               trk_fade(trk_box_color, fade));
+  trk_draw_text(draw->font, x + TRK_COUNTER_PAD + 1.0f, y + TRK_MENU_HINT_SIZE, TRK_MENU_HINT_SIZE, text,
+                trk_fade(trk_text_color, fade));
+  TRK_UI_STATE->hint_frame = TRK_STATE->frame_count;
+}
+
+// Draws the page if one is shown on this menu, else the hint while Z can open one (idle: no description, song, or
+// save or options window).
+static void trk_menu_draw(u8 kind, JUTFont* font, bool idle, u8* hint_pane_class, float hint_x, float hint_y) {
   if (!trk_tables_valid()) {
     return;
   }
   TrkUiState* ui = TRK_UI_STATE;
-  if (TRK_STATE->frame_count - ui->proc_frame > 1 || ui->menu != kind || ui->page == TRK_PAGE_NONE) {
-    return;
-  }
   TrkDraw draw;
   draw.port = *(J2DOrthoGraph**)TRK_CURRENT_GRAF_PORT_ADDR;
   draw.font = font;
+  // The page is only shown while the menu's input handler runs (not during its open and close animations); the
+  // hint follows those animations.
+  if (TRK_STATE->frame_count - ui->proc_frame > 1 || ui->menu != kind || ui->page == TRK_PAGE_NONE) {
+    if (idle && tracker_ui_menu_has_page()) {
+      trk_draw_menu_hint(&draw, hint_pane_class, hint_x, hint_y);
+      setPort__13J2DOrthoGraphFv(draw.port);
+    }
+    return;
+  }
   draw.x = TRK_MENU_PANEL_X;
   draw.y = TRK_MENU_PANEL_Y;
   trk_fill_box(&draw, draw.x, draw.y, TRK_PANEL_W, TRK_PANEL_H, trk_menu_backing_color);
@@ -89,11 +130,17 @@ void tracker_dmap_move(u8* dmap) {
 
 void tracker_dmap_draw(u8* dmap) {
   draw__12dMenu_Dmap_cFv(dmap);
-  trk_menu_draw(TRK_MENU_DMAP, *(JUTFont**)(dmap + TRK_DMAP_FONT_OFFSET));
+  bool idle = *(s16*)(dmap + TRK_DMAP_NOTE_OFFSET) != 1;
+  trk_menu_draw(TRK_MENU_DMAP, *(JUTFont**)(dmap + TRK_DMAP_FONT_OFFSET), idle, dmap + TRK_DMAP_HINT_PANE_OFFSET,
+                TRK_DMAP_HINT_X, TRK_DMAP_HINT_Y);
+}
+
+TRK_INLINE bool trk_collect_idle(u8* collect) {
+  return *(s16*)(collect + TRK_COLLECT_NOTE_OPEN_OFFSET) != 1 && collect[TRK_COLLECT_MODE_OFFSET] == 0;
 }
 
 void tracker_collect_move(u8* collect) {
-  bool idle = *(s16*)(collect + TRK_COLLECT_NOTE_OPEN_OFFSET) != 1 && collect[TRK_COLLECT_MODE_OFFSET] == 0;
+  bool idle = trk_collect_idle(collect);
   if (trk_menu_move(collect, TRK_MENU_COLLECT, TRK_COLLECT_NOTE_OPEN_OFFSET, idle)) {
     _move__15dMenu_Collect_cFv(collect);
   }
@@ -104,7 +151,8 @@ void tracker_collect_move(u8* collect) {
 void tracker_collect_draw(u8* collect) {
   draw__15dMenu_Collect_cFv(collect);
   trk_draw_triforce_counter(collect);
-  trk_menu_draw(TRK_MENU_COLLECT, *(JUTFont**)(collect + TRK_COLLECT_FONT_OFFSET));
+  trk_menu_draw(TRK_MENU_COLLECT, *(JUTFont**)(collect + TRK_COLLECT_FONT_OFFSET), trk_collect_idle(collect),
+                collect + TRK_COLLECT_HINT_PANE_OFFSET, TRK_COLLECT_HINT_X, TRK_COLLECT_HINT_Y);
 }
 
 #endif

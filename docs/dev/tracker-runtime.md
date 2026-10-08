@@ -243,6 +243,17 @@ counter is drawn first, and hides itself while a page is shown since that sets t
 `TrkUiState.menu` records whose `_move` ran last, so a page is only drawn on the menu it was opened on, and pages are
 closed when another menu is opened or a menu is reopened.
 
+**Hint:** while no page is shown, both menus show `Z: tracker` in a small light box like the chart's counters, as long
+as Z would open something there (`tracker_ui_menu_has_page()`: the current group's list or a non-empty list page) and
+the menu is idle (no item description; on Quest Status also `mCollectMode` 0, so not over a song or the save or
+options window). It's anchored to a pane that slides and fades with the menu's open, close and L/R animations, like
+the Triforce counter: right of the dungeon's name on the dungeon map (the name plaque's frame `'dt00'`,
+`mDt00Pane` +0x9E4, x + 285, y + 6, so about 325,21) and right of the "Quest Status" title (`'tl00'`, +0x9A8, x + 152,
+y + 16, about 398,52). Both spots are empty and left of the A/B button icons. Its alpha follows the anchor pane's
+alpha relative to its fully shown alpha. `TrkUiState.hint_frame` (+0x1C) records the last frame it was drawn, for the
+Dolphin test. The sea chart keeps its own hint, `Z: other locations` under the checked total: on the chart the
+tracker is already shown, and Z adds the other locations page.
+
 ## Triforce shard counter
 
 The Quest Status screen (`dMenu_Collect_c`) draws the owned shards as pieces of one Triforce, which is hard to count.
@@ -366,10 +377,10 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x4E10 bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0x890 for the
-dungeon map and Quest Status pages, 0x2C4 for the Triforce counter and 0xD00 for the logic interpreter), plus the
-0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state reserve. In total the custom code
-section grows by about 0xB050 bytes (45,136), and the game heap shrinks by the same amount. The STAGES section adds
+The tracker adds 0x50E0 bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0xB60 for the
+dungeon map and Quest Status pages and their hint, 0x2C4 for the Triforce counter and 0xD00 for the logic
+interpreter), plus the 0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state reserve. In
+total the custom code section grows by about 0xB320 bytes (45,856), and the game heap shrinks by the same amount. The STAGES section adds
 about 0x350 bytes to the tables, inside the reserve.
 
 ## Tests
@@ -434,7 +445,10 @@ about 0x350 bytes to the tables, inside the reserve.
   straight into Forbidden Woods (`--test kindan,0,0`), the Savage Labyrinth (`Cave09,0,0`) and the sea: on the dungeon
   map Z opens Forbidden Woods' list, X marks (save bit), D-pad Down doesn't close the map while the list is shown, B
   goes to the list page and closes it, Z closes; on Quest Status in the cave Z opens the Savage Labyrinth's list,
-  Start and R are blocked while it's shown; on the sea Z opens the list page. Screenshots `dmap*` and `collect*`.
+  Start and R are blocked while it's shown; on the sea Z opens the list page. It also checks the `Z: tracker` hint is
+  drawn on both idle menus and not while a page or the options window is shown or after the menu closes
+  (`tracker_ui_menu_has_page()` is host-tested). Screenshots `dmap*` and `collect*` (`dmap` and `collect` show the
+  hint, `collect-options` the options window without it).
 
 - `test/test_tracker_save_dolphin.py` (marker `dolphin`): end-to-end save persistence with the game's
   own save. Session 1 boots the `entrance_rando` `--test` ISO (new game), marks a location through
