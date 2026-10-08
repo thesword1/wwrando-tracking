@@ -144,3 +144,20 @@ def test_cli_reports_bad_aptww(tmp_path):
   assert result.returncode != 0
   assert "v2.5.0 of the APWorld" in result.stderr
   assert "<br>" not in result.stderr
+
+FIXTURE_PATHS = sorted((RANDO_ROOT / "test" / "fixtures" / "aptww").glob("*.aptww"))
+
+@pytest.mark.parametrize("path", FIXTURE_PATHS, ids=lambda p: p.stem)
+def test_dry_randomize_fixture(path, tmp_path):
+  from randomizer import WWRandomizer
+  options = Options()
+  plando = read_ap_plando_file(str(path), options)
+  args = make_argparser().parse_args(["--dry", "--aptww", str(path)])
+  rando = WWRandomizer(plando.seed, None, str(tmp_path), options, plando, cmd_line_args=args)
+  rando.randomize_all()
+
+def test_cli_dry_randomize_fixture(tmp_path):
+  aptww = RANDO_ROOT / "test" / "fixtures" / "aptww" / "defaults.aptww"
+  result = run_cli("--dry", "--aptww", str(aptww), "--output-folder", str(tmp_path))
+  assert result.returncode == 0, result.stderr
+  assert "Done (dry)" in result.stdout
