@@ -26,13 +26,10 @@ void draw__12dMenu_Dmap_cFv(void* dmap);
 void _move__15dMenu_Collect_cFv(void* collect);
 void draw__15dMenu_Collect_cFv(void* collect);
 
-// dMenu_Dmap_c and dMenu_Collect_c members (zeldaret/tww include/d/d_menu_dmap.h, d_menu_collect.h). noteCheck()
-// is mUserArea (fopMsgM_pane_class +0x36) == 1 of mNk00Pane (Dmap) / m7E8 (Collect).
+// dMenu_Dmap_c members (zeldaret/tww include/d/d_menu_dmap.h); dMenu_Collect_c's are in tracker_collect.c.
+// noteCheck() is mUserArea (fopMsgM_pane_class +0x36) == 1 of mNk00Pane (Dmap) / m7E8 (Collect).
 #define TRK_DMAP_NOTE_OFFSET 0x972 // s16 mNk00Pane.mUserArea
 #define TRK_DMAP_FONT_OFFSET 0x14A8 // JUTFont* mFont
-#define TRK_COLLECT_NOTE_OFFSET 0x81E // s16 m7E8.mUserArea
-#define TRK_COLLECT_FONT_OFFSET 0x2470 // JUTFont* mpFont
-#define TRK_COLLECT_MODE_OFFSET 0x27EE // u8 mCollectMode: 0 = idle (not playing a song, saving or quitting)
 
 // The panel is centered vertically, and left of the button icons in the top right corner of the screen.
 #define TRK_MENU_PANEL_X 96.0f
@@ -96,14 +93,17 @@ void tracker_dmap_draw(u8* dmap) {
 }
 
 void tracker_collect_move(u8* collect) {
-  bool idle = *(s16*)(collect + TRK_COLLECT_NOTE_OFFSET) != 1 && collect[TRK_COLLECT_MODE_OFFSET] == 0;
-  if (trk_menu_move(collect, TRK_MENU_COLLECT, TRK_COLLECT_NOTE_OFFSET, idle)) {
+  bool idle = *(s16*)(collect + TRK_COLLECT_NOTE_OPEN_OFFSET) != 1 && collect[TRK_COLLECT_MODE_OFFSET] == 0;
+  if (trk_menu_move(collect, TRK_MENU_COLLECT, TRK_COLLECT_NOTE_OPEN_OFFSET, idle)) {
     _move__15dMenu_Collect_cFv(collect);
   }
 }
 
+// The Triforce shard counter (tracker_collect.c) hides itself while a page is shown, since the page sets the
+// description flag.
 void tracker_collect_draw(u8* collect) {
   draw__15dMenu_Collect_cFv(collect);
+  trk_draw_triforce_counter(collect);
   trk_menu_draw(TRK_MENU_COLLECT, *(JUTFont**)(collect + TRK_COLLECT_FONT_OFFSET));
 }
 

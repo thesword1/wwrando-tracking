@@ -63,7 +63,8 @@ Verified facts:
 - **B9. Entrance tracking (if feasible):** for randomized entrances, show where an entrance leads **only after the player has gone through it**.
 - **B10. Treasure chart mapping (if feasible):** show a chart's target square **only once the player owns that chart**.
 - **B11. No item spoilers, ever:** the tracker shows only checked/unchecked/in-logic state, never what item is at a location.
-- Out of scope (note for later): Triforce shard count display on inventory icon; notes; hints (would only matter for AP).
+- Out of scope (note for later): notes; hints (would only matter for AP).
+- Triforce shard count on the Quest Status screen's Triforce (`n/8`): added later at the owner's request, part of the in-game tracker.
 
 ### C. Engineering process
 - **C1. Trunk-based Git:** trunk = `master`. Every change on a short-lived `feature/<name>` (or `fix/`, `docs/`, `ci/`) branch → PR into `master` with a description of what/why → agent merges its own PRs (GitHub doesn't allow self-approval; merge without required review). Branch protection may be added later. Commit messages and PR bodies use the attribution lines configured in the session.
@@ -112,7 +113,8 @@ Each phase = one or more `feature/*` PRs. Planning agent should refine and may r
   - Logic bytecode interpreter + event hooks (item get, chart open).
   - Entrance reveal + treasure chart reveal.
 - **Phase 5 — Polish & docs**
-  - README/docs for both modes, CHANGELOG, release build (Linux first; existing `build.py`/`wwrando.spec`).
+  - README/docs for both modes, CHANGELOG, release build (Linux first; existing `build.py`/`wwrando.spec`), then Windows (`chore/windows-build`).
+  - No new hints in either mode and none on the tracker (D14). Archipelago `!hint` results on the tracker would need a custom TWW client; noted for the future.
 
 ---
 
@@ -152,7 +154,8 @@ Each phase = one or more `feature/*` PRs. Planning agent should refine and may r
 | D10 | Tracker option: local randomizer setting, default on, not in `.aptww`; for permalinks it's encoded in our local settings only. | Owner |
 | D12 | Small-key logic uses exact in-game keys-obtained counters per dungeon, not inference. | Owner |
 | D13 | Controls: X = toggle mark, main stick = select location, Z = list page. Save storage at 0x803C532C (80 bytes, zeroed at new game). See docs/dev/memory-map.md. | Research |
-| D11 | Hints: out of scope. Triforce-count icon: out of scope (noted). | Owner |
+| D11 | Hints: out of scope. Triforce-count icon: out of scope at first, later added (`n/8` on the Quest Status screen, gated on the In-Game Tracker option). | Owner |
+| D14 | No new hints in either mode: offline seeds get no NPC hints, and the tracker shows no hints (Archipelago seeds keep upstream's fishmen/Hoho/KoRL hints from the `.aptww` options). Showing Archipelago server hints (`!hint`) on the tracker isn't possible with the stock Archipelago TWW client: the game has no network access, and the client (`worlds/tww/TWWClient.py` in Archipelago core) never writes hint data into game RAM. It would need a modified client/apworld, installed by every player, that writes hinted location IDs into a reserved RAM array (like the give-item array at 0x803FE87C) for the tracker to read. Out of scope; see §10 Phase 5 notes for future. | Owner |
 
 ## 9. Research findings that shape the plan (summary)
 
@@ -223,7 +226,8 @@ Fallback ladder for UI branches if J2DPrint drawing proves unworkable: (1) repur
 ### Phase 5 — Polish & release
 - `docs/user-guide`: README sections for offline vs AP mode and the tracker, controls.
 - `chore/linux-build`: `build.py`/PyInstaller Linux build; tag `v2.5.2-tracking.1`, GitHub release with Linux binary (no ISO).
-- Notes for future: in-game hints for AP, Triforce shard counter, website "items needed" estimate.
+- `chore/windows-build`: Windows one-file `.exe` built by the same release workflow (matrix with Linux), released as `wwrando-<version>-windows-x64.zip`.
+- Notes for future: Archipelago hints on the tracker (D14: needs a modified TWW client/apworld that every player installs, writing hinted location IDs into a reserved RAM array the tracker reads; the stock client can't do it), website "items needed" estimate.
 
 ## 11. Parallelisation & subagents
 

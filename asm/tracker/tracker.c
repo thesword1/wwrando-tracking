@@ -15,4 +15,5 @@
 #include "tracker_logic.c"
 #include "tracker_runtime.c"
 #include "tracker_ui.c"
+#include "tracker_collect.c"
 #include "tracker_ui_menu.c"

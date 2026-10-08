@@ -17,7 +17,7 @@ are left on every island and in every dungeon and which of them are in logic, le
 shows where entrances lead and where treasure charts point once you have found out in the game. It never shows which
 item is where.
 
-This is a small project for friends, played on Dolphin on Linux. Only Linux builds are provided.
+This is a small project for friends, played on Dolphin. Release builds are provided for Linux and Windows.
 
 ## Requirements
 
@@ -34,8 +34,23 @@ The output ISO is meant for Dolphin. It hasn't been tested on a real GameCube.
 
 ## Download
 
-Linux builds are on the [Releases page](https://github.com/thesword1/wwrando-tracking/releases). Unpack the tarball
-and start `wwrando-tracking` from its folder:
+Builds are on the [Releases page](https://github.com/thesword1/wwrando-tracking/releases).
+
+### Windows
+
+Download `wwrando-<version>-windows-x64.zip`, extract it (don't run it from inside the zip) and double-click
+`wwrando-tracking.exe`.
+
+It takes a few seconds to start (it unpacks itself first). It keeps its settings (`settings.txt`) and custom player
+models (`models/`) in its folder, so extract it somewhere you can write to (not `Program Files`).
+
+The executable isn't signed, so Windows SmartScreen may say "Windows protected your PC": click *More info*, then *Run
+anyway*. Some antivirus programs flag PyInstaller executables like this one as a false positive. If yours deletes or
+blocks it, add an exception for the folder, or run the randomizer from source instead.
+
+### Linux
+
+Unpack the tarball and start `wwrando-tracking` from its folder:
 
 ```sh
 tar xzf wwrando-*-linux-x64.tar.gz
@@ -117,11 +132,15 @@ python wwrando.py --noui --autoseed --no-tracker --clean-iso /path/to/vanilla.is
 python wwrando.py --noui --seed MySeed --dry --output-folder out/
 ```
 
-With a release build, replace `python wwrando.py` with `./wwrando-tracking`. `--help` lists every option.
+With a release build, replace `python wwrando.py` with `./wwrando-tracking` (Linux) or `.\wwrando-tracking.exe`
+(Windows, from a Command Prompt or PowerShell in its folder). `--help` lists every option.
 
 ## In-game tracker
 
 Open the sea chart (**D-pad Up**). The tracker draws on top of it.
+
+The pause menu's **Quest Status** screen also shows how many Triforce shards you have (for example `3/8`) under the
+Triforce.
 
 ### What it tracks
 
@@ -192,10 +211,14 @@ setting (Advanced Options tab, default off) that only changes the tracker's logi
 
 ## Known limitations
 
-- **Linux only.** Release builds are for Linux x86-64 with glibc 2.35 or newer (Ubuntu 22.04 and later). Other systems
-  can try running from source.
-- **No hints** in offline mode, and the tracker doesn't show hints in Archipelago mode either.
-- No Triforce shard counter and no "items needed" estimate (the website tracker has one).
+- **Linux and Windows only.** Release builds are for Linux x86-64 with glibc 2.35 or newer (Ubuntu 22.04 and later)
+  and 64-bit Windows 10/11. macOS isn't supported; it can try running from source.
+- **No hints** in offline mode, and the tracker doesn't show hints in either mode. (Archipelago seeds keep the
+  fishmen/Hoho/KoRL hints their `.aptww` file asks for, as in tanjo3's randomizer.) Archipelago server hints (`!hint`)
+  can't be shown on the in-game tracker: the game has no network access, and the standard Archipelago Wind Waker
+  client never writes hints into the game's memory. That would need a modified client that every player installs, so
+  it isn't planned.
+- No "items needed" estimate (the website tracker has one).
 - The tracker only tracks progress locations, so it can't help with optional locations.
 - Tracker marks are only kept if you save the game. Loading a save from a different seed resets the tracker data.
 - Only tested in Dolphin.

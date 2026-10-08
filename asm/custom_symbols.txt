@@ -170,11 +170,13 @@ sys/main.dol:
   tracker_ui_menu_input: 0x804096A4
   tracker_fmap_proc: 0x804098F8
   tracker_fmap_draw: 0x80409A20
-  tracker_dmap_move: 0x80409B6C
-  tracker_dmap_draw: 0x80409BC4
-  tracker_collect_move: 0x80409BFC
-  tracker_collect_draw: 0x80409C74
-  tracker_exec_item_func: 0x80409EAC
+  tracker_triforce_count: 0x80409B6C
+  tracker_triforce_text: 0x80409BA8
+  tracker_dmap_move: 0x80409DFC
+  tracker_dmap_draw: 0x80409E54
+  tracker_collect_move: 0x80409E8C
+  tracker_collect_draw: 0x80409F04
+  tracker_exec_item_func: 0x8040A150
 files/rels/d_a_demo_item.rel:
   check_give_item: 0x1344
 files/rels/d_a_npc_bs1.rel:
