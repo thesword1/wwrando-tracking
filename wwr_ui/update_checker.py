@@ -7,8 +7,8 @@ import traceback
 
 from version import VERSION
 
-LATEST_RELEASE_DOWNLOAD_PAGE_URL = "https://github.com/LagoLunatic/wwrando/releases/latest"
-LATEST_RELEASE_API_URL = "https://api.github.com/repos/lagolunatic/wwrando/releases/latest"
+LATEST_RELEASE_DOWNLOAD_PAGE_URL = "https://github.com/thesword1/wwrando-tracking/releases/latest"
+LATEST_RELEASE_API_URL = "https://api.github.com/repos/thesword1/wwrando-tracking/releases/latest"
 
 def string_to_version(string: str):
   string = string.removeprefix('v')
@@ -16,7 +16,14 @@ def string_to_version(string: str):
     string = string.split("-BETA")[0]
   if "_" in string:
     string = string.split("_")[0]
-  version = tuple(int(e) for e in string.split('.'))
+  # Tracking edition versions look like "2.5.2-tracking" or "2.5.2-tracking.3": the base
+  # version followed by a build number (0 when absent).
+  build = 0
+  if "-tracking" in string:
+    string, tracking_suffix = string.split("-tracking", 1)
+    if tracking_suffix:
+      build = int(tracking_suffix.removeprefix('.'))
+  version = tuple(int(e) for e in string.split('.')) + (build,)
   return version
 
 def check_for_updates():
@@ -26,16 +33,17 @@ def check_for_updates():
       
       curr_version = string_to_version(VERSION)
       latest_version = string_to_version(data["tag_name"])
+      latest_version_name = data["tag_name"].removeprefix('v')
       
       if "-BETA" in VERSION:
         print(latest_version >= curr_version)
         if latest_version >= curr_version:
-          return '.'.join(str(e) for e in latest_version)
+          return latest_version_name
         else:
           return None
       else:
         if latest_version > curr_version:
-          return '.'.join(str(e) for e in latest_version)
+          return latest_version_name
         else:
           return None
   except Exception as e:

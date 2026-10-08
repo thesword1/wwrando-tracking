@@ -1,5 +1,7 @@
 ### Version 2.5.2-tracking (in progress)
 
+* The GUI's update checker now checks this repository's releases and understands `-tracking.N` versions.
+
 * Forked from tanjo3's Archipelago branch (v2.5.2) as the base for an offline mode and an in-game tracker. See `PROJECT_PLAN.md`.
 * Version string now carries a `-tracking` suffix; the about box credits LagoLunatic and tanjo3 and links this repository.
 * Developer tooling: `tools/devkitppc/assemble.sh` reassembles the custom ASM/C patches in a pinned devkitPPC container, and a new ASM CI workflow checks the committed patch diffs are reproducible. See `docs/dev/toolchain.md`.
