@@ -150,6 +150,28 @@ line and the position in the list. Fifteen rows fit; the list scrolls with the s
 | Main stick up/down | Select. Holding repeats after 14 frames, then every 4. A fresh push wraps around |
 | X | Toggle the selected location's manual mark (save data). Refused for auto-detected checks: the row flashes red |
 
+**List page** (Z on the world or square view): everything that isn't on a sea square. That's
+every group with tracked locations whose ID is 50 or more: dungeons, Hyrule, Ganon's Tower, Mailbox,
+The Great Sea, and caves whose entrances are randomized. Each row has the group's name and counter.
+A opens a group's location list, which works like a square's. For a group behind a tracked
+(randomized) entrance, a footer line shows `Entrance: Unknown entrance` until the player has been
+through it, and then the entrance's name (`tracker_ui_group_entrance()`, which prefers the entrance
+into the group's own exit over, say, a boss door into the dungeon's boss arena).
+
+| Input | World view | Square view | List page | Group list (from the list page) |
+|---|---|---|---|---|
+| Z | open list page | open list page | close | close |
+| Main stick | vanilla (cursor) | select location | select group | select location |
+| X | - | toggle mark | - | toggle mark |
+| A | vanilla (zoom) | vanilla (detail zoom) | open group | - |
+| B | vanilla (close chart) | vanilla (zoom out) | close page | back to list page |
+
+While a page is shown, `FmapProc` isn't called at all, so none of the chart's own buttons
+(B, D-pad Left/Down, A, Y) do anything until the page is closed. The page is also closed when the
+chart is reopened. `tracker_ui_input()` is the whole state machine. It takes the view, the square's
+group, abstract buttons and the stick value, and returns whether the input was consumed, so it's
+host-testable.
+
 Vanilla doesn't read the main stick or X in square view, so both work without blocking any vanilla
 input. A, B and Y keep their vanilla meanings. The input is read from `g_mDoCPd_cpadInfo[0].mButtonTrig`
 (0x803A4E22, X = 0x0040) and the raw stick Y of `JUTGamePad::mPadStatus[0]` (0x803ED81B).
@@ -242,9 +264,9 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x2320 bytes of code and read-only data (0x125C of it for the sea chart UI), plus the
+The tracker adds 0x3030 bytes of code and read-only data (0x1DC0 of it for the sea chart UI), plus the
 0x6000-byte table reserve, the 0x100-byte state reserve and the 0x40-byte UI state reserve. In total
-the custom code section grows by about 0x8478 bytes (33,912), and the game heap shrinks by the same
+the custom code section grows by about 0x9188 bytes (37,256), and the game heap shrinks by the same
 amount.
 
 ## Tests
@@ -275,13 +297,17 @@ amount.
   about 90 s without).
 
 - `test/test_tracker_ui.py`: the sea chart UI's counters (`tracker_ui_group_counter`) and the
-  location list's input (selection, repeat, wrap, scrolling, marking, refused toggles), on the host.
+  location list's input (selection, repeat, wrap, scrolling, marking, refused toggles), the list page's
+  groups and navigation, and which entrance a group shows, on the host.
 - `test/test_tracker_ui_dolphin.py` (marker `dolphin`): builds the `progression_all` fixture, opens the
   sea chart with D-pad Up and checks through `tracker_ui_state` in RAM that the tracker draws on the
   world view, follows manual marks and stops drawing after the chart is closed, and that A/B/D-pad
   Down still work. In square view it selects with the main stick, marks and unmarks with X (checking
   the bit in the save region at 0x803C533C, which is written to the memory card with the save) and
-  checks that an auto-detected location can't be unmarked. Screenshots are printed with `-s`; set
+  checks that an auto-detected location can't be unmarked. With the `entrance_rando` fixture it opens
+  the list page with Z, checks that D-pad Down and B don't reach the chart, opens Dragon Roost
+  Cavern after marking its entrance visited, marks a location there with X, and closes everything
+  again. Screenshots are printed with `-s`; set
   `WW_TRACKER_SCREENSHOT_DIR` to also copy them to a directory.
 
 Run them with the rest of the suite:

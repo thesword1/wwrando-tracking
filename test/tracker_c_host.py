@@ -68,7 +68,8 @@ class TrkUiState(ctypes.Structure):
     ("proc_frame", ctypes.c_uint32), ("draw_frame", ctypes.c_uint32), ("view", ctypes.c_uint8),
     ("list_group", ctypes.c_uint8), ("sel", ctypes.c_uint8), ("scroll", ctypes.c_uint8), ("stick_dir", ctypes.c_int8),
     ("stick_timer", ctypes.c_uint8), ("flash_timer", ctypes.c_uint8), ("last_toggle", ctypes.c_uint8),
-    ("pad", ctypes.c_uint8 * 0x30),
+    ("page", ctypes.c_uint8), ("page_sel", ctypes.c_uint8), ("page_scroll", ctypes.c_uint8), ("page_group", ctypes.c_uint8),
+    ("pad", ctypes.c_uint8 * 0x2C),
   ]
 
 
@@ -116,6 +117,10 @@ class TrackerHost:
     lib.tracker_ui_location_status.restype = ctypes.c_uint8
     lib.tracker_ui_location_status.argtypes = [ctypes.c_uint16]
     lib.tracker_ui_list_input.argtypes = [ctypes.c_uint8, ctypes.c_uint16, ctypes.c_int8]
+    lib.tracker_ui_page_group.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint16)]
+    lib.tracker_ui_group_entrance.argtypes = [ctypes.c_uint8]
+    lib.tracker_ui_input.restype = ctypes.c_bool
+    lib.tracker_ui_input.argtypes = [ctypes.c_uint8, ctypes.c_int, ctypes.c_uint16, ctypes.c_int8]
     lib.trk_host_ui_state_ptr.restype = ctypes.POINTER(TrkUiState)
     self._data = None
     self.ram_base = lib.trk_host_ram_base()
