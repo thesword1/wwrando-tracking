@@ -1,3 +1,8 @@
+### Version 2.5.2-tracking (in progress)
+
+* Forked from tanjo3's Archipelago branch (v2.5.2) as the base for an offline mode and an in-game tracker. See `PROJECT_PLAN.md`.
+* Version string now carries a `-tracking` suffix; the about box credits LagoLunatic and tanjo3 and links this repository.
+
 
 ### Version 1.11.0 (in progress, not released yet)
 
