@@ -147,19 +147,25 @@ class RequiredBossesRandomizer(BaseRandomizer):
     if self.rando.archipelago_mode:
       return
     
+    self.banned_locations = self.get_locations_banned_by_required_bosses()
+  
+  def get_locations_banned_by_required_bosses(self) -> list[str]:
+    # The locations that can't have anything required because their dungeon's boss isn't required.
+    banned_locations = []
     for location_name in self.logic.item_locations:
       zone_name, specific_location_name = self.logic.split_location_name_by_zone(location_name)
       
       if self.logic.is_dungeon_location(location_name) and zone_name in self.banned_dungeons:
-        self.banned_locations.append(location_name)
+        banned_locations.append(location_name)
       elif location_name == "Mailbox - Letter from Orca" and "Forbidden Woods" in self.banned_dungeons:
-        self.banned_locations.append(location_name)
+        banned_locations.append(location_name)
       elif location_name == "Mailbox - Letter from Baito" and "Earth Temple" in self.banned_dungeons:
-        self.banned_locations.append(location_name)
+        banned_locations.append(location_name)
       elif location_name == "Mailbox - Letter from Aryll" and "Forsaken Fortress" in self.banned_dungeons:
-        self.banned_locations.append(location_name)
+        banned_locations.append(location_name)
       elif location_name == "Mailbox - Letter from Tingle" and "Forsaken Fortress" in self.banned_dungeons:
-        self.banned_locations.append(location_name)
+        banned_locations.append(location_name)
+    return banned_locations
   
   def show_quest_markers_on_sea_chart_for_dungeons(self):
     # Uses the blue quest markers on the sea chart to highlight certain dungeons.

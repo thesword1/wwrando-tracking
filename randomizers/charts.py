@@ -62,6 +62,7 @@ class ChartRandomizer(BaseRandomizer):
       48: "Treasure Chart 32",
       49: "Treasure Chart 33",
     }
+    self.vanilla_island_number_to_chart_name = self.island_number_to_chart_name.copy()
   
   def is_enabled(self) -> bool:
     return self.options.randomize_charts
@@ -87,6 +88,17 @@ class ChartRandomizer(BaseRandomizer):
       self.island_number_to_chart_name[shuffled_island_number] = original_item_name
     
     self.logic.update_chart_macros()
+  
+  def get_plando_charts_mapping(self) -> list[int]:
+    # The chart mapping in the format of an .aptww's Charts: entry i-1 is the island that island i's vanilla chart
+    # now leads to.
+    chart_name_to_island_number = {
+      chart_name: island_number for island_number, chart_name in self.island_number_to_chart_name.items()
+    }
+    return [
+      chart_name_to_island_number[self.vanilla_island_number_to_chart_name[island_number]]
+      for island_number in range(1, 49+1)
+    ]
   
   def _save(self):
     randomizable_charts = [chart for chart in self.rando.chart_list.charts if chart.type in [0, 1, 2, 6]]
