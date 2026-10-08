@@ -139,6 +139,9 @@ With a release build, replace `python wwrando.py` with `./wwrando-tracking` (Lin
 
 Open the sea chart (**D-pad Up**). The tracker draws on top of it.
 
+The pause menu's **Quest Status** screen also shows how many Triforce shards you have (for example `3/8`) under the
+Triforce.
+
 ### What it tracks
 
 - Only the seed's **progress locations**: those of the progression location types you selected (in Archipelago mode,
@@ -215,7 +218,7 @@ setting (Advanced Options tab, default off) that only changes the tracker's logi
   can't be shown on the in-game tracker: the game has no network access, and the standard Archipelago Wind Waker
   client never writes hints into the game's memory. That would need a modified client that every player installs, so
   it isn't planned.
-- No Triforce shard counter and no "items needed" estimate (the website tracker has one).
+- No "items needed" estimate (the website tracker has one).
 - The tracker only tracks progress locations, so it can't help with optional locations.
 - Tracker marks are only kept if you save the game. Loading a save from a different seed resets the tracker data.
 - Only tested in Dolphin.

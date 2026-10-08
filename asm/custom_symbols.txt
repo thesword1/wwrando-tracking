@@ -167,7 +167,10 @@ sys/main.dol:
   tracker_ui_input: 0x80408E80
   tracker_fmap_proc: 0x80409104
   tracker_fmap_draw: 0x804092AC
-  tracker_exec_item_func: 0x804095FC
+  tracker_triforce_count: 0x804093FC
+  tracker_triforce_text: 0x80409438
+  tracker_collect_draw: 0x80409484
+  tracker_exec_item_func: 0x804098C0
 files/rels/d_a_demo_item.rel:
   check_give_item: 0x1344
 files/rels/d_a_npc_bs1.rel:
