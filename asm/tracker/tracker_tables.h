@@ -7,7 +7,7 @@
 #include "tracker_types.h"
 
 #define TRK_MAGIC 0x5757544B // "WWTK"
-#define TRK_FORMAT_VERSION 3
+#define TRK_FORMAT_VERSION 4
 #define TRK_HEADER_SIZE 0x20
 #define TRK_DIR_ENTRY_SIZE 8
 
@@ -21,7 +21,8 @@ enum TrkSection {
   TRK_SEC_LOGIC = 6,
   TRK_SEC_ITEMS = 7,
   TRK_SEC_STAGES = 8,
-  TRK_NUM_SECTIONS = 9,
+  TRK_SEC_DUNGEONS = 9,
+  TRK_NUM_SECTIONS = 10,
 };
 
 // tracker/location_data.py LocationType.
@@ -108,6 +109,21 @@ typedef struct {
   u8 group_id;
 } TrkStage;
 
+// tracker/dungeons.py DungeonFlag.
+enum TrkDungeonFlag {
+  TRK_DUNGEON_HAS_BIG_KEY = 0x01,
+  TRK_DUNGEON_START_WITH_SMALL_KEYS = 0x02,
+  TRK_DUNGEON_START_WITH_BIG_KEY = 0x04,
+};
+
+typedef struct {
+  u8 group_id;
+  u8 counter; // Small-keys-obtained counter (enum TrkDungeon)
+  u8 stage_id;
+  u8 small_keys; // Number of small keys in the dungeon
+  u8 flags; // enum TrkDungeonFlag
+} TrkDungeonInfo;
+
 #define TRK_GET_MAP_ADDR 0x803C4CDC
 #define TRK_COMPLETE_MAP_ADDR 0x803C4CFC
 
@@ -124,5 +140,6 @@ void trk_get_entrance(u16 index, TrkEntrance* out);
 void trk_get_trigger(u16 index, TrkTrigger* out);
 void trk_get_chart(u16 index, TrkChart* out);
 void trk_get_stage(u16 index, TrkStage* out);
+int trk_find_dungeon(u8 group_id, TrkDungeonInfo* out);
 
 #endif
