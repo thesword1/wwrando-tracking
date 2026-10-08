@@ -298,3 +298,15 @@ def test_info_lines_take_list_rows(tracker: TrackerHost):
   for _ in range(rows):
     push(tracker, windfall, STICK_DOWN)
   assert (tracker.ui_state.sel, tracker.ui_state.scroll) == (rows, 1)
+
+
+TRIFORCE_ADDR = 0x803C4CC6
+
+def test_triforce_counter_text(full: TrackerHost):
+  text = ctypes.create_string_buffer(4)
+  for bits in range(0x100):
+    full.write_u8(TRIFORCE_ADDR, bits)
+    count = bin(bits).count("1")
+    assert full.lib.tracker_triforce_count() == count
+    full.lib.tracker_triforce_text(text)
+    assert text.value == f"{count}/8".encode()

@@ -46,6 +46,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `asm/tracker/tracker_state.h` | Runtime state / debug struct in the `tracker_state` reserve |
 | `asm/tracker/tracker_logic.[ch]` | Logic bytecode interpreter, evaluation triggers, in-logic results |
 | `asm/tracker/tracker_ui.[ch]` | Sea chart UI: hooks into the chart menu, counters and drawing; its state is in the `tracker_ui_state` reserve |
+| `asm/tracker/tracker_collect.c` | Triforce shard counter on the pause menu's Quest Status screen |
 | `asm/tracker/tracker_host.c` | Host build only: mock RAM and the table pointer |
 | `asm/tracker/Makefile` | Host build (`make -C asm/tracker host`) |
 | `tracker/serialize.py` | Table format (documented at the top of the file), serializer and a Python reader |
@@ -89,6 +90,7 @@ the C code, linked afterwards, can reference it.
 | 0x8023502C in `dScnPly_Execute` (every gameplay frame, also with a menu open) | Replaces the call to `dKy_itudemo_se` with `tracker_on_frame`, which calls it and then `tracker_frame()` |
 | 0x803923EC: the `FmapProc` pointer-to-member that `__sinit_d_menu_fmap_cpp` copies into `mainProc[0]` | `tracker_fmap_proc` (sea chart UI input), which calls `FmapProc` |
 | 0x803925A0: `draw` in the vtable of `dDlst_FMAP_c` | `tracker_fmap_draw`, which calls `dDlst_FMAP_c::draw` and then draws the tracker over the chart |
+| 0x803920EC: `draw` in the vtable of `dMenu_Collect_c` (the Quest Status screen) | `tracker_collect_draw`, which calls `dMenu_Collect_c::draw` and then draws the Triforce shard counter |
 | `item_func_ptr` entries 0x13, 0x1D, 0x5B, 0x73, 0x77 (dungeon small keys) | `tweaks.add_in_game_tracker` points them at `tracker_<dungeon>_small_key_item_get_func`, which counts the key and calls the randomizer's `<dungeon>_small_key_item_get_func`. Both field pickups and Archipelago deliveries go through `execItemGet` and therefore through these. |
 
 `tracker_frame()` does nothing until the tables are valid. It skips the title screen and file
@@ -196,6 +198,23 @@ value. The selection is kept per group and reset when another group's list is sh
 `tracker_ui_group_counter()` computes a group's counter. Logic comes from `trk_ui_location_logic()`,
 which returns "unknown" until the logic runtime is wired in.
 
+## Triforce shard counter
+
+The Quest Status screen (`dMenu_Collect_c`) draws the owned shards as pieces of one Triforce, which is hard to count.
+`tracker_collect_draw` (`tracker_collect.c`) draws `n/8` (`tracker_triforce_text()`, from the bits of `mTriforce` at
+0x803C4CC6) in a dark box under it, white once all eight are owned. There's no vanilla digit pane near the Triforce
+to reuse (the Tingle statue counter in `misc_rando_features.asm` reuses the chart counter's), so it's drawn like the
+sea chart UI: the screen's `mpFont` (+0x2470), `trk_draw_text` and `trk_fill_box`, after a `setPort()` because the
+options and save windows' draw functions run last.
+
+The position comes from the Triforce frame pane (`'trib'`, `mFC8` at +0xFC8): centered under its `mGlobalBounds`
+(J2DPane +0x1C, screen space after the screen's draw: 344,137-464,233 when idle). Its alpha (+0xAC) relative to its
+fully shown alpha (`mInitAlpha`, 120) fades the counter, so it follows the screen's open, close and L/R slide
+animations. It isn't drawn when `mCollectMode` (+0x27EE) isn't 0 (song demo or playback, save or options window) or
+while an item's description is shown (`m7E8.mUserArea` at +0x81E is 1). It's part of the tracker patch, so it's only
+there when the In-Game Tracker option is on. `TrkUiState.collect_draw_frame` records the last frame it was drawn,
+for the Dolphin test.
+
 ## Save data
 
 The tracker uses the 0x50 bytes of `dSv_reserve_c` at 0x803C532C (`memory-map.md`, section 1.4),
@@ -299,10 +318,10 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x42BC bytes of code and read-only data (about 0x2348 of it for the sea chart UI and 0xD00 for the
-logic interpreter), plus the 0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state
-reserve. In total the custom code section grows by about 0xA4FC bytes (42,236), and the game heap shrinks by the same
-amount.
+The tracker adds 0x4580 bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0x2C4 for the
+Triforce counter and 0xD00 for the logic interpreter), plus the 0x6000-byte table reserve, the 0x200-byte state
+reserve and the 0x40-byte UI state reserve. In total the custom code section grows by about 0xA7C0 bytes (42,944),
+and the game heap shrinks by the same amount.
 
 ## Tests
 
@@ -352,6 +371,11 @@ amount.
   `charts_required_bosses` seeds before and after setting an entrance's visited bit and the chart's
   owned bit, for screenshots. Screenshots are printed with `-s`; set
   `WW_TRACKER_SCREENSHOT_DIR` to also copy them to a directory.
+
+- `test/test_tracker_ui.py` also checks `tracker_triforce_count()`/`tracker_triforce_text()` for every shard bitfield.
+  `test/test_tracker_collect_dolphin.py` (marker `dolphin`) opens Quest Status, sets 0, 3 and 8 shards in RAM and
+  checks the counter is drawn (screenshots `triforce-0/3/8`), that it isn't drawn over the options window, and that it
+  stops when the pause menu closes.
 
 - `test/test_tracker_save_dolphin.py` (marker `dolphin`): end-to-end save persistence with the game's
   own save. Session 1 boots the `entrance_rando` `--test` ISO (new game), marks a location through

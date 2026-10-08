@@ -59,4 +59,8 @@ tracker_exec_item_func:
 .org 0x803925A0 ; __vt__12dDlst_FMAP_c: draw
   .int tracker_fmap_draw
 
+; Triforce shard counter on the Quest Status screen (asm/tracker/tracker_collect.c).
+.org 0x803920EC ; __vt__15dMenu_Collect_c: draw
+  .int tracker_collect_draw
+
 .close

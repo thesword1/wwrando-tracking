@@ -79,7 +79,8 @@ typedef struct {
   u8 page_sel; // 0x11: selected row of the list page
   u8 page_scroll; // 0x12: first row of the list page shown
   u8 page_group; // 0x13: group index of the location list opened from the list page
-  u8 pad[0x2C]; // 0x14
+  u32 collect_draw_frame; // 0x14: TrkState frame_count when the Triforce counter was last drawn (tracker_collect.c)
+  u8 pad[0x28]; // 0x18
 } TrkUiState;
 
 #define TRK_UI_COUNTER_UNKNOWN 0xFF
@@ -99,6 +100,8 @@ int tracker_ui_page_group(u16 n, u16* count);
 int tracker_ui_group_entrance(u8 group_index);
 u16 tracker_ui_info_lines(u8 group_index, TrkUiInfo* out);
 bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y);
+u8 tracker_triforce_count(void);
+void tracker_triforce_text(char* out);
 
 #ifdef TRACKER_HOST
 extern TrkUiState trk_host_ui_state;
