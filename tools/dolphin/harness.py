@@ -81,7 +81,10 @@ class Dolphin:
     self.batch = batch
     self.initial_save_state = Path(initial_save_state).resolve() if initial_save_state else None
     # Passed as -C System.Section.Key=Value, e.g. {"Dolphin.Core.CPUThread": "False"}.
-    self.extra_config = extra_config or {}
+    # Hotkeys (screenshots, savestates) otherwise only work while the render window has focus, which
+    # the window manager may not give it; BackgroundInput doesn't cover them. Setting this in
+    # Dolphin.ini has no effect, so it's passed on the command line.
+    self.extra_config = {"Dolphin.General.HotkeysRequireFocus": "False", **(extra_config or {})}
     self.flatpak_app_id = flatpak_app_id
 
     self.process: subprocess.Popen | None = None

@@ -47,6 +47,18 @@ class TrkChart(ctypes.Structure):
   ]
 
 
+TRK_MAX_GROUPS = 128
+
+class TrkState(ctypes.Structure):
+  _fields_ = [
+    ("magic", ctypes.c_uint32), ("frame_count", ctypes.c_uint32), ("num_locations", ctypes.c_uint16),
+    ("num_checked", ctypes.c_uint16), ("num_auto_checked", ctypes.c_uint16), ("save_resets", ctypes.c_uint16),
+    ("in_game", ctypes.c_uint8), ("room", ctypes.c_int8), ("spawn", ctypes.c_int16), ("stage_name", ctypes.c_char * 8),
+    ("last_visited_entrance", ctypes.c_uint8), ("num_groups", ctypes.c_uint8), ("pad", ctypes.c_uint8 * 2),
+    ("group_checked", ctypes.c_uint8 * TRK_MAX_GROUPS),
+  ]
+
+
 def build_host_library(build_dir: Path) -> Path:
   if shutil.which("make") is None or shutil.which("gcc") is None:
     pytest.skip("make and gcc are needed to build the tracker C runtime for the host")
@@ -76,6 +88,15 @@ class TrackerHost:
       ("trk_get_trigger", TrkTrigger), ("trk_get_chart", TrkChart),
     ]:
       getattr(lib, name).argtypes = [ctypes.c_uint16, ctypes.POINTER(struct_type)]
+    lib.trk_host_state_ptr.restype = ctypes.POINTER(TrkState)
+    for name in ["tracker_is_auto_checked", "tracker_is_checked", "tracker_toggle_manual", "tracker_is_manual", "tracker_is_entrance_visited"]:
+      getattr(lib, name).restype = ctypes.c_bool
+      getattr(lib, name).argtypes = [ctypes.c_uint16]
+    lib.tracker_is_in_game.restype = ctypes.c_bool
+    lib.tracker_small_keys_obtained.restype = ctypes.c_uint8
+    lib.tracker_small_keys_obtained.argtypes = [ctypes.c_int]
+    lib.tracker_count_small_key.argtypes = [ctypes.c_int]
+    lib.tracker_group_counts.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
     self._data = None
     self.ram_base = lib.trk_host_ram_base()
 
@@ -105,6 +126,25 @@ class TrackerHost:
 
   def write_u16(self, address: int, value: int):
     self.write_bytes(address, value.to_bytes(2, "big"))
+
+  def write_u32(self, address: int, value: int):
+    self.write_bytes(address, value.to_bytes(4, "big"))
+
+  def read_u16(self, address: int) -> int:
+    return int.from_bytes(self.read_bytes(address, 2), "big")
+
+  def write_cstring(self, address: int, string: str, size: int):
+    data = string.encode("ascii")
+    self.write_bytes(address, data + b"\0"*(size - len(data)))
+
+  @property
+  def state(self) -> TrkState:
+    return self.lib.trk_host_state_ptr().contents
+
+  def group_counts(self, group_index: int) -> tuple[int, int]:
+    checked, total = ctypes.c_uint16(), ctypes.c_uint16()
+    self.lib.tracker_group_counts(group_index, ctypes.byref(checked), ctypes.byref(total))
+    return checked.value, total.value
 
   def get(self, name: str, struct_type, index: int):
     out = struct_type()
