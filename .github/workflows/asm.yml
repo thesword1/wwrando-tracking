@@ -1,0 +1,39 @@
+name: ASM
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'asm/**'
+      - 'gclib'
+      - 'tools/devkitppc/**'
+      - '.github/workflows/asm.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'asm/**'
+      - 'gclib'
+      - 'tools/devkitppc/**'
+      - '.github/workflows/asm.yml'
+  workflow_dispatch:
+
+jobs:
+  reproduce-patch-diffs:
+    name: Patch diffs match devkitPPC output
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Assemble patches in the pinned devkitPPC container
+        run: ./tools/devkitppc/assemble.sh
+      - name: Check committed diffs are up to date
+        run: |
+          git status --short
+          if [ -n "$(git status --porcelain -- asm)" ]; then
+            git diff -- asm
+            echo "::error::asm/patch_diffs or asm/custom_symbols.txt is out of date. Run tools/devkitppc/assemble.sh and commit the result."
+            exit 1
+          fi

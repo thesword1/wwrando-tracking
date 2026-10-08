@@ -1,0 +1,10 @@
+# devkitPPC + the minimal Python deps needed by asm/assemble.py.
+# The base image is pinned by digest so that regenerated patch diffs are reproducible.
+# devkitpro/devkitppc:latest as of 2026-05-03: binutils 2.46.0.20260210, GCC 16.1.0 (devkitPPC).
+ARG DEVKITPPC_IMAGE=docker.io/devkitpro/devkitppc@sha256:4c919aa26151dd43d88ca28c922d1fe2409579a8ba60ef56517baf1abdfb1a48
+FROM ${DEVKITPPC_IMAGE}
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3-pip \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m pip install --no-cache-dir --break-system-packages "ruamel.yaml~=0.19.1"
