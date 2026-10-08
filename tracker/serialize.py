@@ -36,7 +36,8 @@
 #     +4 u8 owned byte offset from 0x803C4CDC, +5 u8 owned mask,
 #     +6 u8 salvaged byte offset from 0x803C4CFC, +7 u8 salvaged mask, +8 u16 name, +10 pad
 #   STRINGS: NUL-terminated ASCII strings; the "name" fields above are offsets into this section.
-#   LOGIC: compiled logic bytecode (Phase 3 logic compiler). Empty for now.
+#   LOGIC: compiled logic bytecode (byte stream), described in tracker/logic_compiler.py. Empty when the
+#     tables were built without logic.
 #   ITEMS: item-read descriptors for logic (Phase 3). Empty for now.
 
 from collections.abc import Iterable, Mapping, Sequence
@@ -49,6 +50,7 @@ from typing import Any
 
 from tracker.charts import COMPLETE_MAP_ADDR, GET_MAP_ADDR, TrackerChart, build_tracker_chart_table
 from tracker.entrances import EXITS, TrackerEntranceSet, build_tracker_entrance_set
+from tracker.logic_compiler import CompiledLogic, TrackerLogicInput, compile_tracker_logic
 from tracker.locations import (
   ENTRANCE_CATEGORIES, SQUARE_GROUPS, TrackerGroup, TrackerLocationSet, build_tracker_location_set,
 )
@@ -125,6 +127,7 @@ class TrackerTables:
   location_set: TrackerLocationSet
   entrance_set: TrackerEntranceSet
   charts: Sequence[TrackerChart]
+  logic: CompiledLogic | None = None
 
   def groups(self) -> list[TrackerGroup]:
     """Every sea square, plus the list-page groups that have locations or tracked entrances."""
@@ -143,13 +146,20 @@ def build_tracker_tables(
   entrance_pairings: Mapping[str, str],
   entrance_options: Mapping[str, Any] | None,
   required_bosses: Iterable[str] | None,
+  logic_input: TrackerLogicInput | None = None,
 ) -> TrackerTables:
-  """All of one seed's tables. The arguments are as for the build_tracker_*() functions."""
-  return TrackerTables(
-    build_tracker_location_set(active_location_names, chart_mapping, entrance_options, required_bosses),
-    build_tracker_entrance_set(entrance_pairings, entrance_options),
-    build_tracker_chart_table(chart_mapping),
-  )
+  """All of one seed's tables. The arguments are as for the build_tracker_*() functions. The logic is only compiled
+  when logic_input is given."""
+  location_set = build_tracker_location_set(active_location_names, chart_mapping, entrance_options, required_bosses)
+  entrance_set = build_tracker_entrance_set(entrance_pairings, entrance_options)
+  logic = None
+  if logic_input is not None:
+    logic = compile_tracker_logic(
+      logic_input,
+      [loc.name for loc in location_set.locations],
+      {seed_entrance.entrance.name: seed_entrance.index for seed_entrance in entrance_set.entrances},
+    )
+  return TrackerTables(location_set, entrance_set, build_tracker_chart_table(chart_mapping), logic)
 
 
 def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
@@ -238,7 +248,8 @@ def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
   sections[Section.CHARTS] = (chart_data, len(tables.charts))
 
   sections[Section.STRINGS] = (bytes(strings.data), len(strings.data))
-  sections[Section.LOGIC] = (b"", 0)
+  logic_data = tables.logic.serialize() if tables.logic is not None else b""
+  sections[Section.LOGIC] = (logic_data, len(logic_data))
   sections[Section.ITEMS] = (b"", 0)
 
   directory = bytearray()
@@ -284,4 +295,5 @@ def parse_tracker_tables(blob: bytes) -> dict[str, object]:
     "entrances": [(*entry[:4], string(entry[4]), string(entry[5])) for entry in entries(Section.ENTRANCES, ENTRANCE_FORMAT)],
     "triggers": [(entry[0].rstrip(b"\0").decode("ascii"), *entry[1:]) for entry in entries(Section.TRIGGERS, TRIGGER_FORMAT)],
     "charts": [(*entry[:8], string(entry[8])) for entry in entries(Section.CHARTS, CHART_FORMAT)],
+    "logic": blob[directory[Section.LOGIC][0]:directory[Section.LOGIC][0]+directory[Section.LOGIC][1]],
   }

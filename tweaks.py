@@ -2820,6 +2820,7 @@ def add_in_game_tracker(self: WWRandomizer):
   # The in-game tracker (asm/tracker/). Its tables describe this seed's locations, entrances and charts, so this must
   # run after randomization.
   from tracker.locations import ENTRANCE_CATEGORIES
+  from tracker.logic_compiler import TrackerLogicInput
   from tracker.serialize import build_tracker_tables, compute_seed_tag, serialize_tracker_tables
   
   patcher.apply_patch(self, "tracker")
@@ -2836,7 +2837,12 @@ def add_in_game_tracker(self: WWRandomizer):
     seed_tag = compute_seed_tag(f"{plando.seed}:{plando.slot}:{plando.name}")
   else:
     seed_tag = compute_seed_tag(self.permalink)
-  tables = build_tracker_tables(active_location_names, chart_mapping, entrance_pairings, entrance_options, required_bosses)
+  logic_input = TrackerLogicInput(
+    self.options, entrance_pairings, chart_mapping, required_bosses, self.starting_items,
+  )
+  tables = build_tracker_tables(
+    active_location_names, chart_mapping, entrance_pairings, entrance_options, required_bosses, logic_input,
+  )
   blob = serialize_tracker_tables(tables, seed_tag)
   
   # The reserve (tables, then the runtime state) is .bss in the patch, so write all of it (zero-padded) to extend
