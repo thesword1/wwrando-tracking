@@ -1,7 +1,7 @@
 name: Release
 
-# Builds the Linux release (a PyInstaller one-file executable in a tarball) and, for a pushed v* tag, attaches it to a
-# GitHub Release for that tag. Started by hand, it only uploads the tarball as a workflow artifact.
+# Builds the Linux and Windows releases (a PyInstaller one-file executable in a .tar.gz / .zip) and, for a pushed v* tag,
+# attaches both to a GitHub Release for that tag. Started by hand, it only uploads the archives as workflow artifacts.
 on:
   push:
     tags: [ 'v*' ]
@@ -14,10 +14,24 @@ permissions:
   contents: write
 
 jobs:
-  linux:
-    name: Linux
-    # The oldest supported runner, so the executable runs on distros with an older glibc.
-    runs-on: ubuntu-22.04
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            # The oldest supported runner, so the executable runs on distros with an older glibc.
+            os: ubuntu-22.04
+            platform: linux-x64
+            exe: wwrando-tracking
+            archive_ext: tar.gz
+          - name: Windows
+            os: windows-latest
+            platform: windows-x64
+            exe: wwrando-tracking.exe
+            archive_ext: zip
+    runs-on: ${{ matrix.os }}
 
     defaults:
       run:
@@ -34,6 +48,7 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
       - name: Install Qt system libraries
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libxcb-cursor0 libxcb-xinerama0 libegl1 libxkbcommon0
@@ -51,37 +66,92 @@ jobs:
           fi
           echo "$VERSION" > version.txt
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "release_name=wwrando-$VERSION-${{ matrix.platform }}" >> $GITHUB_OUTPUT
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
       - name: Build executable
         run: python -m PyInstaller --log-level=WARN wwrando.spec
       - name: Bundle release archive
         run: python build.py
+      - name: Check bundled data files
+        # Every data file the randomizer reads at runtime must be inside the one-file executable.
+        run: |
+          pyi-archive_viewer --list --brief "dist/${{ steps.vars.outputs.release_name }}/${{ matrix.exe }}" > "$RUNNER_TEMP/bundle.txt"
+          git ls-files 'asm/*.txt' 'asm/*.rel' 'asm/*.plf' 'asm/patch_diffs/*.txt' assets data 'logic/*.txt' 'seedgen/*.txt' 'wwr_ui/*.ui' \
+            > "$RUNNER_TEMP/expected.txt"
+          python - <<'EOF'
+          import os
+          temp = os.environ["RUNNER_TEMP"]
+          bundled = {line.strip().replace("\\", "/") for line in open(os.path.join(temp, "bundle.txt"))}
+          missing = [path for path in open(os.path.join(temp, "expected.txt")).read().splitlines() if path not in bundled]
+          if missing:
+            raise SystemExit("Missing from the bundle:\n" + "\n".join(missing))
+          print("All data files are bundled.")
+          EOF
       - name: Smoke test
         env:
           QT_QPA_PLATFORM: offscreen
+        working-directory: dist/${{ steps.vars.outputs.release_name }}
         run: |
-          EXE="dist/wwrando-${{ steps.vars.outputs.version }}-linux-x64/wwrando-tracking"
-          test "$("$EXE" --version)" = "${{ steps.vars.outputs.version }}"
+          EXE="./${{ matrix.exe }}"
+          test "$("$EXE" --version | tr -d '\r')" = "${{ steps.vars.outputs.version }}"
           "$EXE" --help > /dev/null
+          # Randomize without an ISO (logs only), offline and from an Archipelago .aptww file, to prove the bundled data
+          # is complete.
+          mkdir -p "$RUNNER_TEMP/dry"
+          "$EXE" --noui --dry --autoseed --output-folder "$RUNNER_TEMP/dry"
+          "$EXE" --dry --aptww "$GITHUB_WORKSPACE/test/fixtures/aptww/defaults.aptww" --output-folder "$RUNNER_TEMP/dry"
+          ls "$RUNNER_TEMP/dry" | grep -q "Spoiler Log"
+      - name: GUI smoke test (Linux)
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        working-directory: dist/${{ steps.vars.outputs.release_name }}
+        run: |
           # The GUI should still be running (not crashed) when the timeout stops it.
           set +e
-          timeout 30 "$EXE"
+          timeout 30 ./${{ matrix.exe }}
           STATUS=$?
           set -e
           test $STATUS -eq 124
+      - name: GUI smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        working-directory: dist/${{ steps.vars.outputs.release_name }}
+        run: |
+          # The GUI should still be running (not crashed) after 30 seconds.
+          $proc = Start-Process -FilePath ".\${{ matrix.exe }}" -PassThru
+          Start-Sleep -Seconds 30
+          if ($proc.HasExited) { throw "The GUI exited with code $($proc.ExitCode)" }
+          # The one-file executable runs the app in a child process; stop both.
+          Get-Process -Name wwrando-tracking -ErrorAction SilentlyContinue | Stop-Process -Force
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wwrando-${{ steps.vars.outputs.version }}-linux-x64
-          path: dist/wwrando-${{ steps.vars.outputs.version }}-linux-x64.tar.gz
+          name: ${{ steps.vars.outputs.release_name }}
+          path: dist/${{ steps.vars.outputs.release_name }}.${{ matrix.archive_ext }}
+
+  release:
+    name: GitHub Release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
       - name: Create GitHub Release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" \
-            "dist/wwrando-${{ steps.vars.outputs.version }}-linux-x64.tar.gz" \
+            "artifacts/wwrando-$VERSION-linux-x64.tar.gz" \
+            "artifacts/wwrando-$VERSION-windows-x64.zip" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "wwrando-tracking ${{ steps.vars.outputs.version }}" \
-            --notes "Linux build of ${{ steps.vars.outputs.version }}. See CHANGELOG.md for what's new and README.md for how to use it. A vanilla North American Wind Waker ISO is required and not included."
+            --title "wwrando-tracking $VERSION" \
+            --notes "Linux and Windows builds of $VERSION. See CHANGELOG.md for what's new and README.md for how to use it. A vanilla North American Wind Waker ISO is required and not included."
