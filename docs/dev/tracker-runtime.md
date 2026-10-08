@@ -353,6 +353,18 @@ amount.
   owned bit, for screenshots. Screenshots are printed with `-s`; set
   `WW_TRACKER_SCREENSHOT_DIR` to also copy them to a directory.
 
+- `test/test_tracker_save_dolphin.py` (marker `dolphin`): end-to-end save persistence with the game's
+  own save. Session 1 boots the `entrance_rando` `--test` ISO (new game), marks a location through
+  the Z page, gets a DRC small key through the Archipelago give-item array and visits the Cliff
+  Plateau Isles inner cave's exit. It then saves through the pause menu (Quest Status, Save; the
+  memory card starts empty, so it also confirms creating the file). Session 2 boots an ISO of the
+  same seed *without* `--test` in the same Dolphin user directory, so the same GCI-folder card is
+  used. It loads Quest Log 1 from the file select screen and checks that the 0x50-byte save region is
+  byte-identical to what was saved, that the mark, key count and visited bit are set, that loading
+  didn't reset the data, and that the mark shows on the chart. `dSv_info_c::init` also runs once at
+  boot, so the tracker save data is reset (`save_resets` = 1) before the title screen. That's
+  harmless, because loading a file restores it.
+
 Run them with the rest of the suite:
 
 ```sh
