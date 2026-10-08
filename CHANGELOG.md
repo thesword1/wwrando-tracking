@@ -18,6 +18,7 @@
 * Required Bosses Mode can now always or never require specific dungeons (the Archipelago world's Included/Excluded Dungeons) in offline seeds. Invalid combinations are reported before randomizing. Permalinks support these dungeon lists.
 * Offline item pool parity with the Archipelago world: consumable counts match its item pool (more Red/Silver Rupees and Joy Pendants), Triforce and Treasure Charts can be starting items (like its start inventory), inner secret cave entrances are only randomized when both Puzzle and Combat Secret Caves are progress locations, and selecting more starting items than the game supports is reported before randomizing.
 * Offline spoiler logs list the starting items (including dungeon items in the Start With modes) and leave out the hint options, which offline seeds don't use. Permalinks cover all the new offline options and reproduce the same seed.
+* `WWRandomizer.get_seed_plando()` returns a seed's results in the `.aptww` plando format in both modes (for offline seeds: their progress locations, entrances, chart mapping and required bosses), so the tracker can be built the same way for offline and Archipelago seeds.
 
 ### Version 1.11.0 (in progress, not released yet)
 
