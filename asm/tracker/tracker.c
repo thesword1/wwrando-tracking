@@ -12,3 +12,4 @@
 #include "tracker_save.c"
 #include "tracker_detect.c"
 #include "tracker_runtime.c"
+#include "tracker_ui.c"

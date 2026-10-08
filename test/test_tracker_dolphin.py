@@ -65,35 +65,35 @@ def read_state(memory) -> dict:
   return state
 
 
-def build_key() -> str:
+def build_key(fixture: Path = FIXTURE, spawn: str = TEST_SPAWN) -> str:
   # Everything that changes the built ISO.
   digest = hashlib.sha256()
   paths = sorted((REPO_ROOT / "asm" / "patch_diffs").glob("*.txt")) + [
-    REPO_ROOT / "asm" / "custom_symbols.txt", FIXTURE, REPO_ROOT / "tweaks.py", REPO_ROOT / "randomizer.py",
+    REPO_ROOT / "asm" / "custom_symbols.txt", fixture, REPO_ROOT / "tweaks.py", REPO_ROOT / "randomizer.py",
   ] + sorted((REPO_ROOT / "tracker").glob("*.py"))
   for path in paths:
     digest.update(path.read_bytes())
-  digest.update(TEST_SPAWN.encode())
+  digest.update(spawn.encode())
   return digest.hexdigest()[:16]
 
-@pytest.fixture(scope="module")
-def cache_dir(tmp_path_factory) -> Path:
+def make_cache_dir(tmp_path_factory, fixture: Path = FIXTURE, spawn: str = TEST_SPAWN) -> Path:
+  """A directory for the built ISO and savestates, kept between runs if WW_TRACKER_DOLPHIN_CACHE is set."""
   root = os.environ.get("WW_TRACKER_DOLPHIN_CACHE")
   root = Path(root) if root else tmp_path_factory.mktemp("tracker_dolphin")
-  path = root / build_key()
+  path = root / build_key(fixture, spawn)
   path.mkdir(parents=True, exist_ok=True)
   return path
 
-@pytest.fixture(scope="module")
-def tracker_iso(cache_dir: Path) -> Path:
+def build_tracker_iso(cache_dir: Path, fixture: Path = FIXTURE, spawn: str = TEST_SPAWN) -> Path:
+  """Builds an AP-mode ISO with the tracker that boots straight into gameplay at the given spawn."""
   isos = list(cache_dir.glob("*.iso"))
   if not isos:
     output = cache_dir / "build"
     output.mkdir(exist_ok=True)
     subprocess.run(
       [
-        sys.executable, "wwrando.py", "--aptww", str(FIXTURE), "--clean-iso", os.environ["WW_ISO_PATH"],
-        "--output-folder", str(output), "--tracker", "--test", TEST_SPAWN,
+        sys.executable, "wwrando.py", "--aptww", str(fixture), "--clean-iso", os.environ["WW_ISO_PATH"],
+        "--output-folder", str(output), "--tracker", "--test", spawn,
       ],
       cwd=REPO_ROOT, check=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
     )
@@ -102,6 +102,14 @@ def tracker_iso(cache_dir: Path) -> Path:
     built[0].rename(cache_dir / "tracker.iso")
     isos = [cache_dir / "tracker.iso"]
   return isos[0]
+
+@pytest.fixture(scope="module")
+def cache_dir(tmp_path_factory) -> Path:
+  return make_cache_dir(tmp_path_factory)
+
+@pytest.fixture(scope="module")
+def tracker_iso(cache_dir: Path) -> Path:
+  return build_tracker_iso(cache_dir)
 
 
 def wait_for(dolphin, predicate, timeout: float, message: str):

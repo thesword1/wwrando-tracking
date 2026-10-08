@@ -4,7 +4,7 @@
 .open "sys/main.dol"
 
 ; Patch-time tables, written by tweaks.add_in_game_tracker (format: tracker/serialize.py), followed
-; by the runtime state (asm/tracker/tracker_state.h).
+; by the runtime state (asm/tracker/tracker_state.h) and the sea chart UI's state (asm/tracker/tracker_ui.h).
 ; This is .bss so the reserve isn't stored as zeros in the patch diff. The tweak writes the whole
 ; reserve into main.dol, which extends the custom code section over it (and zero-initialises the
 ; state). It comes first so the C code below can link against it.
@@ -18,6 +18,9 @@ tracker_data_end:
 .global tracker_state
 tracker_state:
   .space 0x100
+.global tracker_ui_state
+tracker_ui_state:
+  .space 0x40
 .global tracker_reserve_end
 tracker_reserve_end:
 
@@ -32,5 +35,11 @@ tracker_reserve_end:
 ; Run the tracker's per-frame update during gameplay.
 .org 0x8023502C ; In dScnPly_Execute
   bl tracker_on_frame ; Replaces a call to dKy_itudemo_se, which tracker_on_frame calls first
+
+; Sea chart UI (asm/tracker/tracker_ui.c).
+.org 0x803923EC ; Function of the FmapProc pointer-to-member that __sinit copies into mainProc
+  .int tracker_fmap_proc
+.org 0x803925A0 ; __vt__12dDlst_FMAP_c: draw
+  .int tracker_fmap_draw
 
 .close
