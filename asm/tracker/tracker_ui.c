@@ -381,6 +381,17 @@ TRK_EXPORT bool tracker_ui_menu_input(int stage_group, u16 buttons, s8 stick_y) 
   return ui->page != TRK_PAGE_NONE;
 }
 
+// Whether Z on the dungeon map or Quest Status screen has a page to open here: the current group's list or the list
+// page. The menus show a "Z: tracker" hint while it does.
+TRK_EXPORT bool tracker_ui_menu_has_page(void) {
+  if (tracker_ui_stage_group() >= 0) {
+    return true;
+  }
+  u16 count;
+  tracker_ui_page_group(0, &count);
+  return count > 0;
+}
+
 #ifndef TRACKER_HOST
 
 typedef struct { u8 r, g, b, a; } TrkColor; // JUtility::TColor

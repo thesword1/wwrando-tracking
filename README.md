@@ -219,6 +219,10 @@ While the list is open, the menu's own buttons (B, Start, R/L, D-pad Down/Left) 
 Z or B first. Z does nothing while an item's description, a song, or the save or options window is shown. The
 list shows the place you're in, not the entrance you came through, so it doesn't spoil randomized entrances.
 
+Both screens show a small **`Z: tracker`** label in the top area (right of the dungeon's name, or of the "Quest Status"
+title) whenever Z opens the tracker there. On the sea chart, which already shows the tracker, the label under the
+checked total reads **`Z: other locations`**, since that's what Z adds there.
+
 ### No spoilers
 
 - The tracker never shows which item is at a location, only whether it's checked and whether it's in logic.

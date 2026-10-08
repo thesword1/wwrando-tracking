@@ -77,7 +77,8 @@ class TrkUiState(ctypes.Structure):
     ("list_group", ctypes.c_uint8), ("sel", ctypes.c_uint8), ("scroll", ctypes.c_uint8), ("stick_dir", ctypes.c_int8),
     ("stick_timer", ctypes.c_uint8), ("flash_timer", ctypes.c_uint8), ("last_toggle", ctypes.c_uint8),
     ("page", ctypes.c_uint8), ("page_sel", ctypes.c_uint8), ("page_scroll", ctypes.c_uint8), ("page_group", ctypes.c_uint8),
-    ("collect_draw_frame", ctypes.c_uint32), ("menu", ctypes.c_uint8), ("pad", ctypes.c_uint8 * 0x27),
+    ("collect_draw_frame", ctypes.c_uint32), ("menu", ctypes.c_uint8),
+    ("pad1", ctypes.c_uint8 * 3), ("hint_frame", ctypes.c_uint32), ("pad", ctypes.c_uint8 * 0x20),
   ]
 
 
@@ -144,6 +145,7 @@ class TrackerHost:
     lib.tracker_ui_input.argtypes = [ctypes.c_uint8, ctypes.c_int, ctypes.c_uint16, ctypes.c_int8]
     lib.tracker_ui_menu_input.restype = ctypes.c_bool
     lib.tracker_ui_menu_input.argtypes = [ctypes.c_int, ctypes.c_uint16, ctypes.c_int8]
+    lib.tracker_ui_menu_has_page.restype = ctypes.c_bool
     lib.trk_host_ui_state_ptr.restype = ctypes.POINTER(TrkUiState)
     lib.tracker_triforce_count.restype = ctypes.c_uint8
     lib.tracker_triforce_text.argtypes = [ctypes.c_char_p]
