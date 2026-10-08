@@ -335,6 +335,47 @@ class WWRandomizer:
     if not (self.options.progression_puzzle_secret_caves and self.options.progression_combat_secret_caves):
       self.options.randomize_secret_cave_inner_entrances = False
   
+  def compute_progress_locations(self) -> list[str]:
+    # The locations that can have progress items on this seed with the current options, chart mapping and required
+    # bosses. This is the offline equivalent of the locations in an .aptww's plando (the APWorld's progress locations).
+    progress_locations, _ = self.logic.get_progress_and_non_progress_locations()
+    if self.boss_reqs.is_enabled():
+      banned_locations = set(self.boss_reqs.get_locations_banned_by_required_bosses())
+      progress_locations = [loc for loc in progress_locations if loc not in banned_locations]
+    return progress_locations
+  
+  def get_seed_plando(self) -> Plando:
+    """Returns the seed's randomization results in the same format as an .aptww's plando, in both modes.
+    
+    For offline seeds the locations are this seed's progress locations (like the APWorld, which only has those), the
+    player is slot 1, and the classification is "progression" for progress items and "filler" for everything else.
+    Only valid after randomizing."""
+    if self.archipelago_mode:
+      return self.plando
+    
+    locations = {}
+    for location_name in self.compute_progress_locations():
+      item_name = self.logic.done_item_locations[location_name]
+      locations[location_name] = {
+        "player": 1,
+        "name": item_name,
+        "game": "The Wind Waker",
+        "classification": "progression" if item_name in self.logic.all_progress_items else "filler",
+      }
+    entrances = {
+      zone_entrance.entrance_name: zone_exit.unique_name
+      for zone_entrance, zone_exit in self.entrances.done_entrances_to_exits.items()
+    }
+    return Plando(
+      self.seed,
+      1,
+      "",
+      self.boss_reqs.required_boss_item_locations.copy(),
+      locations,
+      entrances,
+      self.charts.get_plando_charts_mapping(),
+    )
+  
   def get_starting_gear(self) -> list[str]:
     # The items given when starting a new save file (besides the ones that have their own options, like hearts).
     if self.archipelago_mode:
