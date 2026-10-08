@@ -40,9 +40,12 @@
 #     tables were built without logic.
 #   ITEMS (8 bytes each): how to read the count of each item the logic uses, indexed by the bytecode's item
 #     operands (tracker/items.py documents the entries). Empty when the tables were built without logic.
+#   STAGES (10 bytes each, sorted by stage name): the group whose list the dungeon map and Quest Status screens open
+#     in a stage (tracker/stages.py). Only groups in GROUPS.
+#     +0 char[8] stage name (NUL-padded), +8 u8 group ID, +9 pad
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 import struct
 import zlib
@@ -55,10 +58,12 @@ from tracker.items import serialize_item_reads
 from tracker.logic_compiler import CompiledLogic, TrackerLogicInput, compile_tracker_logic
 from tracker.locations import (
   ENTRANCE_CATEGORIES, SQUARE_GROUPS, TrackerGroup, TrackerLocationSet, build_tracker_location_set,
+  get_randomized_exits,
 )
+from tracker.stages import build_stage_groups, stage_group_entries
 
 MAGIC = b"WWTK"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 HEADER_SIZE = 0x20
 DIR_ENTRY_SIZE = 8
 
@@ -85,6 +90,7 @@ class Section(IntEnum):
   STRINGS = 5
   LOGIC = 6
   ITEMS = 7
+  STAGES = 8
 
 NUM_SECTIONS = len(Section)
 
@@ -93,6 +99,7 @@ GROUP_FORMAT = ">BBHHH"
 ENTRANCE_FORMAT = ">BBBBHH"
 TRIGGER_FORMAT = ">8sBBBx"
 CHART_FORMAT = ">BBBBBBBBHxx"
+STAGE_FORMAT = ">8sBx"
 ENTRY_SIZES = {
   Section.LOCATIONS: struct.calcsize(LOCATION_FORMAT),
   Section.GROUPS: struct.calcsize(GROUP_FORMAT),
@@ -102,6 +109,7 @@ ENTRY_SIZES = {
   Section.STRINGS: 1,
   Section.LOGIC: 1,
   Section.ITEMS: 8,
+  Section.STAGES: struct.calcsize(STAGE_FORMAT),
 }
 
 
@@ -130,6 +138,8 @@ class TrackerTables:
   entrance_set: TrackerEntranceSet
   charts: Sequence[TrackerChart]
   logic: CompiledLogic | None = None
+  # Stage name -> group (tracker/stages.py).
+  stage_groups: Mapping[str, TrackerGroup] = field(default_factory=dict)
 
   def groups(self) -> list[TrackerGroup]:
     """Every sea square, plus the list-page groups that have locations or tracked entrances."""
@@ -161,7 +171,8 @@ def build_tracker_tables(
       [loc.name for loc in location_set.locations],
       {seed_entrance.entrance.name: seed_entrance.index for seed_entrance in entrance_set.entrances},
     )
-  return TrackerTables(location_set, entrance_set, build_tracker_chart_table(chart_mapping), logic)
+  stage_groups = build_stage_groups(get_randomized_exits(entrance_options))
+  return TrackerTables(location_set, entrance_set, build_tracker_chart_table(chart_mapping), logic, stage_groups)
 
 
 def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
@@ -255,6 +266,14 @@ def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
   items = tables.logic.items if tables.logic is not None else []
   sections[Section.ITEMS] = (serialize_item_reads(items), len(items))
 
+  stage_data = bytearray()
+  stage_entries = stage_group_entries(tables.stage_groups, {group.id for group in groups})
+  for stage_name, group_id in stage_entries:
+    encoded = stage_name.encode("ascii")
+    assert len(encoded) <= 8
+    stage_data += struct.pack(STAGE_FORMAT, encoded, group_id)
+  sections[Section.STAGES] = (stage_data, len(stage_entries))
+
   directory = bytearray()
   body = bytearray()
   offset = HEADER_SIZE + DIR_ENTRY_SIZE*NUM_SECTIONS
@@ -299,4 +318,5 @@ def parse_tracker_tables(blob: bytes) -> dict[str, object]:
     "triggers": [(entry[0].rstrip(b"\0").decode("ascii"), *entry[1:]) for entry in entries(Section.TRIGGERS, TRIGGER_FORMAT)],
     "charts": [(*entry[:8], string(entry[8])) for entry in entries(Section.CHARTS, CHART_FORMAT)],
     "logic": blob[directory[Section.LOGIC][0]:directory[Section.LOGIC][0]+directory[Section.LOGIC][1]],
+    "stages": [(entry[0].rstrip(b"\0").decode("ascii"), entry[1]) for entry in entries(Section.STAGES, STAGE_FORMAT)],
   }

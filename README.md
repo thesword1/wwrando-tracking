@@ -137,7 +137,9 @@ With a release build, replace `python wwrando.py` with `./wwrando-tracking` (Lin
 
 ## In-game tracker
 
-Open the sea chart (**D-pad Up**). The tracker draws on top of it.
+Open the sea chart (**D-pad Up**). The tracker draws on top of it. Where the sea chart can't be opened (dungeons,
+caves, other interiors), press **Z** on the dungeon map or the pause menu's Quest Status screen instead
+([below](#in-dungeons-and-caves)).
 
 The pause menu's **Quest Status** screen also shows how many Triforce shards you have (for example `3/8`) under the
 Triforce.
@@ -197,6 +199,26 @@ Holding the stick scrolls; a fresh push past the end of a list wraps around. If 
 already detected as checked, the row flashes red and nothing changes. While the other locations page is open, the
 chart's own buttons (D-pad Left/Down, Y) do nothing until you close it with Z or B.
 
+### In dungeons and caves
+
+Press **Z** on the **dungeon map** (D-pad Up in a dungeon) or on the pause menu's **Quest Status** screen (Start, then
+R or L) to open the location list of the place you're in: the dungeon in a dungeon (including its miniboss and boss
+rooms), the secret cave, inner cave or fairy fountain in one of those (or its island's list when its entrance isn't
+randomized), and the island's list in an interior like Lenzo's House. Where that doesn't apply (on the sea, or in a
+dungeon whose boss isn't required), Z opens the other locations page instead.
+
+| Button | Location list | Other locations page |
+|---|---|---|
+| Z | close | close |
+| Main stick | select location | select group |
+| X | mark / unmark | - |
+| A | - | open group |
+| B | back to the other locations page | close page |
+
+While the list is open, the menu's own buttons (B, Start, R/L, D-pad Down/Left) only work on the list, so close it with
+Z or B first. Z does nothing while an item's description, a song, or the save or options window is shown. The
+list shows the place you're in, not the entrance you came through, so it doesn't spoil randomized entrances.
+
 ### No spoilers
 
 - The tracker never shows which item is at a location, only whether it's checked and whether it's in logic.
@@ -220,6 +242,8 @@ setting (Advanced Options tab, default off) that only changes the tracker's logi
   it isn't planned.
 - No "items needed" estimate (the website tracker has one).
 - The tracker only tracks progress locations, so it can't help with optional locations.
+- In the Cliff Plateau Isles inner cave (which is part of the sea stage), Z on Quest Status opens the other locations
+  page rather than the cave's list.
 - Tracker marks are only kept if you save the game. Loading a save from a different seed resets the tracker data.
 - Only tested in Dolphin.
 

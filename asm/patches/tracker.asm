@@ -59,8 +59,16 @@ tracker_exec_item_func:
 .org 0x803925A0 ; __vt__12dDlst_FMAP_c: draw
   .int tracker_fmap_draw
 
-; Triforce shard counter on the Quest Status screen (asm/tracker/tracker_collect.c).
+; Quest Status screen (asm/tracker/tracker_ui_menu.c): the tracker's pages (tracker_ui_menu.c) and the Triforce shard
+; counter (tracker_collect.c).
 .org 0x803920EC ; __vt__15dMenu_Collect_c: draw
   .int tracker_collect_draw
+.org 0x803920F8 ; __vt__15dMenu_Collect_c: _move
+  .int tracker_collect_move
+; Tracker pages on the dungeon map (asm/tracker/tracker_ui_menu.c).
+.org 0x803921D4 ; __vt__12dMenu_Dmap_c: draw
+  .int tracker_dmap_draw
+.org 0x803921E0 ; __vt__12dMenu_Dmap_c: _move
+  .int tracker_dmap_move
 
 .close

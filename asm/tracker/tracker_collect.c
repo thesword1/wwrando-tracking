@@ -1,8 +1,8 @@
 // Triforce shard counter on the Quest Status (Collect) screen. The shards are drawn as eight small
 // pieces of one triangle, so it's hard to tell how many are owned; this draws "n/8" under it.
-// tracker_collect_draw replaces dMenu_Collect_c::draw in its vtable (asm/patches/tracker.asm). It
-// draws the screen, then the counter on top, positioned from the Triforce frame pane so it follows
-// the screen's slide and fade animations.
+// tracker_collect_draw (tracker_ui_menu.c) replaces dMenu_Collect_c::draw in its vtable
+// (asm/patches/tracker.asm). It draws the screen, then the counter on top, positioned from the
+// Triforce frame pane so it follows the screen's slide and fade animations.
 
 #include "tracker_mem.h"
 #include "tracker_state.h"
@@ -31,8 +31,6 @@ TRK_EXPORT void tracker_triforce_text(char* out) {
 
 #ifndef TRACKER_HOST
 
-void draw__15dMenu_Collect_cFv(void* collect);
-
 // dMenu_Collect_c members (zeldaret/tww include/d/d_menu_collect.h).
 #define TRK_COLLECT_TRIB_PANE_OFFSET 0xFC8 // fopMsgM_pane_class mFC8: 'trib', the Triforce frame
 #define TRK_COLLECT_NOTE_OPEN_OFFSET 0x81E // s16 m7E8.mUserArea: 1 while an item's description is shown
@@ -58,8 +56,7 @@ TRK_INLINE TrkColor trk_fade(TrkColor color, u32 fade) {
   return color;
 }
 
-void tracker_collect_draw(u8* collect) {
-  draw__15dMenu_Collect_cFv(collect);
+static void trk_draw_triforce_counter(u8* collect) {
   // Only on the screen itself: not over an item's description, a song, or the save/options windows.
   if (collect[TRK_COLLECT_MODE_OFFSET] != 0 || *(s16*)(collect + TRK_COLLECT_NOTE_OPEN_OFFSET) == 1) {
     return;

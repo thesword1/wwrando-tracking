@@ -91,3 +91,6 @@ setPort__13J2DOrthoGraphFv = 0x802cdcb4;
 draw__12dDlst_FMAP_cFv = 0x801bb024;
 draw__15dMenu_Collect_cFv = 0x801a8584;
 FmapProc__12dMenu_Fmap_cFv = 0x801b6610;
+_move__12dMenu_Dmap_cFv = 0x801aed08;
+draw__12dMenu_Dmap_cFv = 0x801af440;
+_move__15dMenu_Collect_cFv = 0x801a55d0;

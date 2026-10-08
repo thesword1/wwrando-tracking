@@ -47,10 +47,12 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `asm/tracker/tracker_logic.[ch]` | Logic bytecode interpreter, evaluation triggers, in-logic results |
 | `asm/tracker/tracker_ui.[ch]` | Sea chart UI: hooks into the chart menu, counters and drawing; its state is in the `tracker_ui_state` reserve |
 | `asm/tracker/tracker_collect.c` | Triforce shard counter on the pause menu's Quest Status screen |
+| `asm/tracker/tracker_ui_menu.c` | The sea chart UI's pages on the dungeon map and the Quest Status screen: hooks into `dMenu_Dmap_c` and `dMenu_Collect_c` |
 | `asm/tracker/tracker_host.c` | Host build only: mock RAM and the table pointer |
 | `asm/tracker/Makefile` | Host build (`make -C asm/tracker host`) |
 | `tracker/serialize.py` | Table format (documented at the top of the file), serializer and a Python reader |
 | `tracker/logic_compiler.py` | Logic compiler, bytecode format and Python reference evaluator |
+| `tracker/stages.py` | Stage name to group table for the dungeon map and Quest Status pages |
 
 Rules for the C code (see the comment in `tracker.c`):
 
@@ -90,7 +92,9 @@ the C code, linked afterwards, can reference it.
 | 0x8023502C in `dScnPly_Execute` (every gameplay frame, also with a menu open) | Replaces the call to `dKy_itudemo_se` with `tracker_on_frame`, which calls it and then `tracker_frame()` |
 | 0x803923EC: the `FmapProc` pointer-to-member that `__sinit_d_menu_fmap_cpp` copies into `mainProc[0]` | `tracker_fmap_proc` (sea chart UI input), which calls `FmapProc` |
 | 0x803925A0: `draw` in the vtable of `dDlst_FMAP_c` | `tracker_fmap_draw`, which calls `dDlst_FMAP_c::draw` and then draws the tracker over the chart |
-| 0x803920EC: `draw` in the vtable of `dMenu_Collect_c` (the Quest Status screen) | `tracker_collect_draw`, which calls `dMenu_Collect_c::draw` and then draws the Triforce shard counter |
+| 0x803920EC: `draw` in the vtable of `dMenu_Collect_c` (the Quest Status screen) | `tracker_collect_draw` (`tracker_ui_menu.c`), which calls `dMenu_Collect_c::draw` and then draws the Triforce shard counter and the tracker's page |
+| 0x803920F8: `_move` in the vtable of `dMenu_Collect_c` | `tracker_collect_move`: Z and the page's input, then `dMenu_Collect_c::_move` unless a page is shown |
+| 0x803921D4 / 0x803921E0: `draw` / `_move` in the vtable of `dMenu_Dmap_c` (the dungeon map) | `tracker_dmap_draw` / `tracker_dmap_move`, the same for the dungeon map |
 | `item_func_ptr` entries 0x13, 0x1D, 0x5B, 0x73, 0x77 (dungeon small keys) | `tweaks.add_in_game_tracker` points them at `tracker_<dungeon>_small_key_item_get_func`, which counts the key and calls the randomizer's `<dungeon>_small_key_item_get_func`. Both field pickups and Archipelago deliveries go through `execItemGet` and therefore through these. |
 
 `tracker_frame()` does nothing until the tables are valid. It skips the title screen and file
@@ -197,6 +201,47 @@ value. The selection is kept per group and reset when another group's list is sh
 
 `tracker_ui_group_counter()` computes a group's counter. Logic comes from `trk_ui_location_logic()`,
 which returns "unknown" until the logic runtime is wired in.
+
+## Dungeon map and Quest Status pages
+
+The sea chart can't be opened in dungeons and interiors, so `tracker_ui_menu.c` shows the chart's pages (a group's
+location list and the list page) on the dungeon map (`dMenu_Dmap_c`, D-pad Up in a dungeon) and on the pause menu's
+Quest Status screen (`dMenu_Collect_c`) too. **Z** opens the location list of the group the player is in, or the list
+page if there's none. Neither menu reads Z (`d_menu_dmap.cpp`, `d_menu_collect.cpp`; only the save window, which is
+`mCollectMode` 3, does).
+
+**Which group:** `tracker_ui_stage_group()` looks the current stage name (0x803C9D3C) up in the tables' STAGES
+section, which `tracker/stages.py` builds at patch time:
+
+- every stage of a dungeon, including its miniboss and boss arenas (`kindan`, `kinMB`, `kinBOSS`, ...), and of
+  Hyrule and Ganon's Tower, maps to that group, like the arenas' locations in `tracker/locations.py`;
+- secret caves, inner caves and fairy fountains map to the group their locations are in in this seed: the cave's own
+  group if an entrance on the way is randomized, else its island's square;
+- any other stage whose locations (the first component of their paths in `logic/item_locations.txt`) are all in one
+  group maps to it, for example Lenzo's House (`Ocmera`) to Windfall Island. Stages with locations in several groups
+  (`sea`, the submarines `Abship`) are left out.
+
+Only groups in the tables are written, so a hidden dungeon (required bosses) gets the list page. The Cliff Plateau
+Isles inner cave is on the `sea` stage, so it gets the list page too. The stage identifies the dungeon or cave the
+player is in, not the entrance they came through, so randomized entrances aren't spoiled.
+
+**Input:** both menus' `_move` (vtable slot +0x18) is called once per frame while the menu is open and idle, after the
+window code (`dMs_Execute`) has checked the menu's close and page-switch buttons itself: B, Start, R and L on Quest
+Status, B, D-pad Down and Left on the dungeon map. It skips those while the menu's `noteCheck()` is true (an item's
+description is open): `mNk00Pane.mUserArea` (+0x972) on the dungeon map, `m7E8.mUserArea` (+0x81E) on Quest Status,
+== 1. The hooks set that flag to 1 when a page opens and back to 0 when it closes, so while a page is shown those
+buttons only reach the tracker, and the menu's own `_move` isn't called. Z only opens a page while the flag is 0 (no
+description) and, on Quest Status, `mCollectMode` (+0x27EE) is 0 (not playing a song or in the save or options
+window). `tracker_ui_menu_input()` is the host-testable state machine; once a page is shown it's the chart's
+(`trk_ui_page_input`), except that B on a location list opened this way goes to the list page with the group selected.
+The logic is evaluated when a page opens.
+
+**Drawing:** the `draw` slots (+0x0C) call the menu's `draw` and then draw the page centered vertically at x = 96, left
+of the button icons in the top right corner, with the menu's font (`mFont` +0x14A8 on the dungeon map, `mpFont` +0x2470
+on Quest Status). The panel is drawn opaque because the menus are busier than the chart. On Quest Status the Triforce
+counter is drawn first, and hides itself while a page is shown since that sets the description flag.
+`TrkUiState.menu` records whose `_move` ran last, so a page is only drawn on the menu it was opened on, and pages are
+closed when another menu is opened or a menu is reopened.
 
 ## Triforce shard counter
 
@@ -307,21 +352,23 @@ and the Dolphin tests read it from RAM.
 | STRINGS | bytes | NUL-terminated ASCII, referenced by offset |
 | LOGIC | bytes | Compiled logic bytecode (`tracker/logic_compiler.py` documents the opcodes) |
 | ITEMS | 8 B | How to read each logic item's count from game memory (`tracker/items.py`) |
+| STAGES | 10 B | stage name, group ID, sorted by stage name (`tracker/stages.py`) |
 
 Locations are ordered by group, so each group's locations are contiguous. The C reader checks the
 magic and format version (`trk_tables_valid`); bump `FORMAT_VERSION` and `TRK_FORMAT_VERSION`
 together on any layout change. `test_tracker_serialize.py` checks the Python and C constants agree.
 
-Sizes (bytes) for the test fixtures: 5.7-11.3 KB; the worst case (all 320 locations and every
-entrance tracked) is 14.1 KB. About 60% is strings. The 24 KB reserve leaves room for the logic
+Sizes (bytes) for the test fixtures, without the logic: 6.3-11.9 KB; the worst case (all 320 locations and every
+entrance tracked) is 14.9 KB. About 60% is strings. The 24 KB reserve leaves room for the logic
 bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x4580 bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0x2C4 for the
-Triforce counter and 0xD00 for the logic interpreter), plus the 0x6000-byte table reserve, the 0x200-byte state
-reserve and the 0x40-byte UI state reserve. In total the custom code section grows by about 0xA7C0 bytes (42,944),
-and the game heap shrinks by the same amount.
+The tracker adds 0x4E10 bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0x890 for the
+dungeon map and Quest Status pages, 0x2C4 for the Triforce counter and 0xD00 for the logic interpreter), plus the
+0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state reserve. In total the custom code
+section grows by about 0xB050 bytes (45,136), and the game heap shrinks by the same amount. The STAGES section adds
+about 0x350 bytes to the tables, inside the reserve.
 
 ## Tests
 
@@ -376,6 +423,16 @@ and the game heap shrinks by the same amount.
   `test/test_tracker_collect_dolphin.py` (marker `dolphin`) opens Quest Status, sets 0, 3 and 8 shards in RAM and
   checks the counter is drawn (screenshots `triforce-0/3/8`), that it isn't drawn over the options window, and that it
   stops when the pause menu closes.
+
+- `test/test_tracker_stages.py`: the STAGES table (`tracker/stages.py`) agrees with every location's group, with and
+  without randomized entrances (dungeon arenas, caves, fairy fountains, interiors). `test/test_tracker_ui.py` checks
+  `tracker_ui_stage_group()` on the host (including hidden dungeons and near-miss stage names) and
+  `tracker_ui_menu_input()` (Z opens the current group or the list page, X marks, B goes to the list page with the
+  group selected, Z/B close). `test/test_tracker_ui_menu_dolphin.py` (marker `dolphin`) boots `entrance_rando` ISOs
+  straight into Forbidden Woods (`--test kindan,0,0`), the Savage Labyrinth (`Cave09,0,0`) and the sea: on the dungeon
+  map Z opens Forbidden Woods' list, X marks (save bit), D-pad Down doesn't close the map while the list is shown, B
+  goes to the list page and closes it, Z closes; on Quest Status in the cave Z opens the Savage Labyrinth's list,
+  Start and R are blocked while it's shown; on the sea Z opens the list page. Screenshots `dmap*` and `collect*`.
 
 - `test/test_tracker_save_dolphin.py` (marker `dolphin`): end-to-end save persistence with the game's
   own save. Session 1 boots the `entrance_rando` `--test` ISO (new game), marks a location through
