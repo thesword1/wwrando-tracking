@@ -1,5 +1,6 @@
 // The tracker's sea chart UI (asm/tracker/tracker_ui.c): counters on the chart, and the hooks into
-// dMenu_Fmap_c that drive them.
+// dMenu_Fmap_c that drive them. The dungeon map and Quest Status screens show its pages too
+// (asm/tracker/tracker_ui_menu.c).
 
 #ifndef TRACKER_UI_H
 #define TRACKER_UI_H
@@ -30,11 +31,19 @@ enum TrkUiButton {
   TRK_BTN_B = 1 << 3,
 };
 
-// Tracker pages shown over the chart (opened with Z).
+// Tracker pages shown over the sea chart, dungeon map or Quest Status screen (opened with Z).
 enum TrkUiPage {
   TRK_PAGE_NONE = 0,
   TRK_PAGE_GROUPS = 1, // The list page: groups that aren't on a sea square
-  TRK_PAGE_GROUP = 2, // One of those groups' location list
+  TRK_PAGE_GROUP = 2, // A group's location list: from the list page, or the current group's (dungeon map, Quest Status)
+};
+
+// Menus the UI is shown on (TrkUiState.menu).
+enum TrkUiMenu {
+  TRK_MENU_NONE = 0,
+  TRK_MENU_FMAP = 1, // Sea chart (tracker_ui.c)
+  TRK_MENU_DMAP = 2, // Dungeon map (tracker_ui_menu.c)
+  TRK_MENU_COLLECT = 3, // Quest Status (tracker_ui_menu.c)
 };
 
 // Main stick deflection (PADStatus stickY, about -72..72) that counts as up/down, and the auto-repeat
@@ -78,8 +87,9 @@ typedef struct {
   u8 page; // 0x10: enum TrkUiPage
   u8 page_sel; // 0x11: selected row of the list page
   u8 page_scroll; // 0x12: first row of the list page shown
-  u8 page_group; // 0x13: group index of the location list opened from the list page
-  u8 pad[0x2C]; // 0x14
+  u8 page_group; // 0x13: group index of the location list shown on TRK_PAGE_GROUP
+  u8 menu; // 0x14: enum TrkUiMenu whose input handler last ran
+  u8 pad[0x2B]; // 0x15
 } TrkUiState;
 
 #define TRK_UI_COUNTER_UNKNOWN 0xFF
@@ -99,6 +109,8 @@ int tracker_ui_page_group(u16 n, u16* count);
 int tracker_ui_group_entrance(u8 group_index);
 u16 tracker_ui_info_lines(u8 group_index, TrkUiInfo* out);
 bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y);
+int tracker_ui_stage_group(void);
+bool tracker_ui_menu_input(int stage_group, u16 buttons, s8 stick_y);
 
 #ifdef TRACKER_HOST
 extern TrkUiState trk_host_ui_state;

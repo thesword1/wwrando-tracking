@@ -298,3 +298,103 @@ def test_info_lines_take_list_rows(tracker: TrackerHost):
   for _ in range(rows):
     push(tracker, windfall, STICK_DOWN)
   assert (tracker.ui_state.sel, tracker.ui_state.scroll) == (rows, 1)
+
+
+# Dungeon map and Quest Status pages (asm/tracker/tracker_ui_menu.c).
+
+def stage_group(tracker: TrackerHost, stage_name: str) -> int:
+  enter_game(tracker, stage_name, 0, 0)
+  return tracker.lib.tracker_ui_stage_group()
+
+
+def test_stage_group(entrance_rando: TrackerHost):
+  tracker = entrance_rando
+  fw = group_index(tracker, "Forbidden Woods")
+  for stage_name in ["kindan", "kinMB", "kinBOSS"]:
+    assert stage_group(tracker, stage_name) == fw, stage_name
+  assert stage_group(tracker, "M_NewD2") == group_index(tracker, "Dragon Roost Cavern")
+  # Caves behind randomized entrances have their own group, other interiors are on their island's square.
+  assert stage_group(tracker, "Cave09") == group_index(tracker, "Savage Labyrinth")
+  assert stage_group(tracker, "Ocmera") == group_index(tracker, "Windfall Island")
+  # Not one group, or no such stage.
+  for stage_name in ["sea", "Abship", "kinda", "kindanX", "", "Name"]:
+    assert stage_group(tracker, stage_name) == -1, stage_name
+
+
+def test_stage_group_without_locations(tracker: TrackerHost):
+  # Hidden dungeons (required bosses) have no group, so their stages open the list page.
+  load_fixture(tracker, "charts_required_bosses")
+  hidden = [name for name in ["Dragon Roost Cavern", "Forbidden Woods", "Tower of the Gods", "Earth Temple", "Wind Temple"]
+            if not any(g.name == name for g in tracker.tables.groups())]
+  assert hidden
+  stages = {"Dragon Roost Cavern": "M_NewD2", "Forbidden Woods": "kindan", "Tower of the Gods": "Siren", "Earth Temple": "M_Dai", "Wind Temple": "kaze"}
+  for name in hidden:
+    assert stage_group(tracker, stages[name]) == -1, name
+
+
+def menu_input(tracker: TrackerHost, stage_group: int, buttons: int = 0, stick: int = 0) -> bool:
+  return tracker.lib.tracker_ui_menu_input(stage_group, buttons, stick)
+
+
+def test_menu_navigation(entrance_rando: TrackerHost):
+  tracker = entrance_rando
+  ui = tracker.ui_state
+  ui.list_group = NO_GROUP
+  fw = stage_group(tracker, "kindan")
+  tracker.lib.tracker_frame()
+  page = page_groups(tracker)
+
+  # Nothing but Z does anything without a page.
+  assert not menu_input(tracker, fw, BTN_A | BTN_B | BTN_X, STICK_DOWN)
+  assert ui.page == PAGE_NONE
+  # Z opens the current group's list, which works like the chart's.
+  assert menu_input(tracker, fw, BTN_Z)
+  assert (ui.page, ui.page_group) == (PAGE_GROUP, fw)
+  locations = tracker.tables.location_set.locations_in_group(tracker.tables.groups()[fw])
+  assert menu_input(tracker, fw, stick=STICK_DOWN)
+  assert menu_input(tracker, fw)
+  assert menu_input(tracker, fw, BTN_X)
+  assert ui.last_toggle == TOGGLE_MARKED
+  assert tracker.lib.tracker_is_manual(locations[1].index)
+  assert not tracker.lib.tracker_is_manual(locations[0].index)
+  # An auto-detected check can't be unmarked.
+  set_location_flag(tracker, locations[1].name)
+  assert menu_input(tracker, fw, BTN_X)
+  assert ui.last_toggle == TOGGLE_REFUSED and ui.flash_timer > 0
+  # B goes to the list page with the group selected, B again closes it.
+  assert menu_input(tracker, fw, BTN_B)
+  assert ui.page == PAGE_GROUPS
+  assert page[ui.page_sel] == fw
+  assert menu_input(tracker, fw, BTN_A)
+  assert (ui.page, ui.page_group) == (PAGE_GROUP, fw)
+  assert menu_input(tracker, fw, BTN_B)
+  assert not menu_input(tracker, fw, BTN_B)
+  assert ui.page == PAGE_NONE
+  # Z closes the list.
+  assert menu_input(tracker, fw, BTN_Z)
+  assert not menu_input(tracker, fw, BTN_Z)
+  assert ui.page == PAGE_NONE
+
+  # Without a group here, Z opens the list page.
+  assert menu_input(tracker, -1, BTN_Z)
+  assert ui.page == PAGE_GROUPS
+  assert not menu_input(tracker, -1, BTN_Z)
+
+  # A square's list (an interior on an island) isn't on the list page; B goes to the list page as it was.
+  windfall = stage_group(tracker, "Ocmera")
+  ui.page_sel = 2
+  assert menu_input(tracker, windfall, BTN_Z)
+  assert (ui.page, ui.page_group, ui.page_sel) == (PAGE_GROUP, windfall, 2)
+  assert menu_input(tracker, windfall, BTN_B)
+  assert (ui.page, ui.page_sel) == (PAGE_GROUPS, 2)
+
+
+def test_menu_list_page_scrolls_to_group(entrance_rando: TrackerHost):
+  tracker = entrance_rando
+  ui = tracker.ui_state
+  page = page_groups(tracker)
+  assert len(page) > LIST_ROWS
+  last = page[-1]
+  assert menu_input(tracker, last, BTN_Z)
+  assert menu_input(tracker, last, BTN_B)
+  assert (ui.page_sel, ui.page_scroll) == (len(page) - 1, len(page) - LIST_ROWS)

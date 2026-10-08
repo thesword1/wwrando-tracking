@@ -39,6 +39,9 @@ class TrkTrigger(ctypes.Structure):
     ("entrance_index", ctypes.c_uint8),
   ]
 
+class TrkStage(ctypes.Structure):
+  _fields_ = [("stage_name", ctypes.c_char * 8), ("group_id", ctypes.c_uint8)]
+
 class TrkChart(ctypes.Structure):
   _fields_ = [
     ("destination_square", ctypes.c_uint8), ("vanilla_square", ctypes.c_uint8), ("chart_number", ctypes.c_uint8),
@@ -74,7 +77,7 @@ class TrkUiState(ctypes.Structure):
     ("list_group", ctypes.c_uint8), ("sel", ctypes.c_uint8), ("scroll", ctypes.c_uint8), ("stick_dir", ctypes.c_int8),
     ("stick_timer", ctypes.c_uint8), ("flash_timer", ctypes.c_uint8), ("last_toggle", ctypes.c_uint8),
     ("page", ctypes.c_uint8), ("page_sel", ctypes.c_uint8), ("page_scroll", ctypes.c_uint8), ("page_group", ctypes.c_uint8),
-    ("pad", ctypes.c_uint8 * 0x2C),
+    ("menu", ctypes.c_uint8), ("pad", ctypes.c_uint8 * 0x2B),
   ]
 
 
@@ -110,7 +113,7 @@ class TrackerHost:
     lib.trk_find_group.argtypes = [ctypes.c_uint8]
     for name, struct_type in [
       ("trk_get_location", TrkLocation), ("trk_get_group", TrkGroup), ("trk_get_entrance", TrkEntrance),
-      ("trk_get_trigger", TrkTrigger), ("trk_get_chart", TrkChart),
+      ("trk_get_trigger", TrkTrigger), ("trk_get_chart", TrkChart), ("trk_get_stage", TrkStage),
     ]:
       getattr(lib, name).argtypes = [ctypes.c_uint16, ctypes.POINTER(struct_type)]
     lib.trk_host_state_ptr.restype = ctypes.POINTER(TrkState)
@@ -139,6 +142,8 @@ class TrackerHost:
     lib.tracker_ui_info_lines.argtypes = [ctypes.c_uint8, ctypes.POINTER(TrkUiInfo)]
     lib.tracker_ui_input.restype = ctypes.c_bool
     lib.tracker_ui_input.argtypes = [ctypes.c_uint8, ctypes.c_int, ctypes.c_uint16, ctypes.c_int8]
+    lib.tracker_ui_menu_input.restype = ctypes.c_bool
+    lib.tracker_ui_menu_input.argtypes = [ctypes.c_int, ctypes.c_uint16, ctypes.c_int8]
     lib.trk_host_ui_state_ptr.restype = ctypes.POINTER(TrkUiState)
     self._data = None
     self.ram_base = lib.trk_host_ram_base()

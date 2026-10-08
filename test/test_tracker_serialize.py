@@ -92,6 +92,13 @@ def test_round_trip_fixture(path: Path):
   exit_group_ids = {entry[2] for entry in parsed["entrances"]}
   assert exit_group_ids <= set(group_ids)
 
+  stage_names = [stage for stage, _ in parsed["stages"]]
+  assert stage_names == sorted(stage_names) and len(set(stage_names)) == len(stage_names)
+  for stage, group_id in parsed["stages"]:
+    assert 0 < len(stage) <= 8
+    assert group_id in group_ids
+    assert tables.stage_groups[stage].id == group_id
+
   assert [chart[0] for chart in parsed["charts"]] == list(range(1, 50))
   for chart, entry in zip(tables.charts, parsed["charts"]):
     assert entry[2] == chart.chart_number

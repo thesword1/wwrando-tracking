@@ -102,3 +102,11 @@ TRK_EXPORT void trk_get_chart(u16 index, TrkChart* out) {
   out->salvaged_mask = p[7];
   out->name = trk_be16(p + 8);
 }
+
+TRK_EXPORT void trk_get_stage(u16 index, TrkStage* out) {
+  const u8* p = trk_entry(TRK_SEC_STAGES, index);
+  for (int i = 0; i < 8; i++) {
+    out->stage_name[i] = (char)p[i];
+  }
+  out->group_id = p[8];
+}

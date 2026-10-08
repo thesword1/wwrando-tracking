@@ -247,38 +247,28 @@ TRK_EXPORT u16 tracker_ui_info_lines(u8 group_index, TrkUiInfo* out) {
   return count;
 }
 
-// All input while the normal sea chart is idle. view is the chart's view (enum TrkUiView) and
-// square_group the group of the square shown in square view (-1 for none). Returns whether the
-// tracker consumed the input, in which case the chart's own input handler must not run.
-//
-// - World or square view: Z opens the list page. In square view, the stick and X work on the
-//   square's location list (tracker_ui_list_input); vanilla doesn't read them there.
-// - List page (groups): the stick selects, A opens the group's location list, B or Z closes the page.
-// - A group's location list: the stick and X as in square view, B goes back to the groups, Z closes.
-TRK_EXPORT bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y) {
-  TrkUiState* ui = TRK_UI_STATE;
-  if (ui->page == TRK_PAGE_NONE) {
-    if (buttons & TRK_BTN_Z) {
-      u16 count;
-      tracker_ui_page_group(0, &count);
-      if (count > 0 && (view == TRK_VIEW_WORLD || view == TRK_VIEW_SQUARE)) {
-        ui->page = TRK_PAGE_GROUPS;
-        if (ui->page_sel >= count) {
-          ui->page_sel = 0;
-          ui->page_scroll = 0;
-        }
-        return true;
-      }
-    }
-    if (view == TRK_VIEW_SQUARE && square_group >= 0) {
-      tracker_ui_list_input((u8)square_group, buttons, stick_y);
-    }
+// Opens the list page if it has any groups.
+static bool trk_ui_open_page(TrkUiState* ui) {
+  u16 count;
+  tracker_ui_page_group(0, &count);
+  if (count == 0) {
     return false;
   }
+  ui->page = TRK_PAGE_GROUPS;
+  if (ui->page_sel >= count) {
+    ui->page_sel = 0;
+    ui->page_scroll = 0;
+  }
+  return true;
+}
 
+// Input while a page is shown:
+// - List page (groups): the stick selects, A opens the group's location list, B or Z closes the page.
+// - A group's location list: the stick and X as in square view, B goes back to the groups, Z closes.
+static void trk_ui_page_input(TrkUiState* ui, u16 buttons, s8 stick_y) {
   if (buttons & TRK_BTN_Z) {
     ui->page = TRK_PAGE_NONE;
-    return true;
+    return;
   }
   if (ui->page == TRK_PAGE_GROUPS) {
     u16 count;
@@ -296,13 +286,99 @@ TRK_EXPORT bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stic
     }
   } else {
     if (buttons & TRK_BTN_B) {
-      ui->page = TRK_PAGE_GROUPS;
       ui->stick_dir = 0;
+      if (!trk_ui_open_page(ui)) {
+        ui->page = TRK_PAGE_NONE;
+      }
     } else {
       tracker_ui_list_input(ui->page_group, buttons, stick_y);
     }
   }
+}
+
+// All input while the normal sea chart is idle. view is the chart's view (enum TrkUiView) and
+// square_group the group of the square shown in square view (-1 for none). Returns whether the
+// tracker consumed the input, in which case the chart's own input handler must not run.
+//
+// - World or square view: Z opens the list page. In square view, the stick and X work on the
+//   square's location list (tracker_ui_list_input); vanilla doesn't read them there.
+// - A page: trk_ui_page_input.
+TRK_EXPORT bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y) {
+  TrkUiState* ui = TRK_UI_STATE;
+  if (ui->page == TRK_PAGE_NONE) {
+    if ((buttons & TRK_BTN_Z) && (view == TRK_VIEW_WORLD || view == TRK_VIEW_SQUARE) && trk_ui_open_page(ui)) {
+      return true;
+    }
+    if (view == TRK_VIEW_SQUARE && square_group >= 0) {
+      tracker_ui_list_input((u8)square_group, buttons, stick_y);
+    }
+    return false;
+  }
+  trk_ui_page_input(ui, buttons, stick_y);
   return true;
+}
+
+// Whether name (8 characters, NUL-padded) is the current stage's name.
+static bool trk_is_current_stage(const char* name) {
+  for (u32 i = 0; i < 8; i++) {
+    char c = (char)trk_mem_u8(TRK_CURRENT_STAGE_NAME_ADDR + i);
+    if (c != name[i]) {
+      return false;
+    }
+    if (c == '\0') {
+      break;
+    }
+  }
+  return true;
+}
+
+// The group the player is in, from the current stage's name and the STAGES table (tracker/stages.py), or -1 if the
+// stage isn't one group or the group has nothing to show.
+TRK_EXPORT int tracker_ui_stage_group(void) {
+  u16 count = trk_count(TRK_SEC_STAGES);
+  for (u16 i = 0; i < count; i++) {
+    TrkStage stage;
+    trk_get_stage(i, &stage);
+    if (!trk_is_current_stage(stage.stage_name)) {
+      continue;
+    }
+    int group_index = trk_find_group(stage.group_id);
+    if (group_index < 0 || group_index >= TRK_UI_NO_GROUP) {
+      return -1;
+    }
+    TrkGroup group;
+    trk_get_group(group_index, &group);
+    return group.num_locations > 0 || tracker_ui_info_lines((u8)group_index, NULL) > 0 ? group_index : -1;
+  }
+  return -1;
+}
+
+// Z on the dungeon map or the Quest Status screen (tracker_ui_menu.c): opens the location list of the group the
+// player is in (stage_group, from tracker_ui_stage_group), or the list page if there's none. B on that list goes to
+// the list page, with the group selected if it's there. Once a page is shown, the input is the same as on the sea
+// chart (trk_ui_page_input). Returns whether a page is shown.
+TRK_EXPORT bool tracker_ui_menu_input(int stage_group, u16 buttons, s8 stick_y) {
+  TrkUiState* ui = TRK_UI_STATE;
+  if (ui->page != TRK_PAGE_NONE) {
+    trk_ui_page_input(ui, buttons, stick_y);
+  } else if (buttons & TRK_BTN_Z) {
+    if (stage_group >= 0) {
+      ui->page = TRK_PAGE_GROUP;
+      ui->page_group = (u8)stage_group;
+      ui->stick_dir = 0;
+      u16 count;
+      tracker_ui_page_group(0, &count);
+      for (u16 n = 0; n < count; n++) {
+        if (tracker_ui_page_group(n, NULL) == stage_group) {
+          ui->page_sel = (u8)n;
+          ui->page_scroll = n >= TRK_UI_LIST_ROWS ? (u8)(n - TRK_UI_LIST_ROWS + 1) : 0;
+        }
+      }
+    } else {
+      trk_ui_open_page(ui);
+    }
+  }
+  return ui->page != TRK_PAGE_NONE;
 }
 
 #ifndef TRACKER_HOST
@@ -349,13 +425,14 @@ void FmapProc__12dMenu_Fmap_cFv(void* fmap);
 #define TRK_TOTALS_Y 262.0f
 #define TRK_TOTALS_SIZE 16.0f
 #define TRK_COUNTER_PAD 2.0f
-// Location list over the zoomed square.
+// Location list over the zoomed square. The dungeon map and Quest Status screens show the same panel in the
+// middle of the screen (tracker_ui_menu.c).
 #define TRK_PANEL_X 48.0f
 #define TRK_PANEL_Y 26.0f
 #define TRK_PANEL_W 380.0f
 #define TRK_PANEL_H 382.0f
 #define TRK_TITLE_SIZE 18.0f
-#define TRK_ROWS_Y 54.0f // Top of the first row
+#define TRK_ROWS_OFFSET 28.0f // Top of the first row, from the top of the panel
 #define TRK_ROW_H 21.0f
 #define TRK_ROW_SIZE 16.0f
 #define TRK_HINT_SIZE 14.0f
@@ -447,10 +524,12 @@ static void trk_draw_text(JUTFont* font, float x, float y, float size, const cha
   drawString_size_scale__7JUTFontFffffPCcUlb(font, x, y, size, size, str, trk_strlen(str), true);
 }
 
-// Drawing context: the chart's ortho port and font.
+// Drawing context: the menu's ortho port and font, and the top left corner of the list panel.
 typedef struct {
   J2DOrthoGraph* port;
   JUTFont* font;
+  float x;
+  float y;
 } TrkDraw;
 
 // J2DFillBox doesn't set up the GX state for untextured quads, so after drawing text it needs the
@@ -539,7 +618,7 @@ static void trk_draw_entrance_line(const TrkDraw* draw, u8 group_index) {
   } else {
     trk_format_str(end, "Unknown entrance");
   }
-  trk_draw_text(draw->font, TRK_PANEL_X + 8.0f, TRK_PANEL_Y + TRK_PANEL_H - 25.0f, TRK_HINT_SIZE, text, trk_text_color);
+  trk_draw_text(draw->font, draw->x + 8.0f, draw->y + TRK_PANEL_H - 25.0f, TRK_HINT_SIZE, text, trk_text_color);
 }
 
 // A group's locations: a title with the group's counter, one row per location (checkbox, name in its
@@ -549,16 +628,16 @@ static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const ch
   TrkUiState* ui = TRK_UI_STATE;
   TrkGroup group;
   trk_get_group(group_index, &group);
-  trk_fill_box(draw, TRK_PANEL_X, TRK_PANEL_Y, TRK_PANEL_W, TRK_PANEL_H, trk_panel_color);
+  trk_fill_box(draw, draw->x, draw->y, TRK_PANEL_W, TRK_PANEL_H, trk_panel_color);
 
-  float right = TRK_PANEL_X + TRK_PANEL_W - 8.0f;
-  trk_draw_text(font, TRK_PANEL_X + 8.0f, TRK_PANEL_Y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, trk_string(group.name), trk_text_color);
+  float right = draw->x + TRK_PANEL_W - 8.0f;
+  trk_draw_text(font, draw->x + 8.0f, draw->y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, trk_string(group.name), trk_text_color);
   TrkUiCounter counter;
   tracker_ui_group_counter(group_index, &counter);
   char text[16];
   trk_format_counter(text, &counter);
-  trk_draw_right_aligned(font, right, TRK_PANEL_Y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, text, trk_status_colors[counter.status]);
-  trk_fill_box(draw, TRK_PANEL_X + 6.0f, TRK_ROWS_Y - 4.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
+  trk_draw_right_aligned(font, right, draw->y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, text, trk_status_colors[counter.status]);
+  trk_fill_box(draw, draw->x + 6.0f, draw->y + TRK_ROWS_OFFSET - 4.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
 
   TrkUiInfo info[TRK_UI_MAX_INFO];
   u16 num_info = tracker_ui_info_lines(group_index, info);
@@ -569,31 +648,31 @@ static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const ch
     u16 location_index = group.first_location + i;
     TrkLocation loc;
     trk_get_location(location_index, &loc);
-    float top = TRK_ROWS_Y + row*TRK_ROW_H;
+    float top = draw->y + TRK_ROWS_OFFSET + row*TRK_ROW_H;
     if (i == ui->sel) {
-      trk_fill_box(draw, TRK_PANEL_X + 4.0f, top, TRK_PANEL_W - 8.0f, TRK_ROW_H, ui->flash_timer > 0 ? trk_flash_color : trk_select_color);
+      trk_fill_box(draw, draw->x + 4.0f, top, TRK_PANEL_W - 8.0f, TRK_ROW_H, ui->flash_timer > 0 ? trk_flash_color : trk_select_color);
     }
     u8 status = tracker_ui_location_status(location_index);
     TrkColor color = trk_status_colors[status];
     // Checkbox: filled once checked.
     float box_y = top + (TRK_ROW_H - 11.0f)/2;
-    trk_fill_box(draw, TRK_PANEL_X + 10.0f, box_y, 11.0f, 11.0f, color);
+    trk_fill_box(draw, draw->x + 10.0f, box_y, 11.0f, 11.0f, color);
     if (status != TRK_UI_DONE) {
-      trk_fill_box(draw, TRK_PANEL_X + 12.0f, box_y + 2.0f, 7.0f, 7.0f, trk_panel_color);
+      trk_fill_box(draw, draw->x + 12.0f, box_y + 2.0f, 7.0f, 7.0f, trk_panel_color);
     }
     const char* name = trk_string(loc.name);
     float baseline = top + TRK_ROW_H - 5.0f;
-    trk_draw_text(font, TRK_PANEL_X + 28.0f, baseline, TRK_ROW_SIZE, name, color);
+    trk_draw_text(font, draw->x + 28.0f, baseline, TRK_ROW_SIZE, name, color);
     if (status == TRK_UI_DONE) {
-      trk_fill_box(draw, TRK_PANEL_X + 27.0f, baseline - 5.0f, trk_text_width(font, name, TRK_ROW_SIZE) + 2.0f, 1.5f, color);
+      trk_fill_box(draw, draw->x + 27.0f, baseline - 5.0f, trk_text_width(font, name, TRK_ROW_SIZE) + 2.0f, 1.5f, color);
     }
   }
 
   // Info lines right after the locations, under a separator.
   for (u16 i = 0; i < num_info; i++, row++) {
-    float top = TRK_ROWS_Y + row*TRK_ROW_H;
+    float top = draw->y + TRK_ROWS_OFFSET + row*TRK_ROW_H;
     if (i == 0 && group.num_locations > 0) {
-      trk_fill_box(draw, TRK_PANEL_X + 6.0f, top + 1.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
+      trk_fill_box(draw, draw->x + 6.0f, top + 1.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
     }
     char line[96];
     char* end;
@@ -609,13 +688,13 @@ static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const ch
       end = trk_format_str(line, "Chart: ");
       trk_format_str(end, info[i].revealed ? trk_string(chart.name) : "not owned");
     }
-    trk_draw_text_fit(font, TRK_PANEL_X + 10.0f, top + TRK_ROW_H - 5.0f, TRK_HINT_SIZE + 1.0f, TRK_PANEL_W - 20.0f, line,
+    trk_draw_text_fit(font, draw->x + 10.0f, top + TRK_ROW_H - 5.0f, TRK_HINT_SIZE + 1.0f, TRK_PANEL_W - 20.0f, line,
       info[i].revealed ? trk_text_color : trk_hint_color);
   }
 
   trk_draw_entrance_line(draw, group_index);
-  float hint_y = TRK_PANEL_Y + TRK_PANEL_H - 8.0f;
-  trk_draw_text(font, TRK_PANEL_X + 8.0f, hint_y, TRK_HINT_SIZE, hint, trk_hint_color);
+  float hint_y = draw->y + TRK_PANEL_H - 8.0f;
+  trk_draw_text(font, draw->x + 8.0f, hint_y, TRK_HINT_SIZE, hint, trk_hint_color);
   if (group.num_locations > 0) {
     trk_draw_position(draw, right, hint_y, ui->sel, group.num_locations);
   }
@@ -625,10 +704,10 @@ static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const ch
 static void trk_draw_page(const TrkDraw* draw) {
   JUTFont* font = draw->font;
   TrkUiState* ui = TRK_UI_STATE;
-  trk_fill_box(draw, TRK_PANEL_X, TRK_PANEL_Y, TRK_PANEL_W, TRK_PANEL_H, trk_panel_color);
-  float right = TRK_PANEL_X + TRK_PANEL_W - 8.0f;
-  trk_draw_text(font, TRK_PANEL_X + 8.0f, TRK_PANEL_Y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, "Other Locations", trk_text_color);
-  trk_fill_box(draw, TRK_PANEL_X + 6.0f, TRK_ROWS_Y - 4.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
+  trk_fill_box(draw, draw->x, draw->y, TRK_PANEL_W, TRK_PANEL_H, trk_panel_color);
+  float right = draw->x + TRK_PANEL_W - 8.0f;
+  trk_draw_text(font, draw->x + 8.0f, draw->y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, "Other Locations", trk_text_color);
+  trk_fill_box(draw, draw->x + 6.0f, draw->y + TRK_ROWS_OFFSET - 4.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
 
   u16 count;
   tracker_ui_page_group(0, &count);
@@ -637,15 +716,15 @@ static void trk_draw_page(const TrkDraw* draw) {
     int group_index = tracker_ui_page_group(n, NULL);
     TrkGroup group;
     trk_get_group(group_index, &group);
-    float top = TRK_ROWS_Y + row*TRK_ROW_H;
+    float top = draw->y + TRK_ROWS_OFFSET + row*TRK_ROW_H;
     if (n == ui->page_sel) {
-      trk_fill_box(draw, TRK_PANEL_X + 4.0f, top, TRK_PANEL_W - 8.0f, TRK_ROW_H, trk_select_color);
+      trk_fill_box(draw, draw->x + 4.0f, top, TRK_PANEL_W - 8.0f, TRK_ROW_H, trk_select_color);
     }
     TrkUiCounter counter;
     tracker_ui_group_counter(group_index, &counter);
     float baseline = top + TRK_ROW_H - 5.0f;
     TrkColor color = counter.status == TRK_UI_DONE ? trk_status_colors[TRK_UI_DONE] : trk_text_color;
-    trk_draw_text(font, TRK_PANEL_X + 10.0f, baseline, TRK_ROW_SIZE, trk_string(group.name), color);
+    trk_draw_text(font, draw->x + 10.0f, baseline, TRK_ROW_SIZE, trk_string(group.name), color);
     char text[16];
     trk_format_counter(text, &counter);
     trk_draw_right_aligned(font, right, baseline, TRK_ROW_SIZE, text, trk_status_colors[counter.status]);
@@ -655,8 +734,8 @@ static void trk_draw_page(const TrkDraw* draw) {
   if (selected >= 0) {
     trk_draw_entrance_line(draw, (u8)selected);
   }
-  float hint_y = TRK_PANEL_Y + TRK_PANEL_H - 8.0f;
-  trk_draw_text(font, TRK_PANEL_X + 8.0f, hint_y, TRK_HINT_SIZE, "Stick: select    A: open    B: back", trk_hint_color);
+  float hint_y = draw->y + TRK_PANEL_H - 8.0f;
+  trk_draw_text(font, draw->x + 8.0f, hint_y, TRK_HINT_SIZE, "Stick: select    A: open    B: back", trk_hint_color);
   trk_draw_position(draw, right, hint_y, ui->page_sel, count);
 }
 
@@ -676,16 +755,56 @@ static int trk_fmap_square_group(u8* fmap) {
   return group.num_locations > 0 || tracker_ui_info_lines((u8)group_index, NULL) > 0 ? group_index : -1;
 }
 
-void tracker_fmap_proc(u8* fmap) {
+// Buttons pressed this frame (enum TrkUiButton).
+static u16 trk_ui_buttons(void) {
+  u16 trig = trk_mem_u16(TRK_PAD_TRIG_ADDR);
+  u16 buttons = 0;
+  if (trig & TRK_PAD_TRIG_X) {
+    buttons |= TRK_BTN_X;
+  }
+  if (trig & TRK_PAD_TRIG_Z) {
+    buttons |= TRK_BTN_Z;
+  }
+  if (trig & TRK_PAD_TRIG_A) {
+    buttons |= TRK_BTN_A;
+  }
+  if (trig & TRK_PAD_TRIG_B) {
+    buttons |= TRK_BTN_B;
+  }
+  return buttons;
+}
+
+TRK_INLINE s8 trk_ui_stick_y(void) {
+  return (s8)trk_mem_u8(TRK_PAD_STICK_Y_ADDR);
+}
+
+// Called first by each menu's input hook. Starts without a page if the menu was closed since the last frame (or
+// another menu ran), and re-evaluates the logic then.
+static void trk_ui_menu_frame(u8 menu) {
   TrkUiState* ui = TRK_UI_STATE;
-  // The chart was closed since the last frame: start without a page, and re-evaluate the logic now.
-  if (TRK_STATE->frame_count - ui->proc_frame > 2) {
+  if (TRK_STATE->frame_count - ui->proc_frame > 2 || ui->menu != menu) {
     ui->page = TRK_PAGE_NONE;
-    if (trk_tables_valid()) {
+    if (menu == TRK_MENU_FMAP && trk_tables_valid()) {
       tracker_logic_evaluate();
     }
   }
   ui->proc_frame = TRK_STATE->frame_count;
+  ui->menu = menu;
+}
+
+// The page shown: the list page or a group's location list.
+static void trk_draw_ui_page(const TrkDraw* draw) {
+  TrkUiState* ui = TRK_UI_STATE;
+  if (ui->page == TRK_PAGE_GROUPS) {
+    trk_draw_page(draw);
+  } else {
+    trk_draw_location_list(draw, ui->page_group, "Stick: select    X: mark    B: back");
+  }
+}
+
+void tracker_fmap_proc(u8* fmap) {
+  TrkUiState* ui = TRK_UI_STATE;
+  trk_ui_menu_frame(TRK_MENU_FMAP);
   ui->view = TRK_VIEW_NONE;
   bool consumed = false;
   if (trk_tables_valid()) {
@@ -695,22 +814,8 @@ void tracker_fmap_proc(u8* fmap) {
     } else if (proc == TRK_FMAP_PROC_ZOOM_LV1) {
       ui->view = TRK_VIEW_SQUARE;
     }
-    u16 trig = trk_mem_u16(TRK_PAD_TRIG_ADDR);
-    u16 buttons = 0;
-    if (trig & TRK_PAD_TRIG_X) {
-      buttons |= TRK_BTN_X;
-    }
-    if (trig & TRK_PAD_TRIG_Z) {
-      buttons |= TRK_BTN_Z;
-    }
-    if (trig & TRK_PAD_TRIG_A) {
-      buttons |= TRK_BTN_A;
-    }
-    if (trig & TRK_PAD_TRIG_B) {
-      buttons |= TRK_BTN_B;
-    }
     int square_group = ui->view == TRK_VIEW_SQUARE ? trk_fmap_square_group(fmap) : -1;
-    consumed = tracker_ui_input(ui->view, square_group, buttons, (s8)trk_mem_u8(TRK_PAD_STICK_Y_ADDR));
+    consumed = tracker_ui_input(ui->view, square_group, trk_ui_buttons(), trk_ui_stick_y());
   }
   // While a tracker page is shown, the chart's own input handler doesn't run, so none of its buttons
   // (B and D-pad Left/Down close the chart, A zooms, Y opens the compare page) do anything.
@@ -727,7 +832,7 @@ void tracker_fmap_draw(u8* dlst) {
   TrkUiState* ui = TRK_UI_STATE;
   // The input handler runs in the same frame (or the one before, depending on the order of the
   // menu's move and draw), unless the chart is in a state the tracker doesn't draw on.
-  if (TRK_STATE->frame_count - ui->proc_frame > 1) {
+  if (TRK_STATE->frame_count - ui->proc_frame > 1 || ui->menu != TRK_MENU_FMAP) {
     return;
   }
   u8* fmap = dlst - TRK_FMAP_DLST_OFFSET;
@@ -735,10 +840,10 @@ void tracker_fmap_draw(u8* dlst) {
   TrkDraw draw;
   draw.port = *(J2DOrthoGraph**)TRK_CURRENT_GRAF_PORT_ADDR;
   draw.font = *(JUTFont**)(fmap + TRK_FMAP_FONT_OFFSET);
-  if (ui->page == TRK_PAGE_GROUPS) {
-    trk_draw_page(&draw);
-  } else if (ui->page == TRK_PAGE_GROUP) {
-    trk_draw_location_list(&draw, ui->page_group, "Stick: select    X: mark    B: back");
+  draw.x = TRK_PANEL_X;
+  draw.y = TRK_PANEL_Y;
+  if (ui->page != TRK_PAGE_NONE) {
+    trk_draw_ui_page(&draw);
   } else if (proc == TRK_FMAP_PROC_SELECT_GRID && ui->view == TRK_VIEW_WORLD) {
     trk_draw_world(&draw);
   } else if (proc == TRK_FMAP_PROC_ZOOM_LV1 && ui->view == TRK_VIEW_SQUARE) {

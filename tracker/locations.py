@@ -290,6 +290,15 @@ def _outermost_island_name(zone_exit: ZoneExit) -> str:
   return zone_entrance.island_name
 
 
+def get_cave_group(zone_exit: ZoneExit, randomized_exits: set[ZoneExit]) -> TrackerGroup:
+  """The group of a cave's or fairy fountain's locations: its own group if it's behind a randomized entrance, else
+  its island's square."""
+  if not _is_cave_location_known(zone_exit, randomized_exits):
+    return GROUPS_BY_NAME[(GroupKind.CAVE, zone_exit.unique_name)]
+  island_name = _outermost_island_name(zone_exit)
+  return SQUARE_GROUPS[ISLAND_NAME_TO_NUMBER[island_name] - 1]
+
+
 def get_group(location_name: str, randomized_exits: set[ZoneExit]) -> TrackerGroup:
   loc = STATIC_LOCATIONS[location_name]
   if loc.zone in DUNGEON_ZONE_NAMES:
@@ -297,10 +306,7 @@ def get_group(location_name: str, randomized_exits: set[ZoneExit]) -> TrackerGro
   if loc.zone in OTHER_ZONE_NAMES:
     return GROUPS_BY_NAME[(GroupKind.ZONE, loc.zone)]
   if loc.zone_exit is not None and loc.zone_exit in CAVE_EXITS:
-    if not _is_cave_location_known(loc.zone_exit, randomized_exits):
-      return GROUPS_BY_NAME[(GroupKind.CAVE, loc.zone_exit.unique_name)]
-    island_name = _outermost_island_name(loc.zone_exit)
-    return SQUARE_GROUPS[ISLAND_NAME_TO_NUMBER[island_name] - 1]
+    return get_cave_group(loc.zone_exit, randomized_exits)
   return SQUARE_GROUPS[ISLAND_NAME_TO_NUMBER[loc.zone] - 1]
 
 
