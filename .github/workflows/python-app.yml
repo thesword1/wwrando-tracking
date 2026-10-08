@@ -1,16 +1,8 @@
-name: Build
+name: Build (upstream, manual)
 
+# Upstream's (tanjo3's) multi-platform build, which ran on the `archipelago` branch. This fork builds its releases with
+# release.yml, so this workflow only runs when started by hand.
 on:
-  push:
-    branches: [ archipelago ]
-    paths-ignore:
-      - 'docs/**'
-      - '.github/workflows/publish-site.yml'
-  pull_request:
-    branches: [ archipelago ]
-    paths-ignore:
-      - 'docs/**'
-      - '.github/workflows/publish-site.yml'
   workflow_dispatch:
     inputs:
       version:
@@ -119,4 +111,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wwrando_ap-${{ steps.vars.outputs.full_version }}-${{ matrix.artifact }}
-          path: dist/release_archive_${{ steps.vars.outputs.full_version }}_x64${{ matrix.upload_path_suffix }}
+          path: dist/*${{ matrix.upload_path_suffix }}
