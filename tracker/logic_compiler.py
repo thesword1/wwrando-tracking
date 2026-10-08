@@ -21,7 +21,7 @@
 # --------
 # The program is straight-line postfix code over a stack of booleans, evaluated once from start to end. It computes a
 # result bit per "slot": first the shared subexpressions (macros used more than once, in dependency order), then one
-# slot per tracked location in table order. STORE pops the top of the stack into the next slot; CALL pushes an earlier
+# slot per tracked location in table order, then the goal slots. STORE pops the top of the stack into the next slot; CALL pushes an earlier
 # slot's result. So there's no recursion or memo at runtime, and a full evaluation costs one pass over the code.
 #
 # LOGIC section layout (big-endian):
@@ -30,7 +30,13 @@
 #   +4 u8  maximum stack depth
 #   +5 u8  number of items (the ITEMS section's count)
 #   +6 u16 code size in bytes
-#   +8     code, ending with END
+#   +8 u8  number of goal slots (G, 0 or 1)  goal i's result is slot S+L+i
+#   +9 u8  reserved, 0
+#   +10    code, ending with END
+#
+# The goal slot is the seed's goal, "Can Reach and Defeat Ganondorf" (the requirement of Archipelago's "Defeat
+# Ganondorf" location, which the tracker doesn't track), including the required bosses. The tracker shows "GO MODE"
+# while it's in logic. It isn't a location: it doesn't change any count.
 #
 # Opcodes:
 #   0x00 END
@@ -71,13 +77,16 @@ OP_CALL = 0x08
 OP_HAS1 = 0x09
 OP_VISITED = 0x40
 
-LOGIC_HEADER_FORMAT = ">HHBBH"
+LOGIC_HEADER_FORMAT = ">HHBBHBx"
 LOGIC_HEADER_SIZE = struct.calcsize(LOGIC_HEADER_FORMAT)
 
 # The C interpreter's stack and item list sizes (asm/tracker/tracker_logic.c).
 MAX_STACK_DEPTH = 64
 MAX_ITEMS = 255
 MAX_VISITED = 64
+
+# The logic's requirement for beating the game, compiled into the goal slot.
+GOAL_REQUIREMENT = "Can Reach and Defeat Ganondorf"
 
 # Locations and macros whose "Can Access Item Location" terms are replaced with "Has Accessed Other Location" on the
 # website (src/data/has-accessed-location-tweaks.json).
@@ -199,9 +208,18 @@ class CompiledLogic:
   items: list[str]
   # The expression of each tracked location, in table order (for tests and debugging).
   location_exprs: list[Node] = field(repr=False)
+  # The goal's expression (GOAL_REQUIREMENT), or None if the code has no goal slot.
+  goal_expr: Node | None = field(default=None, repr=False)
+
+  @property
+  def num_goals(self) -> int:
+    return 0 if self.goal_expr is None else 1
 
   def serialize(self) -> bytes:
-    header = struct.pack(LOGIC_HEADER_FORMAT, self.num_slots, self.num_locations, self.max_stack, len(self.items), len(self.code))
+    header = struct.pack(
+      LOGIC_HEADER_FORMAT, self.num_slots, self.num_locations, self.max_stack, len(self.items), len(self.code),
+      self.num_goals,
+    )
     return header + self.code
 
 
@@ -372,7 +390,7 @@ class _Compiler:
 
   def compile(self) -> CompiledLogic:
     roots = [self.location_need(name) for name in self.location_names]
-    return _emit(roots)
+    return _emit(roots, self.req(GOAL_REQUIREMENT))
 
 
 class _LogicRandoStub:
@@ -393,7 +411,9 @@ def _vanilla_exit_to_entrance():
   return VANILLA_EXIT_TO_ENTRANCE
 
 
-def _emit(roots: list[Node]) -> CompiledLogic:
+def _emit(location_roots: list[Node], goal: Node | None = None) -> CompiledLogic:
+  # The goal is emitted like a location, after them.
+  roots = location_roots + ([goal] if goal is not None else [])
   # Count how many times each subexpression is used, over the whole DAG (each use of a shared node counts once per
   # parent occurrence, not per expanded path).
   use_counts: dict[Node, int] = {}
@@ -541,7 +561,7 @@ def _emit(roots: list[Node]) -> CompiledLogic:
   code.append(OP_END)
 
   assert max_depth <= MAX_STACK_DEPTH, f"Tracker logic needs a stack of {max_depth}"
-  return CompiledLogic(bytes(code), num_slots, len(roots), max_depth, list(items), roots)
+  return CompiledLogic(bytes(code), num_slots, len(location_roots), max_depth, list(items), location_roots, goal)
 
 
 def compile_tracker_logic(inp: TrackerLogicInput, location_names: Sequence[str], tracked_entrances: Mapping[str, int]) -> CompiledLogic:
@@ -563,7 +583,12 @@ class LogicState:
 
 def evaluate_bytecode(blob: bytes, item_names: Sequence[str], state: LogicState) -> list[bool]:
   """Runs a serialized LOGIC section the way the C interpreter does. Returns each location's result."""
-  num_slots, num_locations, max_stack, num_items, code_size = struct.unpack_from(LOGIC_HEADER_FORMAT, blob, 0)
+  return evaluate_bytecode_with_goal(blob, item_names, state)[0]
+
+
+def evaluate_bytecode_with_goal(blob: bytes, item_names: Sequence[str], state: LogicState) -> tuple[list[bool], bool | None]:
+  """Like evaluate_bytecode, and also returns the goal's result (None without a goal slot)."""
+  num_slots, num_locations, max_stack, num_items, code_size, num_goals = struct.unpack_from(LOGIC_HEADER_FORMAT, blob, 0)
   assert num_items == len(item_names)
   code = blob[LOGIC_HEADER_SIZE:LOGIC_HEADER_SIZE+code_size]
   counts = [state.item_counts.get(name, 0) for name in item_names]
@@ -601,8 +626,9 @@ def evaluate_bytecode(blob: bytes, item_names: Sequence[str], state: LogicState)
     else:
       raise Exception(f"Bad opcode 0x{op:02X} at {pc-1}")
     assert len(stack) <= max_stack
-  assert not stack and len(results) == num_slots + num_locations
-  return results[num_slots:]
+  assert not stack and len(results) == num_slots + num_locations + num_goals
+  goal = results[num_slots + num_locations] if num_goals else None
+  return results[num_slots:num_slots + num_locations], goal
 
 
 def evaluate_node(node: Node, state: LogicState, cache: dict | None = None) -> bool:

@@ -1,6 +1,6 @@
 // Logic evaluation for the in-logic colours (D7: on events, not every frame). The bytecode is
 // straight-line postfix code computing one result per slot: shared subexpressions first, then one per
-// tracked location. A full evaluation is one pass over it.
+// tracked location, then the goal (GO MODE). A full evaluation is one pass over it.
 //
 // Evaluations run:
 // - when the sea chart opens (tracker_ui.c),
@@ -42,6 +42,11 @@ TRK_EXPORT bool tracker_is_in_logic(u16 location_index) {
   return TRK_BIT_GET(TRK_STATE->in_logic, location_index);
 }
 
+// Whether the seed's goal (Can Reach and Defeat Ganondorf, with the required bosses) is in logic.
+TRK_EXPORT bool tracker_go_mode(void) {
+  return tracker_logic_available() && TRK_STATE->goal_in_logic;
+}
+
 // Runs the bytecode. Returns false if it's malformed (the results are then incomplete).
 static bool trk_logic_run(const u8* logic, u16 logic_size, u8* slot_results) {
   TrkState* state = TRK_STATE;
@@ -49,9 +54,10 @@ static bool trk_logic_run(const u8* logic, u16 logic_size, u8* slot_results) {
   u16 num_locations = trk_be16(logic + 2);
   u8 num_items = logic[5];
   u16 code_size = trk_be16(logic + 6);
+  u8 num_goals = logic[8];
   if (num_slots > TRK_LOGIC_MAX_SLOTS || num_locations > TRK_STATE_MAX_LOCATIONS
       || num_locations != trk_count(TRK_SEC_LOCATIONS) || num_items > trk_count(TRK_SEC_ITEMS)
-      || TRK_LOGIC_HEADER_SIZE + code_size > logic_size) {
+      || num_goals > 1 || TRK_LOGIC_HEADER_SIZE + code_size > logic_size) {
     return false;
   }
   const u8* code = logic + TRK_LOGIC_HEADER_SIZE;
@@ -70,7 +76,7 @@ static bool trk_logic_run(const u8* logic, u16 logic_size, u8* slot_results) {
     u8 op = code[pc++];
     u8 value;
     if (op == TRK_OP_END) {
-      return sp == 0 && slot == num_slots + num_locations;
+      return sp == 0 && slot == num_slots + num_locations + num_goals;
     } else if (op == TRK_OP_STORE || op == TRK_OP_AND || op == TRK_OP_OR) {
       u16 n = 1;
       if (op != TRK_OP_STORE) {
@@ -88,6 +94,8 @@ static bool trk_logic_run(const u8* logic, u16 logic_size, u8* slot_results) {
           TRK_BIT_SET(slot_results, slot, stack[sp]);
         } else if (slot < num_slots + num_locations) {
           TRK_BIT_SET(state->in_logic, slot - num_slots, stack[sp]);
+        } else if (slot < num_slots + num_locations + num_goals) {
+          state->goal_in_logic = stack[sp];
         } else {
           return false;
         }
@@ -152,6 +160,7 @@ TRK_EXPORT void tracker_logic_evaluate(void) {
   for (u32 i = 0; i < sizeof(state->in_logic); i++) {
     state->in_logic[i] = 0;
   }
+  state->goal_in_logic = 0;
   u16 logic_size = trk_count(TRK_SEC_LOGIC);
   if (!trk_tables_valid() || logic_size < TRK_LOGIC_HEADER_SIZE) {
     state->logic_status = TRK_LOGIC_NONE;
@@ -165,6 +174,7 @@ TRK_EXPORT void tracker_logic_evaluate(void) {
     for (u32 i = 0; i < sizeof(state->in_logic); i++) {
       state->in_logic[i] = 0;
     }
+    state->goal_in_logic = 0;
   }
   state->logic_evals++;
   state->logic_ticks = trk_time_base() - start;

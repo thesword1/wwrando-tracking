@@ -63,7 +63,7 @@ class TrkState(ctypes.Structure):
     ("num_in_logic", ctypes.c_uint16), ("logic_status", ctypes.c_uint8), ("logic_delay", ctypes.c_uint8),
     ("logic_seen_checked", ctypes.c_uint16), ("logic_seen_resets", ctypes.c_uint16),
     ("logic_seen_visited", ctypes.c_uint8 * 8), ("in_logic", ctypes.c_uint8 * 48),
-    ("group_available", ctypes.c_uint8 * TRK_MAX_GROUPS),
+    ("group_available", ctypes.c_uint8 * TRK_MAX_GROUPS), ("goal_in_logic", ctypes.c_uint8), ("pad2", ctypes.c_uint8 * 3),
   ]
 
 
@@ -78,7 +78,8 @@ class TrkUiState(ctypes.Structure):
     ("stick_timer", ctypes.c_uint8), ("flash_timer", ctypes.c_uint8), ("last_toggle", ctypes.c_uint8),
     ("page", ctypes.c_uint8), ("page_sel", ctypes.c_uint8), ("page_scroll", ctypes.c_uint8), ("page_group", ctypes.c_uint8),
     ("collect_draw_frame", ctypes.c_uint32), ("menu", ctypes.c_uint8),
-    ("pad1", ctypes.c_uint8 * 3), ("hint_frame", ctypes.c_uint32), ("pad", ctypes.c_uint8 * 0x20),
+    ("pad1", ctypes.c_uint8 * 3), ("hint_frame", ctypes.c_uint32), ("go_mode_frame", ctypes.c_uint32),
+    ("pad", ctypes.c_uint8 * 0x1C),
   ]
 
 
@@ -129,6 +130,7 @@ class TrackerHost:
       getattr(lib, name).restype = ctypes.c_bool
       getattr(lib, name).argtypes = [ctypes.c_uint16]
     lib.tracker_logic_available.restype = ctypes.c_bool
+    lib.tracker_go_mode.restype = ctypes.c_bool
     lib.tracker_logic_request.argtypes = [ctypes.c_uint8]
     lib.tracker_item_count.restype = ctypes.c_uint8
     lib.tracker_item_count.argtypes = [ctypes.c_uint16]

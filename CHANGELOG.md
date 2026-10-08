@@ -1,3 +1,7 @@
+### Version 2.5.2-tracking.3 (in progress)
+
+* GO MODE: once Ganondorf can be reached and defeated in logic with your current items (including the required bosses in Required Bosses Mode), the in-game tracker shows a blue "GO MODE" label under the checked total on the sea chart, and under the "Z: tracker" label on the dungeon map and the Quest Status screen. It's computed with the rest of the tracker's logic (the goal is compiled into the logic bytecode as one extra result), so it doesn't affect any location counts. The tracker table format version is now 3.
+
 ### Version 2.5.2-tracking.2 (in progress)
 
 * The dungeon map and the Quest Status screen show a small "Z: tracker" label (right of the dungeon's name or the "Quest Status" title) whenever Z opens the tracker there. It follows the menus' slide and fade animations and is hidden while the tracker list, an item description, a song, or the save or options window is shown. The sea chart keeps its "Z: other locations" label.

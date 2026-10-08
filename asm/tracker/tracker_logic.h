@@ -1,6 +1,7 @@
 // The tracker's logic: evaluates the compiled logic bytecode (tracker/logic_compiler.py documents
 // the format; evaluate_bytecode there is the Python reference) against the player's items, visited
-// entrances and checked locations, and caches each location's result in TrkState.
+// entrances and checked locations, and caches each location's result and whether the seed's goal is in logic
+// (GO MODE) in TrkState.
 
 #ifndef TRACKER_LOGIC_H
 #define TRACKER_LOGIC_H
@@ -29,7 +30,7 @@ enum TrkLogicOp {
   TRK_OP_VISITED = 0x40, // | entrance index (0-63)
 };
 
-#define TRK_LOGIC_HEADER_SIZE 8
+#define TRK_LOGIC_HEADER_SIZE 10
 #define TRK_LOGIC_MAX_STACK 64
 #define TRK_LOGIC_MAX_SLOTS 1024
 #define TRK_LOGIC_MAX_ITEMS 255
@@ -39,6 +40,7 @@ enum TrkLogicOp {
 
 bool tracker_logic_available(void);
 bool tracker_is_in_logic(u16 location_index);
+bool tracker_go_mode(void);
 void tracker_logic_evaluate(void);
 void tracker_logic_request(u8 delay_frames);
 void tracker_logic_frame(void);

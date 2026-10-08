@@ -435,6 +435,8 @@ void FmapProc__12dMenu_Fmap_cFv(void* fmap);
 #define TRK_TOTALS_X 466.0f // In the empty strip of the salvage panel
 #define TRK_TOTALS_Y 262.0f
 #define TRK_TOTALS_SIZE 16.0f
+#define TRK_GO_MODE_Y 290.0f // Top of the GO MODE box: under the salvage panel's strip, above the compass
+#define TRK_GO_MODE_SIZE 16.0f
 #define TRK_COUNTER_PAD 2.0f
 // Location list over the zoomed square. The dungeon map and Quest Status screens show the same panel at another
 // position (tracker_ui_menu.c).
@@ -461,6 +463,13 @@ static const TrkColor trk_select_color = {0xE8, 0xCC, 0x8C, 0xFF};
 static const TrkColor trk_flash_color = {0xF0, 0x98, 0x80, 0xFF};
 static const TrkColor trk_text_color = {0x30, 0x20, 0x10, 0xFF};
 static const TrkColor trk_hint_color = {0x70, 0x58, 0x40, 0xFF};
+static const TrkColor trk_go_mode_color = {0x29, 0x29, 0xCC, 0xFF}; // The in-logic blue
+static const TrkColor trk_go_mode_text_color = {0xFF, 0xFF, 0xFF, 0xFF};
+
+TRK_INLINE TrkColor trk_fade(TrkColor color, u32 fade) {
+  color.a = (u8)(color.a * fade / 0xFF);
+  return color;
+}
 
 TRK_INLINE void trk_font_set_gx(JUTFont* font) {
   void (*set_gx)(JUTFont*) = (*(void (***)(JUTFont*))font)[0x0C/4];
@@ -550,6 +559,21 @@ static void trk_fill_box(const TrkDraw* draw, float x, float y, float w, float h
   J2DFillBox__FffffQ28JUtility6TColor(x, y, w, h, color);
 }
 
+// "GO MODE" in white on a blue box, while the seed's goal is in logic. x and y are the box's top left corner; fade
+// (0-0xFF) scales its alpha. Returns the box's height, 0 if it isn't drawn.
+static float trk_draw_go_mode(const TrkDraw* draw, float x, float y, float size, u32 fade) {
+  if (!tracker_go_mode()) {
+    return 0.0f;
+  }
+  const char* text = "GO MODE";
+  float width = trk_text_width(draw->font, text, size);
+  float height = size + TRK_COUNTER_PAD + 2.0f;
+  trk_fill_box(draw, x, y, width + 2*TRK_COUNTER_PAD + 4.0f, height, trk_fade(trk_go_mode_color, fade));
+  trk_draw_text(draw->font, x + TRK_COUNTER_PAD + 2.0f, y + size, size, text, trk_fade(trk_go_mode_text_color, fade));
+  TRK_UI_STATE->go_mode_frame = TRK_STATE->frame_count;
+  return height;
+}
+
 // A counter in a box. x and y are the box's top left corner.
 static void trk_draw_counter(const TrkDraw* draw, float x, float y, const TrkUiCounter* counter) {
   JUTFont* font = draw->font;
@@ -589,6 +613,7 @@ static void trk_draw_world(const TrkDraw* draw) {
   if (count > 0) {
     trk_draw_text(draw->font, TRK_TOTALS_X, TRK_TOTALS_Y + 18.0f, TRK_HINT_SIZE, "Z: other locations", trk_hint_color);
   }
+  trk_draw_go_mode(draw, TRK_TOTALS_X, TRK_GO_MODE_Y, TRK_GO_MODE_SIZE, 0xFF);
 }
 
 // Draws text at the given size, or smaller if it would be wider than max_width.

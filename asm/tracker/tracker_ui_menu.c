@@ -72,8 +72,9 @@ static bool trk_menu_move(u8* menu, u8 kind, u16 note_offset, bool can_open) {
   return !shown && !was_shown;
 }
 
-// "Z: tracker" in a box like the sea chart's counters, faded with the anchor pane (fopMsgM_pane_class at
-// pane_class) relative to its fully shown alpha, so it follows the menu's animations.
+// "Z: tracker" in a box like the sea chart's counters (if Z can open a page here), and "GO MODE" under it while the
+// goal is in logic. Both are faded with the anchor pane (fopMsgM_pane_class at pane_class) relative to its fully
+// shown alpha, so they follow the menu's animations.
 static void trk_draw_menu_hint(const TrkDraw* draw, u8* pane_class, float dx, float dy) {
   u8* pane = *(u8**)pane_class;
   u32 alpha = pane[TRK_PANE_ALPHA_OFFSET];
@@ -85,17 +86,21 @@ static void trk_draw_menu_hint(const TrkDraw* draw, u8* pane_class, float dx, fl
   float* bounds = (float*)(pane + TRK_PANE_GLOBAL_BOUNDS_OFFSET);
   float x = bounds[0] + dx;
   float y = bounds[1] + dy;
-  const char* text = "Z: tracker";
-  float width = trk_text_width(draw->font, text, TRK_MENU_HINT_SIZE);
-  trk_fill_box(draw, x, y, width + 2*TRK_COUNTER_PAD + 2.0f, TRK_MENU_HINT_SIZE + TRK_COUNTER_PAD + 2.0f,
-               trk_fade(trk_box_color, fade));
-  trk_draw_text(draw->font, x + TRK_COUNTER_PAD + 1.0f, y + TRK_MENU_HINT_SIZE, TRK_MENU_HINT_SIZE, text,
-                trk_fade(trk_text_color, fade));
-  TRK_UI_STATE->hint_frame = TRK_STATE->frame_count;
+  if (tracker_ui_menu_has_page()) {
+    const char* text = "Z: tracker";
+    float width = trk_text_width(draw->font, text, TRK_MENU_HINT_SIZE);
+    float height = TRK_MENU_HINT_SIZE + TRK_COUNTER_PAD + 2.0f;
+    trk_fill_box(draw, x, y, width + 2*TRK_COUNTER_PAD + 2.0f, height, trk_fade(trk_box_color, fade));
+    trk_draw_text(draw->font, x + TRK_COUNTER_PAD + 1.0f, y + TRK_MENU_HINT_SIZE, TRK_MENU_HINT_SIZE, text,
+                  trk_fade(trk_text_color, fade));
+    TRK_UI_STATE->hint_frame = TRK_STATE->frame_count;
+    y += height + 2.0f;
+  }
+  trk_draw_go_mode(draw, x, y, TRK_MENU_HINT_SIZE, fade);
 }
 
-// Draws the page if one is shown on this menu, else the hint while Z can open one (idle: no description, song, or
-// save or options window).
+// Draws the page if one is shown on this menu, else the hint while the menu is idle (no description, song, or save
+// or options window).
 static void trk_menu_draw(u8 kind, JUTFont* font, bool idle, u8* hint_pane_class, float hint_x, float hint_y) {
   if (!trk_tables_valid()) {
     return;
@@ -107,7 +112,7 @@ static void trk_menu_draw(u8 kind, JUTFont* font, bool idle, u8* hint_pane_class
   // The page is only shown while the menu's input handler runs (not during its open and close animations); the
   // hint follows those animations.
   if (TRK_STATE->frame_count - ui->proc_frame > 1 || ui->menu != kind || ui->page == TRK_PAGE_NONE) {
-    if (idle && tracker_ui_menu_has_page()) {
+    if (idle) {
       trk_draw_menu_hint(&draw, hint_pane_class, hint_x, hint_y);
       setPort__13J2DOrthoGraphFv(draw.port);
     }

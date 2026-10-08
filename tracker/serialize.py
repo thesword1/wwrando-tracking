@@ -63,7 +63,7 @@ from tracker.locations import (
 from tracker.stages import build_stage_groups, stage_group_entries
 
 MAGIC = b"WWTK"
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3
 HEADER_SIZE = 0x20
 DIR_ENTRY_SIZE = 8
 

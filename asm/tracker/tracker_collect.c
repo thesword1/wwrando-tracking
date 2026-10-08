@@ -51,11 +51,6 @@ static const TrkColor trk_triforce_box_color = {0x30, 0x20, 0x10, 0xC0};
 static const TrkColor trk_triforce_text_color = {0xFF, 0xE8, 0x60, 0xFF};
 static const TrkColor trk_triforce_full_color = {0xFF, 0xFF, 0xFF, 0xFF};
 
-TRK_INLINE TrkColor trk_fade(TrkColor color, u32 fade) {
-  color.a = (u8)(color.a * fade / 0xFF);
-  return color;
-}
-
 static void trk_draw_triforce_counter(u8* collect) {
   // Only on the screen itself: not over an item's description, a song, or the save/options windows.
   if (collect[TRK_COLLECT_MODE_OFFSET] != 0 || *(s16*)(collect + TRK_COLLECT_NOTE_OPEN_OFFSET) == 1) {

@@ -39,7 +39,9 @@ typedef struct {
   u8 logic_seen_visited[8]; // 0xB4: visited-entrance bits at the last evaluation
   u8 in_logic[TRK_STATE_MAX_LOCATIONS/8]; // 0xBC: bit i = location i is in logic
   u8 group_available[TRK_MAX_GROUPS]; // 0xEC: unchecked locations in logic per group
-} TrkState; // 0x16C
+  u8 goal_in_logic; // 0x16C: 1 if the seed's goal (defeating Ganondorf) is in logic ("GO MODE")
+  u8 pad2[3]; // 0x16D
+} TrkState; // 0x170
 
 #ifdef TRACKER_HOST
 extern TrkState trk_host_state;
