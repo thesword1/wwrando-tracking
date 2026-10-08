@@ -1,5 +1,6 @@
 
 from dataclasses import dataclass
+from collections import Counter
 import os
 import re
 from random import Random
@@ -75,6 +76,20 @@ RNG_CHANGING_OPTIONS = [
   "prioritize_remote_hints",
   "hint_importance",
   "do_not_generate_spoiler_log",
+]
+
+# Options for hints, which offline seeds don't have. They're left out of offline seeds' logs.
+HINT_OPTIONS = [
+  "hoho_hints",
+  "fishmen_hints",
+  "korl_hints",
+  "num_item_hints",
+  "num_location_hints",
+  "num_barren_hints",
+  "num_path_hints",
+  "cryptic_hints",
+  "prioritize_remote_hints",
+  "hint_importance",
 ]
 
 class TooFewProgressionLocationsError(Exception): pass
@@ -1108,6 +1123,7 @@ class WWRandomizer:
       option.name for option in Options.all()
       if self.options[option.name] not in [False, [], {}]
       and option.name != "randomized_gear" # Just takes up space
+      and not (option.name in HINT_OPTIONS and not self.archipelago_mode)
     ]
     option_strings = []
     for option_name in non_disabled_options:
@@ -1153,7 +1169,10 @@ class WWRandomizer:
       return
     
     spoiler_log = self.get_log_header()
-
+    
+    if not self.archipelago_mode:
+      spoiler_log += self.write_starting_items_to_spoiler_log()
+    
     if self.extra_start_items.is_enabled():
       spoiler_log += self.extra_start_items.write_to_spoiler_log()
     
@@ -1175,6 +1194,17 @@ class WWRandomizer:
     spoiler_log_output_path = os.path.join(self.logs_output_folder, "WW Random %s - Spoiler Log.txt" % self.seed)
     with open(spoiler_log_output_path, "w") as f:
       f.write(spoiler_log)
+  
+  def write_starting_items_to_spoiler_log(self) -> str:
+    spoiler_log = "Starting items:\n"
+    item_counts = Counter(self.starting_items)
+    for item_name, count in item_counts.items():
+      if count > 1:
+        spoiler_log += f"  {item_name} x{count}\n"
+      else:
+        spoiler_log += f"  {item_name}\n"
+    spoiler_log += "\n\n"
+    return spoiler_log
   
   def write_error_log(self, error_message):
     if self.no_logs:
