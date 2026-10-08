@@ -261,6 +261,13 @@ class Options(BaseOptions):
     description="Precise tricks are ways of obtaining items that involve difficult inputs such as accurate aiming or perfect timing.<br>"
       "This option controls the maximum difficulty of precise tricks the randomizer will require you to do to beat the game.",
   )
+  enable_tuner_logic: bool = option(
+    default=False,
+    description="If enabled, the randomizer can logically expect the Tingle Tuner for Tingle Chests.<br>"
+      "The randomizer behavior of logically expecting Bombs/bomb flowers to spawn in Tingle Chests remains unchanged.<br>"
+      "Archipelago doesn't write this option into .aptww files, so for Archipelago seeds set it to match your world's "
+      "settings yourself. (For those seeds it only affects the in-game tracker's logic.)",
+  )
   #endregion
   
   #region Entrance randomizer

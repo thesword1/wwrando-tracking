@@ -79,6 +79,7 @@ OPTION_LABELS = {
   "hero_mode": "Hero Mode",
   "logic_obscurity": "Obscure Tricks Required",
   "logic_precision": "Precise Tricks Required",
+  "enable_tuner_logic": "Enable Tuner Logic",
 
   "do_not_generate_spoiler_log": "Do Not Generate Spoiler Log",
 
@@ -164,6 +165,13 @@ ADVANCED_TAB_GROUPS = [
   ]),
 ]
 
+# Groups on the advanced tab that stay enabled for Archipelago seeds (see AP_MODE_LOCAL_OPTIONS in aptww.py).
+ADVANCED_TAB_LOCAL_GROUPS = [
+  ("Logic Options (Offline and Archipelago)", 2, [
+    "enable_tuner_logic",
+  ]),
+]
+
 class OfflineOptionWidgets:
   def __init__(self, window: WWRandomizerWindow):
     self.window = window
@@ -225,6 +233,9 @@ class OfflineOptionWidgets:
       group_box = self.make_option_group(title, num_columns, option_names)
       advanced_layout.addWidget(group_box)
       self.offline_only_containers.append(group_box)
+    for title, num_columns, option_names in ADVANCED_TAB_LOCAL_GROUPS:
+      group_box = self.make_option_group(title, num_columns, option_names)
+      advanced_layout.addWidget(group_box)
     dry_run_group = QGroupBox("Dry Run")
     dry_run_layout = QGridLayout(dry_run_group)
     ui.dry_run = QCheckBox("Dry Run")
