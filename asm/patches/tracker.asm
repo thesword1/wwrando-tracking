@@ -17,7 +17,7 @@ tracker_data:
 tracker_data_end:
 .global tracker_state
 tracker_state:
-  .space 0x100
+  .space 0x200
 .global tracker_ui_state
 tracker_ui_state:
   .space 0x40
@@ -31,6 +31,23 @@ tracker_reserve_end:
 ; started. tracker_init_save resets the tracker's save data, then calls init_save_with_tweaks.
 .org 0x8005D618 ; In dSv_info_c::init
   bl tracker_init_save
+
+; Every item get goes through execItemGet (pickups, chests, shops, NPCs, Archipelago deliveries). Call
+; the item's function, then tell the tracker so it re-evaluates the logic.
+.org 0x800C2E1C ; In execItemGet
+  bl tracker_exec_item_func ; Replaces bctrl (the item_func_ptr entry is in ctr)
+.org @NextFreeSpace
+.global tracker_exec_item_func
+tracker_exec_item_func:
+  stwu sp, -0x10 (sp)
+  mflr r0
+  stw r0, 0x14 (sp)
+  bctrl
+  bl tracker_on_item_get
+  lwz r0, 0x14 (sp)
+  mtlr r0
+  addi sp, sp, 0x10
+  blr
 
 ; Run the tracker's per-frame update during gameplay.
 .org 0x8023502C ; In dScnPly_Execute
