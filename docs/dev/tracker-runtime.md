@@ -150,6 +150,19 @@ line and the position in the list. Fifteen rows fit; the list scrolls with the s
 | Main stick up/down | Select. Holding repeats after 14 frames, then every 4. A fresh push wraps around |
 | X | Toggle the selected location's manual mark (save data). Refused for auto-detected checks: the row flashes red |
 
+**Info lines** (`tracker_ui_info_lines()`) follow a location list, under a separator, and take
+some of its 15 rows (at most 4):
+
+- A square's tracked (randomized) entrances on its island, or the entrances nested in a list-page
+  group (a dungeon's miniboss and boss doors, an inner cave's entrance in its cave):
+  `Outset Island Cave -> ?` until the visited bit is set, then `Outset Island Cave -> Gohma Boss Arena`.
+- On a square with a tracked sunken treasure, the chart that leads there in this seed:
+  `Chart: not owned` until that chart's owned bit (GetMap, 0x803C4CDC) is set, then its name, for
+  example `Chart: Treasure Chart 17`.
+
+A square without tracked locations still gets a square view panel if it has info lines. Lines too
+wide for the panel are drawn at a smaller size.
+
 **List page** (Z on the world or square view): everything that isn't on a sea square. That's
 every group with tracked locations whose ID is 50 or more: dungeons, Hyrule, Ganon's Tower, Mailbox,
 The Great Sea, and caves whose entrances are randomized. Each row has the group's name and counter.
@@ -264,9 +277,9 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x3030 bytes of code and read-only data (0x1DC0 of it for the sea chart UI), plus the
+The tracker adds 0x35B8 bytes of code and read-only data (0x2348 of it for the sea chart UI), plus the
 0x6000-byte table reserve, the 0x100-byte state reserve and the 0x40-byte UI state reserve. In total
-the custom code section grows by about 0x9188 bytes (37,256), and the game heap shrinks by the same
+the custom code section grows by about 0x9710 bytes (38,672), and the game heap shrinks by the same
 amount.
 
 ## Tests
@@ -298,7 +311,8 @@ amount.
 
 - `test/test_tracker_ui.py`: the sea chart UI's counters (`tracker_ui_group_counter`) and the
   location list's input (selection, repeat, wrap, scrolling, marking, refused toggles), the list page's
-  groups and navigation, and which entrance a group shows, on the host.
+  groups and navigation, which entrance a group shows, and the entrance and chart info lines, on the
+  host.
 - `test/test_tracker_ui_dolphin.py` (marker `dolphin`): builds the `progression_all` fixture, opens the
   sea chart with D-pad Up and checks through `tracker_ui_state` in RAM that the tracker draws on the
   world view, follows manual marks and stops drawing after the chart is closed, and that A/B/D-pad
@@ -307,7 +321,9 @@ amount.
   checks that an auto-detected location can't be unmarked. With the `entrance_rando` fixture it opens
   the list page with Z, checks that D-pad Down and B don't reach the chart, opens Dragon Roost
   Cavern after marking its entrance visited, marks a location there with X, and closes everything
-  again. Screenshots are printed with `-s`; set
+  again. The reveal tests open Outset's square view in the `entrance_rando` and
+  `charts_required_bosses` seeds before and after setting an entrance's visited bit and the chart's
+  owned bit, for screenshots. Screenshots are printed with `-s`; set
   `WW_TRACKER_SCREENSHOT_DIR` to also copy them to a directory.
 
 Run them with the rest of the suite:
