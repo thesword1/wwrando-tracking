@@ -536,6 +536,18 @@ class Options(BaseOptions):
   )
   #endregion
   
+  #region In-game tracker
+  in_game_tracker: bool = option(
+    default=True,
+    permalink=False,
+    description="Adds a tracker to the sea chart that shows which locations you have checked and which are in logic, "
+      "how many are left on each island and in each dungeon, where entrances you have gone through lead, and where "
+      "the treasure charts you own point to.<br>"
+      "It never shows what items are at locations. It works for both offline and Archipelago seeds and doesn't change "
+      "item placement.",
+  )
+  #endregion
+  
   #region Meta
   do_not_generate_spoiler_log: bool = option(
     default=False,

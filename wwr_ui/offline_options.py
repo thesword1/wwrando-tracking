@@ -85,6 +85,8 @@ OPTION_LABELS = {
 
   "do_not_generate_spoiler_log": "Do Not Generate Spoiler Log",
 
+  "in_game_tracker": "In-Game Tracker",
+
   "randomized_gear": "Randomized Gear",
   "starting_gear": "Starting Gear",
   "starting_hcs": "Heart Containers",
@@ -149,6 +151,13 @@ MAIN_TAB_GROUPS = [
     "add_shortcut_warps_between_dungeons",
     "skip_rematch_bosses",
     "remove_music",
+  ]),
+]
+
+# Groups on the main settings tab that stay enabled for Archipelago seeds (see AP_MODE_LOCAL_OPTIONS in aptww.py).
+MAIN_TAB_LOCAL_GROUPS = [
+  ("In-Game Tracker (Offline and Archipelago)", 3, [
+    "in_game_tracker",
   ]),
 ]
 
@@ -249,6 +258,10 @@ class OfflineOptionWidgets:
       if option_names[0] == "progression_dungeons":
         group_box.setObjectName("progression_locations_groupbox")
         ui.progression_locations_groupbox = group_box
+    for title, num_columns, option_names in MAIN_TAB_LOCAL_GROUPS:
+      group_box = self.make_option_group(title, num_columns, option_names)
+      main_layout.insertWidget(insert_index, group_box)
+      insert_index += 1
 
     # Starting items tab.
     ui.tab_starting_items = self.make_starting_items_tab()

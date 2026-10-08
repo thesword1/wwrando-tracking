@@ -165,8 +165,11 @@ class WWRandomizer:
       self.randomize_items = True
     self.map_select = cmd_line_args.mapselect
     self.heap_display = cmd_line_args.heap
-    # Development flag until the user-facing tracker option exists.
-    self.in_game_tracker = getattr(cmd_line_args, "tracker", False)
+    # --tracker/--no-tracker on the command line overrides the "In-game tracker" option.
+    tracker_arg = getattr(cmd_line_args, "tracker", None)
+    if tracker_arg is not None:
+      self.options.in_game_tracker = tracker_arg
+    self.in_game_tracker = self.options.in_game_tracker
     
     self.test_room_args = None
     if cmd_line_args.test:

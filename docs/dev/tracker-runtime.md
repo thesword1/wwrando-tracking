@@ -5,24 +5,28 @@ Memory addresses it relies on are in `memory-map.md`; the patch-time Python side
 
 ## Enabling it
 
-The tracker is only patched in when the randomizer is run with the development flag `--tracker`:
+The tracker is controlled by the "In-Game Tracker" option (`Options.in_game_tracker`, on by default). It is a local
+setting (`permalink=False`, so it's also in `AP_MODE_LOCAL_OPTIONS`): it isn't in permalinks or `.aptww` files and
+stays editable in the GUI in both modes. On the command line the saved setting is used unless `--tracker` or
+`--no-tracker` is given:
 
 ```sh
-python wwrando.py --aptww seed.aptww --clean-iso vanilla.iso --output-folder out --tracker
+python wwrando.py --aptww seed.aptww --clean-iso vanilla.iso --output-folder out --no-tracker
 ```
 
-Without the flag, the output is byte-identical to a build without the tracker. The flag sets
-`WWRandomizer.in_game_tracker`, which makes `apply_necessary_post_randomization_tweaks` call
-`tweaks.add_in_game_tracker`. It will be replaced by the user-facing "In-game tracker" option
-(default on) once the offline-mode options work has landed.
+With the option off, the output is byte-identical to a build without the tracker. When it's on,
+`apply_necessary_post_randomization_tweaks` calls `tweaks.add_in_game_tracker`. Dry runs never build it.
+
+The tracker's logic also depends on "Enable Tuner Logic". Archipelago doesn't write that option into `.aptww` files, so
+in Archipelago mode it's a local setting too (default off, like the APWorld) that only affects the tracker.
 
 `add_in_game_tracker`:
 
 1. applies the `tracker` patch (`asm/patches/tracker.asm`, which compiles `asm/tracker/tracker.c`),
-2. builds the seed's tables with `tracker.serialize.build_tracker_tables()`. In AP mode they come
-   from the plando's locations, charts, entrances and required bosses. In offline mode they come
-   from the logic's progress locations (minus those banned by required bosses), the chart and
-   entrance randomizers, and the required dungeons. Both modes use the entrance options,
+2. builds the seed's tables with `tracker.serialize.build_tracker_tables()` from `WWRandomizer.get_seed_plando()`: the
+   `.aptww` plando in AP mode, and the equivalent plando built from the randomization results in offline mode
+   (progress locations minus those banned by required bosses, entrances, chart mapping, required bosses). Both modes
+   use the entrance options,
 3. serializes them with `serialize_tracker_tables()` and writes them into the `tracker_data` reserve,
    failing the build if they don't fit.
 
