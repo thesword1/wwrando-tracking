@@ -19,6 +19,10 @@ TRK_EXPORT TrkState* trk_host_state_ptr(void) {
   return &trk_host_state;
 }
 
+TRK_EXPORT TrkUiState* trk_host_ui_state_ptr(void) {
+  return &trk_host_ui_state;
+}
+
 TRK_EXPORT void trk_host_set_data(const u8* data) {
   trk_host_data = data;
 }

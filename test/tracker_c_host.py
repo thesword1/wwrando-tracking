@@ -63,6 +63,15 @@ class TrkUiCounter(ctypes.Structure):
   _fields_ = [("remaining", ctypes.c_uint8), ("available", ctypes.c_uint8), ("status", ctypes.c_uint8)]
 
 
+class TrkUiState(ctypes.Structure):
+  _fields_ = [
+    ("proc_frame", ctypes.c_uint32), ("draw_frame", ctypes.c_uint32), ("view", ctypes.c_uint8),
+    ("list_group", ctypes.c_uint8), ("sel", ctypes.c_uint8), ("scroll", ctypes.c_uint8), ("stick_dir", ctypes.c_int8),
+    ("stick_timer", ctypes.c_uint8), ("flash_timer", ctypes.c_uint8), ("last_toggle", ctypes.c_uint8),
+    ("pad", ctypes.c_uint8 * 0x30),
+  ]
+
+
 def build_host_library(build_dir: Path) -> Path:
   if shutil.which("make") is None or shutil.which("gcc") is None:
     pytest.skip("make and gcc are needed to build the tracker C runtime for the host")
@@ -102,6 +111,10 @@ class TrackerHost:
     lib.tracker_count_small_key.argtypes = [ctypes.c_int]
     lib.tracker_group_counts.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
     lib.tracker_ui_group_counter.argtypes = [ctypes.c_uint16, ctypes.POINTER(TrkUiCounter)]
+    lib.tracker_ui_location_status.restype = ctypes.c_uint8
+    lib.tracker_ui_location_status.argtypes = [ctypes.c_uint16]
+    lib.tracker_ui_list_input.argtypes = [ctypes.c_uint8, ctypes.c_uint16, ctypes.c_int8]
+    lib.trk_host_ui_state_ptr.restype = ctypes.POINTER(TrkUiState)
     self._data = None
     self.ram_base = lib.trk_host_ram_base()
 
@@ -150,6 +163,10 @@ class TrackerHost:
     checked, total = ctypes.c_uint16(), ctypes.c_uint16()
     self.lib.tracker_group_counts(group_index, ctypes.byref(checked), ctypes.byref(total))
     return checked.value, total.value
+
+  @property
+  def ui_state(self) -> TrkUiState:
+    return self.lib.trk_host_ui_state_ptr().contents
 
   def ui_counter(self, group_index: int) -> TrkUiCounter:
     return self.get("tracker_ui_group_counter", TrkUiCounter, group_index)

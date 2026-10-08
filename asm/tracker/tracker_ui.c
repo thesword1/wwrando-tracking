@@ -9,6 +9,7 @@
 
 #include "tracker_detect.h"
 #include "tracker_mem.h"
+#include "tracker_save.h"
 #include "tracker_state.h"
 #include "tracker_tables.h"
 #include "tracker_ui.h"
@@ -58,6 +59,76 @@ TRK_EXPORT void tracker_ui_group_counter(u16 group_index, TrkUiCounter* out) {
   out->status = available > 0 ? TRK_UI_IN_LOGIC : TRK_UI_OUT_OF_LOGIC;
 }
 
+TRK_EXPORT u8 tracker_ui_location_status(u16 location_index) {
+  if (tracker_is_checked(location_index)) {
+    return TRK_UI_DONE;
+  }
+  return trk_ui_location_logic(location_index);
+}
+
+static void trk_ui_move_selection(TrkUiState* ui, int delta, u16 count, bool wrap) {
+  int sel = ui->sel + delta;
+  if (sel < 0) {
+    sel = wrap ? count - 1 : 0;
+  } else if (sel >= count) {
+    sel = wrap ? 0 : count - 1;
+  }
+  ui->sel = (u8)sel;
+  if (ui->sel < ui->scroll) {
+    ui->scroll = ui->sel;
+  } else if (ui->sel >= ui->scroll + TRK_UI_LIST_ROWS) {
+    ui->scroll = (u8)(ui->sel - TRK_UI_LIST_ROWS + 1);
+  }
+}
+
+// Input for a group's location list: the main stick moves the selection (with auto-repeat, wrapping
+// around on a fresh push) and X toggles the selected location's manual mark.
+TRK_EXPORT void tracker_ui_list_input(u8 group_index, u16 buttons, s8 stick_y) {
+  TrkUiState* ui = TRK_UI_STATE;
+  if (ui->list_group != group_index) {
+    ui->list_group = group_index;
+    ui->sel = 0;
+    ui->scroll = 0;
+    ui->flash_timer = 0;
+  }
+  TrkGroup group;
+  trk_get_group(group_index, &group);
+  if (group.num_locations == 0) {
+    return;
+  }
+  if (ui->flash_timer > 0) {
+    ui->flash_timer--;
+  }
+
+  s8 dir = 0;
+  if (stick_y > TRK_UI_STICK_THRESHOLD) {
+    dir = -1;
+  } else if (stick_y < -TRK_UI_STICK_THRESHOLD) {
+    dir = 1;
+  }
+  if (dir != 0 && dir != ui->stick_dir) {
+    trk_ui_move_selection(ui, dir, group.num_locations, true);
+    ui->stick_timer = TRK_UI_REPEAT_DELAY;
+    ui->flash_timer = 0;
+  } else if (dir != 0 && --ui->stick_timer == 0) {
+    trk_ui_move_selection(ui, dir, group.num_locations, false);
+    ui->stick_timer = TRK_UI_REPEAT_RATE;
+    ui->flash_timer = 0;
+  }
+  ui->stick_dir = dir;
+
+  if (buttons & TRK_BTN_X) {
+    u16 location_index = group.first_location + ui->sel;
+    if (tracker_toggle_manual(location_index)) {
+      ui->last_toggle = tracker_is_manual(location_index) ? 1 : 2;
+      tracker_update_counts();
+    } else {
+      ui->last_toggle = 3;
+      ui->flash_timer = TRK_UI_FLASH_FRAMES;
+    }
+  }
+}
+
 #ifndef TRACKER_HOST
 
 typedef struct { u8 r, g, b, a; } TrkColor; // JUtility::TColor
@@ -78,7 +149,16 @@ void FmapProc__12dMenu_Fmap_cFv(void* fmap);
 #define TRK_FMAP_DLST_OFFSET 0x1C // dDlst_FMAP_c fmapDl
 #define TRK_FMAP_FONT_OFFSET 0x50D0 // JUTFont* mFont (the message font)
 #define TRK_FMAP_PROC_IDX_OFFSET 0x5114 // u8 mFmapProcIdx: index into fmapProcMain
+#define TRK_FMAP_SV_OFFSET 0x2878 // dMenu_FmapSv_c* fmapSv
+#define TRK_FMAP_SV_CUR_X 0x4 // s8 curX, -3..3
+#define TRK_FMAP_SV_CUR_Y 0x5 // s8 curY, -3..3
 #define TRK_FMAP_PROC_SELECT_GRID 0
+#define TRK_FMAP_PROC_ZOOM_LV1 2 // ZoomGridLv1Proc: square view
+
+// Controller 1 (docs/dev/memory-map.md section 4.2).
+#define TRK_PAD_TRIG_ADDR 0x803A4E22 // g_mDoCPd_cpadInfo[0].mButtonTrig
+#define TRK_PAD_TRIG_X 0x0040 // As a big-endian u16
+#define TRK_PAD_STICK_Y_ADDR 0x803ED81B // JUTGamePad::mPadStatus[0].stickY
 
 // Layout, in the 640x480 screen space of the chart's ortho port. Measured on screenshots.
 #define TRK_GRID_X 42.0f // Top left corner of square 1
@@ -90,6 +170,16 @@ void FmapProc__12dMenu_Fmap_cFv(void* fmap);
 #define TRK_TOTALS_Y 262.0f
 #define TRK_TOTALS_SIZE 16.0f
 #define TRK_COUNTER_PAD 2.0f
+// Location list over the zoomed square.
+#define TRK_PANEL_X 48.0f
+#define TRK_PANEL_Y 26.0f
+#define TRK_PANEL_W 380.0f
+#define TRK_PANEL_H 382.0f
+#define TRK_TITLE_SIZE 18.0f
+#define TRK_ROWS_Y 54.0f // Top of the first row
+#define TRK_ROW_H 21.0f
+#define TRK_ROW_SIZE 16.0f
+#define TRK_HINT_SIZE 14.0f
 
 static const TrkColor trk_status_colors[] = {
   [TRK_UI_NONE] = {0x00, 0x00, 0x00, 0x00},
@@ -99,6 +189,11 @@ static const TrkColor trk_status_colors[] = {
   [TRK_UI_UNKNOWN] = {0x30, 0x20, 0x10, 0xFF},
 };
 static const TrkColor trk_box_color = {0xFF, 0xF8, 0xE0, 0xD0};
+static const TrkColor trk_panel_color = {0xFF, 0xF8, 0xE0, 0xE8};
+static const TrkColor trk_select_color = {0xE8, 0xCC, 0x8C, 0xFF};
+static const TrkColor trk_flash_color = {0xF0, 0x98, 0x80, 0xFF};
+static const TrkColor trk_text_color = {0x30, 0x20, 0x10, 0xFF};
+static const TrkColor trk_hint_color = {0x70, 0x58, 0x40, 0xFF};
 
 TRK_INLINE void trk_font_set_gx(JUTFont* font) {
   void (*set_gx)(JUTFont*) = (*(void (***)(JUTFont*))font)[0x0C/4];
@@ -166,7 +261,9 @@ static void trk_format_counter(char* out, const TrkUiCounter* counter) {
   trk_format_uint(out, counter->remaining);
 }
 
+// Sets up GX for the font every time, since boxes drawn in between change it.
 static void trk_draw_text(JUTFont* font, float x, float y, float size, const char* str, TrkColor color) {
+  trk_font_set_gx(font);
   setCharColor__7JUTFontFQ28JUtility6TColor(font, color);
   drawString_size_scale__7JUTFontFffffPCcUlb(font, x, y, size, size, str, trk_strlen(str), true);
 }
@@ -191,7 +288,6 @@ static void trk_draw_counter(const TrkDraw* draw, float x, float y, const TrkUiC
   trk_format_counter(text, counter);
   float width = trk_text_width(font, text, TRK_COUNTER_SIZE);
   trk_fill_box(draw, x, y, width + 2*TRK_COUNTER_PAD, TRK_COUNTER_SIZE + TRK_COUNTER_PAD, trk_box_color);
-  trk_font_set_gx(font);
   trk_draw_text(font, x + TRK_COUNTER_PAD, y + TRK_COUNTER_SIZE - 1.0f, TRK_COUNTER_SIZE, text, trk_status_colors[counter->status]);
 }
 
@@ -218,14 +314,101 @@ static void trk_draw_world(const TrkDraw* draw) {
   end = trk_format_uint(end, TRK_STATE->num_checked);
   end = trk_format_str(end, "/");
   trk_format_uint(end, TRK_STATE->num_locations);
-  trk_font_set_gx(draw->font);
   trk_draw_text(draw->font, TRK_TOTALS_X, TRK_TOTALS_Y, TRK_TOTALS_SIZE, text, trk_status_colors[TRK_UI_UNKNOWN]);
+}
+
+static void trk_draw_right_aligned(JUTFont* font, float right, float y, float size, const char* str, TrkColor color) {
+  trk_draw_text(font, right - trk_text_width(font, str, size), y, size, str, color);
+}
+
+// A group's locations: a title with the group's counter, one row per location (checkbox, name in its
+// status colour, struck through once checked) and a hint line.
+static void trk_draw_location_list(const TrkDraw* draw, u8 group_index) {
+  JUTFont* font = draw->font;
+  TrkUiState* ui = TRK_UI_STATE;
+  TrkGroup group;
+  trk_get_group(group_index, &group);
+  trk_fill_box(draw, TRK_PANEL_X, TRK_PANEL_Y, TRK_PANEL_W, TRK_PANEL_H, trk_panel_color);
+
+  float right = TRK_PANEL_X + TRK_PANEL_W - 8.0f;
+  trk_draw_text(font, TRK_PANEL_X + 8.0f, TRK_PANEL_Y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, trk_string(group.name), trk_text_color);
+  TrkUiCounter counter;
+  tracker_ui_group_counter(group_index, &counter);
+  char text[16];
+  trk_format_counter(text, &counter);
+  trk_draw_right_aligned(font, right, TRK_PANEL_Y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, text, trk_status_colors[counter.status]);
+  trk_fill_box(draw, TRK_PANEL_X + 6.0f, TRK_ROWS_Y - 4.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
+
+  for (u16 row = 0; row < TRK_UI_LIST_ROWS && ui->scroll + row < group.num_locations; row++) {
+    u16 i = ui->scroll + row;
+    u16 location_index = group.first_location + i;
+    TrkLocation loc;
+    trk_get_location(location_index, &loc);
+    float top = TRK_ROWS_Y + row*TRK_ROW_H;
+    if (i == ui->sel) {
+      trk_fill_box(draw, TRK_PANEL_X + 4.0f, top, TRK_PANEL_W - 8.0f, TRK_ROW_H, ui->flash_timer > 0 ? trk_flash_color : trk_select_color);
+    }
+    u8 status = tracker_ui_location_status(location_index);
+    TrkColor color = trk_status_colors[status];
+    // Checkbox: filled once checked.
+    float box_y = top + (TRK_ROW_H - 11.0f)/2;
+    trk_fill_box(draw, TRK_PANEL_X + 10.0f, box_y, 11.0f, 11.0f, color);
+    if (status != TRK_UI_DONE) {
+      trk_fill_box(draw, TRK_PANEL_X + 12.0f, box_y + 2.0f, 7.0f, 7.0f, trk_panel_color);
+    }
+    const char* name = trk_string(loc.name);
+    float baseline = top + TRK_ROW_H - 5.0f;
+    trk_draw_text(font, TRK_PANEL_X + 28.0f, baseline, TRK_ROW_SIZE, name, color);
+    if (status == TRK_UI_DONE) {
+      trk_fill_box(draw, TRK_PANEL_X + 27.0f, baseline - 5.0f, trk_text_width(font, name, TRK_ROW_SIZE) + 2.0f, 1.5f, color);
+    }
+  }
+
+  float hint_y = TRK_PANEL_Y + TRK_PANEL_H - 8.0f;
+  trk_draw_text(font, TRK_PANEL_X + 8.0f, hint_y, TRK_HINT_SIZE, "Stick: select    X: mark", trk_hint_color);
+  char* end = trk_format_uint(text, ui->sel + 1);
+  end = trk_format_str(end, "/");
+  trk_format_uint(end, group.num_locations);
+  trk_draw_right_aligned(font, right, hint_y, TRK_HINT_SIZE, text, trk_hint_color);
+}
+
+// The group of the square shown in square view, or -1.
+static int trk_fmap_square_group(u8* fmap) {
+  s8* sv = *(s8**)(fmap + TRK_FMAP_SV_OFFSET);
+  int square = (sv[TRK_FMAP_SV_CUR_X] + 3) + (sv[TRK_FMAP_SV_CUR_Y] + 3)*7 + 1;
+  if (square < 1 || square > TRK_SQUARES) {
+    return -1;
+  }
+  int group_index = trk_find_group((u8)square);
+  if (group_index < 0 || group_index >= TRK_UI_NO_GROUP) {
+    return -1;
+  }
+  TrkGroup group;
+  trk_get_group(group_index, &group);
+  return group.num_locations > 0 ? group_index : -1;
 }
 
 void tracker_fmap_proc(u8* fmap) {
   TrkUiState* ui = TRK_UI_STATE;
   ui->proc_frame = TRK_STATE->frame_count;
-  ui->view = fmap[TRK_FMAP_PROC_IDX_OFFSET] == TRK_FMAP_PROC_SELECT_GRID ? TRK_VIEW_WORLD : TRK_VIEW_NONE;
+  ui->view = TRK_VIEW_NONE;
+  if (trk_tables_valid()) {
+    u8 proc = fmap[TRK_FMAP_PROC_IDX_OFFSET];
+    if (proc == TRK_FMAP_PROC_SELECT_GRID) {
+      ui->view = TRK_VIEW_WORLD;
+    } else if (proc == TRK_FMAP_PROC_ZOOM_LV1) {
+      // Vanilla doesn't read the main stick or X in square view.
+      ui->view = TRK_VIEW_SQUARE;
+      int group_index = trk_fmap_square_group(fmap);
+      if (group_index >= 0) {
+        u16 buttons = 0;
+        if (trk_mem_u16(TRK_PAD_TRIG_ADDR) & TRK_PAD_TRIG_X) {
+          buttons |= TRK_BTN_X;
+        }
+        tracker_ui_list_input((u8)group_index, buttons, (s8)trk_mem_u8(TRK_PAD_STICK_Y_ADDR));
+      }
+    }
+  }
   FmapProc__12dMenu_Fmap_cFv(fmap);
 }
 
@@ -241,13 +424,21 @@ void tracker_fmap_draw(u8* dlst) {
     return;
   }
   u8* fmap = dlst - TRK_FMAP_DLST_OFFSET;
-  if (fmap[TRK_FMAP_PROC_IDX_OFFSET] != TRK_FMAP_PROC_SELECT_GRID || ui->view != TRK_VIEW_WORLD) {
-    return;
-  }
+  u8 proc = fmap[TRK_FMAP_PROC_IDX_OFFSET];
   TrkDraw draw;
   draw.port = *(J2DOrthoGraph**)TRK_CURRENT_GRAF_PORT_ADDR;
   draw.font = *(JUTFont**)(fmap + TRK_FMAP_FONT_OFFSET);
-  trk_draw_world(&draw);
+  if (proc == TRK_FMAP_PROC_SELECT_GRID && ui->view == TRK_VIEW_WORLD) {
+    trk_draw_world(&draw);
+  } else if (proc == TRK_FMAP_PROC_ZOOM_LV1 && ui->view == TRK_VIEW_SQUARE) {
+    int group_index = trk_fmap_square_group(fmap);
+    if (group_index < 0) {
+      return;
+    }
+    trk_draw_location_list(&draw, (u8)group_index);
+  } else {
+    return;
+  }
   // Leave the port's 2D setup for whatever draws next.
   setPort__13J2DOrthoGraphFv(draw.port);
   ui->draw_frame = TRK_STATE->frame_count;
