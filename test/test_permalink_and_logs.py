@@ -65,7 +65,7 @@ def test_permalink_reproduces_seed():
   assert rando_from_permalink.boss_reqs.required_bosses == rando.boss_reqs.required_bosses
 
 def test_local_options_dont_change_permalink_or_seed():
-  # Options with permalink=False (cosmetics, controls, and later the in-game tracker) must not change the seed.
+  # Options with permalink=False (cosmetics, controls, the in-game tracker) must not change the seed.
   options = Options()
   rando = dry_rando(options, "local")
   rando.randomize_all()
