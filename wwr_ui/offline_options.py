@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 import typing
 from enum import StrEnum
 
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
   QWidget, QGroupBox, QGridLayout, QHBoxLayout, QVBoxLayout, QCheckBox, QComboBox, QSpinBox, QLabel, QLineEdit,
   QPushButton, QListView, QAbstractItemView, QSizePolicy, QSpacerItem,
@@ -75,6 +75,8 @@ OPTION_LABELS = {
 
   "required_bosses": "Required Bosses Mode",
   "num_required_bosses": "Number of Required Bosses",
+  "included_dungeons": "Always Required",
+  "excluded_dungeons": "Never Required",
 
   "hero_mode": "Hero Mode",
   "logic_obscurity": "Obscure Tricks Required",
@@ -154,6 +156,8 @@ ADVANCED_TAB_GROUPS = [
   ("Required Bosses", 2, [
     "required_bosses",
     "num_required_bosses",
+    "included_dungeons",
+    "excluded_dungeons",
   ]),
   ("Difficulty Options", 2, [
     "hero_mode",
@@ -171,6 +175,32 @@ ADVANCED_TAB_LOCAL_GROUPS = [
     "enable_tuner_logic",
   ]),
 ]
+
+class OptionChoicesWidget(QWidget):
+  """A checkbox for each possible value of a list option that is a set of values from a fixed list."""
+  
+  value_changed = Signal()
+  
+  def __init__(self, option_name: str, choices: list[str]):
+    super().__init__()
+    self.choices = choices
+    self.checkboxes: list[QCheckBox] = []
+    layout = QGridLayout(self)
+    layout.setContentsMargins(0, 0, 0, 0)
+    for i, choice in enumerate(choices):
+      checkbox = QCheckBox(choice)
+      # Give the checkboxes names that don't collide with option names, which the window looks widgets up by.
+      checkbox.setObjectName(f"{option_name}_choice_{i}")
+      checkbox.clicked.connect(self.value_changed)
+      layout.addWidget(checkbox, i // 3, i % 3)
+      self.checkboxes.append(checkbox)
+  
+  def get_value(self) -> list[str]:
+    return [choice for choice, checkbox in zip(self.choices, self.checkboxes) if checkbox.isChecked()]
+  
+  def set_value(self, value: list[str]):
+    for choice, checkbox in zip(self.choices, self.checkboxes):
+      checkbox.setChecked(choice in value)
 
 class OfflineOptionWidgets:
   def __init__(self, window: WWRandomizerWindow):
@@ -284,6 +314,8 @@ class OfflineOptionWidgets:
             widget.addItem(enum_value.value)
         elif issubclass(option_type, int):
           widget = QSpinBox()
+        elif option.choices is not None:
+          widget = OptionChoicesWidget(option_name, option.choices)
         else:
           raise Exception(f"Unsupported option type for option {option_name}: {option.type}")
         cell = QWidget()
