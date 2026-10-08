@@ -8,7 +8,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "gclib"))
 
-from tracker.locations import ENTRANCE_CATEGORIES, STATIC_LOCATIONS
+from options.wwrando_options import KeyLunacyMode, Options
+from tracker.dungeons import DungeonFlag, build_tracker_dungeons, dungeon_key_totals
+from tracker.items import DUNGEON_ITEM_BIG_KEY
+from tracker.locations import ALL_GROUPS, ENTRANCE_CATEGORIES, STATIC_LOCATIONS, GroupKind
 from tracker.serialize import (
   FORMAT_VERSION, HEADER_SIZE, MAGIC, NUM_SECTIONS, TRACKER_DATA_RESERVE_SIZE, Section, build_tracker_tables,
   compute_seed_tag, parse_tracker_tables, serialize_tracker_tables,
@@ -40,6 +43,10 @@ def test_c_constants_match():
   for section in Section:
     assert re.search(rf"TRK_SEC_{section.name} = {section.value},", header), section
   assert re.search(rf"TRK_NUM_SECTIONS = {NUM_SECTIONS},", header)
+  for flag in DungeonFlag:
+    assert re.search(rf"TRK_DUNGEON_{flag.name} = 0x{flag.value:02X},", header), flag
+  items_header = (TRACKER_C_DIR / "tracker_items.h").read_text()
+  assert re.search(rf"#define TRK_ITEM_DUNGEON_BIG_KEY 0x{DUNGEON_ITEM_BIG_KEY:02X}\b", items_header)
 
 def test_seed_tag():
   tags = {compute_seed_tag(f"seed {i}") for i in range(1000)}
@@ -103,6 +110,43 @@ def test_round_trip_fixture(path: Path):
   for chart, entry in zip(tables.charts, parsed["charts"]):
     assert entry[2] == chart.chart_number
     assert entry[8] == chart.name
+
+  # Every dungeon group with keys (all but Forsaken Fortress), and only those.
+  dungeon_names = {group.name for group in tables.groups() if group.kind == GroupKind.DUNGEON}
+  assert [dungeon.group.name for dungeon in tables.dungeons] == [
+    name for name in DUNGEON_KEYS if name in dungeon_names
+  ]
+  for dungeon, entry in zip(tables.dungeons, parsed["dungeons"]):
+    assert entry == (dungeon.group.id, dungeon.counter_index, dungeon.stage_id, dungeon.small_keys, dungeon.flags)
+    assert entry[0] in group_ids
+    assert (dungeon.small_keys, bool(dungeon.flags & DungeonFlag.HAS_BIG_KEY)) == (DUNGEON_KEYS[dungeon.group.name], True)
+
+# The website's dungeon key counts (WWRando-APTracker data/keys.json).
+DUNGEON_KEYS = {
+  "Dragon Roost Cavern": 4, "Forbidden Woods": 1, "Tower of the Gods": 2, "Earth Temple": 3, "Wind Temple": 2,
+}
+
+def test_dungeon_key_totals():
+  assert dungeon_key_totals() == {"DRC": (4, 1), "FW": (1, 1), "TotG": (2, 1), "FF": (0, 0), "ET": (3, 1), "WT": (2, 1)}
+
+def test_dungeon_start_with_flags():
+  options = Options()
+  groups = list(ALL_GROUPS)
+  assert all(dungeon.flags == DungeonFlag.HAS_BIG_KEY for dungeon in build_tracker_dungeons(groups, options))
+  options.randomize_smallkeys = KeyLunacyMode.START_WITH
+  assert all(
+    dungeon.flags == DungeonFlag.HAS_BIG_KEY | DungeonFlag.START_WITH_SMALL_KEYS
+    for dungeon in build_tracker_dungeons(groups, options)
+  )
+  options.randomize_bigkeys = KeyLunacyMode.START_WITH
+  options.randomize_smallkeys = KeyLunacyMode.KEYLUNACY
+  assert all(
+    dungeon.flags == DungeonFlag.HAS_BIG_KEY | DungeonFlag.START_WITH_BIG_KEY
+    for dungeon in build_tracker_dungeons(groups, options)
+  )
+  # Only dungeons in the tables (hidden dungeons of non-required bosses aren't).
+  wind_temple = [group for group in groups if group.name != "Wind Temple"]
+  assert "Wind Temple" not in {dungeon.group.name for dungeon in build_tracker_dungeons(wind_temple, options)}
 
 def test_size_budget_worst_case():
   # Every location and every entrance tracked.

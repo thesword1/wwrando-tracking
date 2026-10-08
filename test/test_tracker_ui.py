@@ -432,3 +432,69 @@ def test_menu_has_no_page(tracker: TrackerHost):
   assert not tracker.lib.tracker_ui_menu_has_page()
   enter_game(tracker, "LinkUG", 0, 0)
   assert tracker.lib.tracker_ui_menu_has_page()
+
+
+# enum TrkUiBigKey
+BK_NONE, BK_MISSING, BK_OWNED = range(3)
+SAVE_KEYS_ADDR = 0x803C532C + 0x04
+SAVED_STAGE_INFO_ADDR = 0x803C4F88
+LIVE_DUNGEON_ITEM_ADDR = 0x803C5380 + 0x21
+CURRENT_STAGE_ID_ADDR = 0x803C53A4
+
+def dungeon_keys(tracker: TrackerHost, name: str) -> tuple[int, int, int, str] | None:
+  keys = tracker.ui_dungeon_keys(group_index(tracker, name))
+  if keys is None:
+    return None
+  return keys.obtained, keys.total, keys.big_key, tracker.ui_keys_text(keys)
+
+def test_dungeon_keys(full: TrackerHost):
+  # Small keys obtained (the tracker's counters) out of the dungeon's total, and the big key's mDungeonItem bit.
+  enter_game(full)
+  full.lib.tracker_frame()
+  assert dungeon_keys(full, "Dragon Roost Cavern") == (0, 4, BK_MISSING, "Keys 0/4")
+  assert dungeon_keys(full, "Forbidden Woods") == (0, 1, BK_MISSING, "Keys 0/1")
+  assert dungeon_keys(full, "Tower of the Gods") == (0, 2, BK_MISSING, "Keys 0/2")
+  assert dungeon_keys(full, "Earth Temple") == (0, 3, BK_MISSING, "Keys 0/3")
+  assert dungeon_keys(full, "Wind Temple") == (0, 2, BK_MISSING, "Keys 0/2")
+  # No keys: Forsaken Fortress, other list groups, sea squares.
+  for name in ["Forsaken Fortress", "Hyrule", "Ganon's Tower", "Mailbox", "Outset Island"]:
+    assert dungeon_keys(full, name) is None, name
+
+  # DRC: two keys counted, then the big key in the saved stage info (stage 3).
+  full.lib.tracker_count_small_key(0)
+  full.lib.tracker_count_small_key(0)
+  full.write_u8(SAVED_STAGE_INFO_ADDR + 0x24*3 + 0x21, 0x04)
+  assert dungeon_keys(full, "Dragon Roost Cavern") == (2, 4, BK_OWNED, "Keys 2/4")
+  assert dungeon_keys(full, "Forbidden Woods")[2] == BK_MISSING
+  # In the dungeon, the live copy counts (and only for that dungeon).
+  full.write_u8(CURRENT_STAGE_ID_ADDR, 4)
+  full.write_u8(LIVE_DUNGEON_ITEM_ADDR, 0x07)
+  assert dungeon_keys(full, "Forbidden Woods")[2] == BK_OWNED
+  assert dungeon_keys(full, "Dragon Roost Cavern")[2] == BK_OWNED
+  full.write_u8(LIVE_DUNGEON_ITEM_ADDR, 0x03)
+  assert dungeon_keys(full, "Forbidden Woods")[2] == BK_MISSING
+  # More keys counted than the dungeon has (shouldn't happen) is shown as all of them.
+  for _ in range(5):
+    full.lib.tracker_count_small_key(1)
+  assert dungeon_keys(full, "Forbidden Woods")[:2] == (1, 1)
+
+def test_dungeon_keys_start_with(tracker: TrackerHost):
+  # Start With modes show every key as obtained, whatever the counters say.
+  import dataclasses
+  from tracker.dungeons import DungeonFlag
+  from tracker.serialize import serialize_tracker_tables
+  from test_tracker_c_runtime import SEED_TAG, all_locations_tables
+  tables = all_locations_tables()
+  flags = DungeonFlag.HAS_BIG_KEY | DungeonFlag.START_WITH_SMALL_KEYS | DungeonFlag.START_WITH_BIG_KEY
+  tables = dataclasses.replace(tables, dungeons=[dataclasses.replace(d, flags=flags) for d in tables.dungeons])
+  tracker.set_tables(serialize_tracker_tables(tables, SEED_TAG))
+  tracker.tables = tables
+  enter_game(tracker)
+  tracker.lib.tracker_frame()
+  assert dungeon_keys(tracker, "Dragon Roost Cavern") == (4, 4, BK_OWNED, "Keys 4/4")
+  assert dungeon_keys(tracker, "Wind Temple") == (2, 2, BK_OWNED, "Keys 2/2")
+
+def test_keys_text(tracker: TrackerHost):
+  from tracker_c_host import TrkUiKeys
+  for obtained, total, text in [(0, 0, ""), (0, 1, "Keys 0/1"), (3, 4, "Keys 3/4"), (9, 12, "Keys 9/12"), (12, 12, "Keys 12/12")]:
+    assert tracker.ui_keys_text(TrkUiKeys(obtained, total, BK_NONE)) == text

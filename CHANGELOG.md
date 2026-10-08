@@ -1,6 +1,7 @@
 ### Version 2.5.2-tracking.3 (in progress)
 
 * GO MODE: once Ganondorf can be reached and defeated in logic with your current items (including the required bosses in Required Bosses Mode), the in-game tracker shows a blue "GO MODE" label under the checked total on the sea chart, and under the "Z: tracker" label on the dungeon map and the Quest Status screen. It's computed with the rest of the tracker's logic (the goal is compiled into the logic bytecode as one extra result), so it doesn't affect any location counts. The tracker table format version is now 3.
+* Dungeon key counts: a dungeon's location list (on the sea chart's other locations page, the dungeon map and the Quest Status screen) shows the small keys you've found out of the dungeon's total in its header, for example `Keys 2/4` (grey once all are found), and `BK`, struck through until you have the big key and highlighted once you do, like the website tracker's dungeon tiles. Forsaken Fortress has no keys and shows neither. In the Start With modes the keys are shown as all found. The totals come from the logic's item locations; the tracker table format version is now 4.
 
 ### Version 2.5.2-tracking.2 (in progress)
 

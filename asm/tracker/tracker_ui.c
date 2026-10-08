@@ -8,6 +8,7 @@
 //   the views the tracker doesn't handle.
 
 #include "tracker_detect.h"
+#include "tracker_items.h"
 #include "tracker_logic.h"
 #include "tracker_mem.h"
 #include "tracker_save.h"
@@ -392,6 +393,51 @@ TRK_EXPORT bool tracker_ui_menu_has_page(void) {
   return count > 0;
 }
 
+// A dungeon's keys for its location list's header: small keys obtained out of its total, and whether its big key is
+// owned. In the Start With modes they're shown as all obtained. Returns false for groups without keys.
+TRK_EXPORT bool tracker_ui_dungeon_keys(u8 group_index, TrkUiKeys* out) {
+  TrkGroup group;
+  trk_get_group(group_index, &group);
+  TrkDungeonInfo dungeon;
+  if (trk_find_dungeon(group.id, &dungeon) < 0 || dungeon.counter >= TRK_NUM_DUNGEONS) {
+    return false;
+  }
+  out->total = dungeon.small_keys;
+  out->obtained = tracker_small_keys_obtained(dungeon.counter);
+  if (out->obtained > out->total || (dungeon.flags & TRK_DUNGEON_START_WITH_SMALL_KEYS)) {
+    out->obtained = out->total;
+  }
+  out->big_key = TRK_UI_BK_NONE;
+  if (dungeon.flags & TRK_DUNGEON_HAS_BIG_KEY) {
+    bool owned = (dungeon.flags & TRK_DUNGEON_START_WITH_BIG_KEY) || tracker_has_big_key(dungeon.stage_id);
+    out->big_key = owned ? TRK_UI_BK_OWNED : TRK_UI_BK_MISSING;
+  }
+  return true;
+}
+
+// "Keys n/total", or "" without small keys. out needs 16 bytes.
+TRK_EXPORT void tracker_ui_keys_text(const TrkUiKeys* keys, char* out) {
+  if (keys->total == 0) {
+    out[0] = '\0';
+    return;
+  }
+  const char* prefix = "Keys ";
+  while (*prefix != '\0') {
+    *out++ = *prefix++;
+  }
+  u8 values[2] = {keys->obtained, keys->total};
+  for (int i = 0; i < 2; i++) {
+    if (i == 1) {
+      *out++ = '/';
+    }
+    if (values[i] >= 10) {
+      *out++ = (char)('0' + values[i] / 10 % 10);
+    }
+    *out++ = (char)('0' + values[i] % 10);
+  }
+  *out = '\0';
+}
+
 #ifndef TRACKER_HOST
 
 typedef struct { u8 r, g, b, a; } TrkColor; // JUtility::TColor
@@ -449,6 +495,7 @@ void FmapProc__12dMenu_Fmap_cFv(void* fmap);
 #define TRK_ROW_H 21.0f
 #define TRK_ROW_SIZE 16.0f
 #define TRK_HINT_SIZE 14.0f
+#define TRK_KEYS_SIZE 15.0f // A dungeon's keys in its list's title row
 
 static const TrkColor trk_status_colors[] = {
   [TRK_UI_NONE] = {0x00, 0x00, 0x00, 0x00},
@@ -657,7 +704,34 @@ static void trk_draw_entrance_line(const TrkDraw* draw, u8 group_index) {
   trk_draw_text(draw->font, draw->x + 8.0f, draw->y + TRK_PANEL_H - 25.0f, TRK_HINT_SIZE, text, trk_text_color);
 }
 
-// A group's locations: a title with the group's counter, one row per location (checkbox, name in its
+// A dungeon's keys in its list's title row, right-aligned at right: "Keys n/total", then "BK", in a dark box once the
+// big key is owned and struck through until then.
+static void trk_draw_keys(const TrkDraw* draw, float right, float baseline, const TrkUiKeys* keys) {
+  JUTFont* font = draw->font;
+  if (keys->big_key != TRK_UI_BK_NONE) {
+    const char* bk = "BK";
+    float width = trk_text_width(font, bk, TRK_KEYS_SIZE) + 2*TRK_COUNTER_PAD + 2.0f;
+    float left = right - width;
+    TrkColor color = trk_hint_color;
+    if (keys->big_key == TRK_UI_BK_OWNED) {
+      trk_fill_box(draw, left, baseline - TRK_KEYS_SIZE, width, TRK_KEYS_SIZE + TRK_COUNTER_PAD + 1.0f, trk_text_color);
+      color = trk_panel_color;
+    }
+    trk_draw_text(font, left + TRK_COUNTER_PAD + 1.0f, baseline, TRK_KEYS_SIZE, bk, color);
+    if (keys->big_key == TRK_UI_BK_MISSING) {
+      trk_fill_box(draw, left + 1.0f, baseline - 5.0f, width - 2.0f, 1.5f, color);
+    }
+    right = left - 8.0f;
+  }
+  char text[16];
+  tracker_ui_keys_text(keys, text);
+  if (text[0] != '\0') {
+    TrkColor color = keys->obtained == keys->total ? trk_status_colors[TRK_UI_DONE] : trk_text_color;
+    trk_draw_right_aligned(font, right, baseline, TRK_KEYS_SIZE, text, color);
+  }
+}
+
+// A group's locations: a title with the group's counter (and a dungeon's keys), one row per location (checkbox, name in its
 // status colour, struck through once checked) and a hint line.
 static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const char* hint) {
   JUTFont* font = draw->font;
@@ -673,6 +747,11 @@ static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const ch
   char text[16];
   trk_format_counter(text, &counter);
   trk_draw_right_aligned(font, right, draw->y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, text, trk_status_colors[counter.status]);
+  TrkUiKeys keys;
+  if (tracker_ui_dungeon_keys(group_index, &keys)) {
+    float keys_right = right - trk_text_width(font, text, TRK_TITLE_SIZE) - 14.0f;
+    trk_draw_keys(draw, keys_right, draw->y + TRK_TITLE_SIZE + 3.0f, &keys);
+  }
   trk_fill_box(draw, draw->x + 6.0f, draw->y + TRK_ROWS_OFFSET - 4.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
 
   TrkUiInfo info[TRK_UI_MAX_INFO];

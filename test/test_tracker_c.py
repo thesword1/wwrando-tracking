@@ -14,7 +14,7 @@ from tracker.serialize import Section, serialize_tracker_tables
 from tracker.stages import stage_group_entries
 from test_aptww_fixtures import FIXTURE_PATHS, load_plando
 from test_tracker_serialize import tables_from_plando
-from tracker_c_host import TrackerHost, TrkChart, TrkEntrance, TrkGroup, TrkLocation, TrkStage, TrkTrigger
+from tracker_c_host import TrackerHost, TrkChart, TrkDungeonInfo, TrkEntrance, TrkGroup, TrkLocation, TrkStage, TrkTrigger
 
 
 def test_invalid_tables(tracker: TrackerHost):
@@ -97,6 +97,19 @@ def test_reader_matches_serializer(tracker: TrackerHost, path: Path):
   for i, (stage_name, group_id) in enumerate(stages):
     entry = tracker.get("trk_get_stage", TrkStage, i)
     assert (entry.stage_name.decode("ascii"), entry.group_id) == (stage_name, group_id)
+
+  assert tables.dungeons
+  assert lib.trk_count(Section.DUNGEONS) == len(tables.dungeons)
+  for i, dungeon in enumerate(tables.dungeons):
+    entry = TrkDungeonInfo()
+    assert lib.trk_find_dungeon(dungeon.group.id, entry) == i
+    assert (entry.group_id, entry.counter, entry.stage_id, entry.small_keys, entry.flags) == (
+      dungeon.group.id, dungeon.counter_index, dungeon.stage_id, dungeon.small_keys, dungeon.flags,
+    )
+  dungeon_ids = {dungeon.group.id for dungeon in tables.dungeons}
+  for group in groups:
+    if group.id not in dungeon_ids:
+      assert lib.trk_find_dungeon(group.id, TrkDungeonInfo()) == -1
 
   assert lib.trk_count(Section.LOGIC) == 0
   assert lib.trk_count(Section.ITEMS) == 0

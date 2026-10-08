@@ -6,6 +6,9 @@
 
 #define TRK_ITEM_CURRENT_STAGE_ID_ADDR 0x803C53A4
 #define TRK_ITEM_LIVE_DUNGEON_ITEM_ADDR (0x803C5380 + 0x21)
+#define TRK_ITEM_SAVED_STAGE_INFO_ADDR 0x803C4F88 // dSv_memory_c mSavedata.mMemory[], 0x24 bytes each
+#define TRK_ITEM_STAGE_INFO_SIZE 0x24
+#define TRK_ITEM_DUNGEON_ITEM_OFFSET 0x21 // mDungeonItem
 
 TRK_INLINE u8 trk_popcount8(u8 value) {
   u8 count = 0;
@@ -14,6 +17,22 @@ TRK_INLINE u8 trk_popcount8(u8 value) {
     value >>= 1;
   }
   return count;
+}
+
+// Bits of a dungeon stage's mDungeonItem (map, compass, big key, ...). Like stage flags, they're in the live copy while
+// the player is in that stage. saved_address is the saved copy's byte.
+TRK_INLINE bool trk_dungeon_item_bit(u32 saved_address, u8 stage_id, u8 mask) {
+  u32 address = saved_address;
+  if (trk_mem_u8(TRK_ITEM_CURRENT_STAGE_ID_ADDR) == stage_id) {
+    address = TRK_ITEM_LIVE_DUNGEON_ITEM_ADDR;
+  }
+  return (trk_mem_u8(address) & mask) != 0;
+}
+
+// Whether the dungeon with stage stage_id's big key is owned.
+TRK_EXPORT bool tracker_has_big_key(u8 stage_id) {
+  u32 saved_address = TRK_ITEM_SAVED_STAGE_INFO_ADDR + TRK_ITEM_STAGE_INFO_SIZE*stage_id + TRK_ITEM_DUNGEON_ITEM_OFFSET;
+  return trk_dungeon_item_bit(saved_address, stage_id, TRK_ITEM_DUNGEON_BIG_KEY);
 }
 
 TRK_EXPORT u8 tracker_item_count(u16 item_index) {
@@ -36,11 +55,7 @@ TRK_EXPORT u8 tracker_item_count(u16 item_index) {
       return (value >= a) + (value >= b);
     }
     case TRK_ITEM_DUNGEON:
-      // Like stage flags, a dungeon's items are in the live copy while the player is in it.
-      if (trk_mem_u8(TRK_ITEM_CURRENT_STAGE_ID_ADDR) == b) {
-        address = TRK_ITEM_LIVE_DUNGEON_ITEM_ADDR;
-      }
-      return (trk_mem_u8(address) & a) != 0;
+      return trk_dungeon_item_bit(address, b, a);
     case TRK_ITEM_SLOTS: {
       u8 count = 0;
       for (u8 i = 0; i < a; i++) {

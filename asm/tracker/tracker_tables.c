@@ -103,6 +103,23 @@ TRK_EXPORT void trk_get_chart(u16 index, TrkChart* out) {
   out->name = trk_be16(p + 8);
 }
 
+// The DUNGEONS entry of a group, or -1 if it has none.
+TRK_EXPORT int trk_find_dungeon(u8 group_id, TrkDungeonInfo* out) {
+  u16 count = trk_count(TRK_SEC_DUNGEONS);
+  for (u16 i = 0; i < count; i++) {
+    const u8* p = trk_entry(TRK_SEC_DUNGEONS, i);
+    if (p[0] == group_id) {
+      out->group_id = p[0];
+      out->counter = p[1];
+      out->stage_id = p[2];
+      out->small_keys = p[3];
+      out->flags = p[4];
+      return i;
+    }
+  }
+  return -1;
+}
+
 TRK_EXPORT void trk_get_stage(u16 index, TrkStage* out) {
   const u8* p = trk_entry(TRK_SEC_STAGES, index);
   for (int i = 0; i < 8; i++) {

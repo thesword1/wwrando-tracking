@@ -176,6 +176,14 @@ visited and locations checked, like the [WWRando-APTracker](https://thesword1.gi
 - Required bosses count as defeated once their heart container is checked or in logic.
 - Items count when you get them, including items sent by the Archipelago server.
 
+### Dungeon keys
+
+A dungeon's location list shows its keys in the header, next to the counter: **`Keys 2/4`** is the number of small keys
+you've found in that dungeon out of how many it has (grey once you've found them all), and **`BK`** is its big key,
+struck through until you have it and shown on a dark box once you do. Forsaken Fortress has no keys, so it shows
+neither. With small keys or big keys set to Start With, they're shown as found. Keys sent by the Archipelago server
+count too.
+
 ### GO MODE
 
 Once you can reach and defeat Ganondorf in logic with what you have (including the required bosses in Required Bosses
