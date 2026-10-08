@@ -25,6 +25,16 @@ enum TrkUiView {
 // Buttons pressed this frame, as passed to the input functions (not the game's bit layout).
 enum TrkUiButton {
   TRK_BTN_X = 1 << 0,
+  TRK_BTN_Z = 1 << 1,
+  TRK_BTN_A = 1 << 2,
+  TRK_BTN_B = 1 << 3,
+};
+
+// Tracker pages shown over the chart (opened with Z).
+enum TrkUiPage {
+  TRK_PAGE_NONE = 0,
+  TRK_PAGE_GROUPS = 1, // The list page: groups that aren't on a sea square
+  TRK_PAGE_GROUP = 2, // One of those groups' location list
 };
 
 // Main stick deflection (PADStatus stickY, about -72..72) that counts as up/down, and the auto-repeat
@@ -52,7 +62,11 @@ typedef struct {
   u8 stick_timer; // 0x0D: frames until the stick repeats
   u8 flash_timer; // 0x0E: frames left of the "can't unmark" flash on the selected row
   u8 last_toggle; // 0x0F: 1 = marked, 2 = unmarked, 3 = refused (auto-checked), for tests
-  u8 pad[0x30]; // 0x10
+  u8 page; // 0x10: enum TrkUiPage
+  u8 page_sel; // 0x11: selected row of the list page
+  u8 page_scroll; // 0x12: first row of the list page shown
+  u8 page_group; // 0x13: group index of the location list opened from the list page
+  u8 pad[0x2C]; // 0x14
 } TrkUiState;
 
 #define TRK_UI_COUNTER_UNKNOWN 0xFF
@@ -68,6 +82,9 @@ typedef struct {
 void tracker_ui_group_counter(u16 group_index, TrkUiCounter* out);
 u8 tracker_ui_location_status(u16 location_index);
 void tracker_ui_list_input(u8 group_index, u16 buttons, s8 stick_y);
+int tracker_ui_page_group(u16 n, u16* count);
+int tracker_ui_group_entrance(u8 group_index);
+bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y);
 
 #ifdef TRACKER_HOST
 extern TrkUiState trk_host_ui_state;

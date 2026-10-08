@@ -8,7 +8,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "gclib"))
 
-from test_tracker_c_runtime import enter_game, full, index_of, set_location_flag  # noqa: F401 (fixture)
+import ctypes
+
+from test_tracker_c_runtime import enter_game, entrance_rando, full, index_of, set_location_flag  # noqa: F401 (fixtures)
 from tracker_c_host import TrackerHost
 
 # enum TrkUiStatus
@@ -51,7 +53,9 @@ def test_group_counters(full: TrackerHost):
 
 
 # tracker_ui.h
-BTN_X = 1
+BTN_X, BTN_Z, BTN_A, BTN_B = 1, 2, 4, 8
+VIEW_NONE, VIEW_WORLD, VIEW_SQUARE = 0, 1, 2
+PAGE_NONE, PAGE_GROUPS, PAGE_GROUP = 0, 1, 2
 STICK_UP, STICK_DOWN = 72, -72
 LIST_ROWS = 15
 REPEAT_DELAY, REPEAT_RATE = 14, 4
@@ -140,3 +144,91 @@ def test_list_toggle(full: TrackerHost):
   assert full.lib.tracker_ui_location_status(first.index) == UI_DONE
   list_input(full, outset, frames=30)
   assert full.ui_state.flash_timer == 0
+
+
+def page_groups(tracker: TrackerHost) -> list[int]:
+  count = ctypes.c_uint16()
+  tracker.lib.tracker_ui_page_group(0, ctypes.byref(count))
+  return [tracker.lib.tracker_ui_page_group(n, None) for n in range(count.value)]
+
+
+def test_page_groups(full: TrackerHost):
+  groups = full.tables.groups()
+  expected = [i for i, g in enumerate(groups) if g.id >= 50 and full.tables.location_set.locations_in_group(g)]
+  assert expected
+  assert page_groups(full) == expected
+  assert full.lib.tracker_ui_page_group(len(expected), None) == -1
+
+
+def ui_input(tracker: TrackerHost, view: int, buttons: int = 0, stick: int = 0, square_group: int = -1) -> bool:
+  return tracker.lib.tracker_ui_input(view, square_group, buttons, stick)
+
+
+def test_page_navigation(entrance_rando: TrackerHost):
+  tracker = entrance_rando
+  enter_game(tracker)
+  tracker.lib.tracker_frame()
+  ui = tracker.ui_state
+  ui.list_group = NO_GROUP
+  page = page_groups(tracker)
+
+  # Outside the page the chart's own input runs, and only Z opens the page (not in other views).
+  assert not ui_input(tracker, VIEW_WORLD, BTN_A | BTN_B)
+  assert not ui_input(tracker, VIEW_NONE, BTN_Z)
+  assert ui.page == PAGE_NONE
+  assert ui_input(tracker, VIEW_WORLD, BTN_Z)
+  assert (ui.page, ui.page_sel) == (PAGE_GROUPS, 0)
+  # Everything is consumed while the page is shown.
+  assert ui_input(tracker, VIEW_WORLD)
+  push_page = lambda stick: (ui_input(tracker, VIEW_WORLD, stick=stick), ui_input(tracker, VIEW_WORLD))
+  push_page(STICK_DOWN)
+  push_page(STICK_DOWN)
+  assert ui.page_sel == 2
+  push_page(STICK_UP)
+  push_page(STICK_UP)
+  push_page(STICK_UP)
+  assert ui.page_sel == len(page) - 1
+  assert ui.page_scroll == len(page) - LIST_ROWS
+  push_page(STICK_DOWN)
+  assert (ui.page_sel, ui.page_scroll) == (0, 0)
+
+  # A opens the selected group's list, which works like a square's.
+  assert ui_input(tracker, VIEW_WORLD, BTN_A)
+  assert (ui.page, ui.page_group) == (PAGE_GROUP, page[0])
+  group = tracker.tables.groups()[page[0]]
+  first = tracker.tables.location_set.locations_in_group(group)[0]
+  assert ui_input(tracker, VIEW_WORLD, BTN_X)
+  assert tracker.lib.tracker_is_manual(first.index)
+  assert ui.list_group == page[0]
+  # B goes back to the groups, B again closes the page.
+  assert ui_input(tracker, VIEW_WORLD, BTN_B)
+  assert ui.page == PAGE_GROUPS
+  assert ui_input(tracker, VIEW_WORLD, BTN_B)
+  assert ui.page == PAGE_NONE
+  assert not ui_input(tracker, VIEW_WORLD)
+
+  # Z closes the page from either level, and also opens it from square view, where the stick and X
+  # otherwise work on the square's list without consuming the input.
+  assert ui_input(tracker, VIEW_SQUARE, BTN_Z, square_group=page[1])
+  assert ui_input(tracker, VIEW_SQUARE, BTN_A)
+  assert ui.page == PAGE_GROUP
+  assert ui_input(tracker, VIEW_SQUARE, BTN_Z)
+  assert ui.page == PAGE_NONE
+  square = group_index(tracker, tracker.tables.groups()[10].name)
+  assert not ui_input(tracker, VIEW_SQUARE, BTN_X, square_group=square)
+  assert ui.list_group == square
+
+
+def test_group_entrance(entrance_rando: TrackerHost):
+  tracker = entrance_rando
+  entrances = tracker.tables.entrance_set.entrances
+  def expected(group_name):
+    candidates = [e.index for e in entrances if e.exit.group.name == group_name]
+    own = [e.index for e in entrances if e.exit.group.name == group_name and e.exit.display_name == group_name]
+    return (own or candidates or [-1])[0]
+  for name in ["Dragon Roost Cavern", "Savage Labyrinth", "Ganon's Tower", "Needle Rock Isle Secret Cave", "Wind Temple"]:
+    assert tracker.lib.tracker_ui_group_entrance(group_index(tracker, name)) == expected(name), name
+  # A dungeon is reached through its dungeon entrance, not the boss door into its boss arena.
+  drc_entrance = entrances[tracker.lib.tracker_ui_group_entrance(group_index(tracker, "Dragon Roost Cavern"))]
+  assert drc_entrance.exit.display_name == "Dragon Roost Cavern"
+  assert tracker.lib.tracker_ui_group_entrance(group_index(tracker, "Ganon's Tower")) == -1
