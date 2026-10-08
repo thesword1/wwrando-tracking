@@ -38,7 +38,8 @@
 #   STRINGS: NUL-terminated ASCII strings; the "name" fields above are offsets into this section.
 #   LOGIC: compiled logic bytecode (byte stream), described in tracker/logic_compiler.py. Empty when the
 #     tables were built without logic.
-#   ITEMS: item-read descriptors for logic (Phase 3). Empty for now.
+#   ITEMS (8 bytes each): how to read the count of each item the logic uses, indexed by the bytecode's item
+#     operands (tracker/items.py documents the entries). Empty when the tables were built without logic.
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -50,6 +51,7 @@ from typing import Any
 
 from tracker.charts import COMPLETE_MAP_ADDR, GET_MAP_ADDR, TrackerChart, build_tracker_chart_table
 from tracker.entrances import EXITS, TrackerEntranceSet, build_tracker_entrance_set
+from tracker.items import serialize_item_reads
 from tracker.logic_compiler import CompiledLogic, TrackerLogicInput, compile_tracker_logic
 from tracker.locations import (
   ENTRANCE_CATEGORIES, SQUARE_GROUPS, TrackerGroup, TrackerLocationSet, build_tracker_location_set,
@@ -250,7 +252,8 @@ def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
   sections[Section.STRINGS] = (bytes(strings.data), len(strings.data))
   logic_data = tables.logic.serialize() if tables.logic is not None else b""
   sections[Section.LOGIC] = (logic_data, len(logic_data))
-  sections[Section.ITEMS] = (b"", 0)
+  items = tables.logic.items if tables.logic is not None else []
+  sections[Section.ITEMS] = (serialize_item_reads(items), len(items))
 
   directory = bytearray()
   body = bytearray()
