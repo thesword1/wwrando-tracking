@@ -83,3 +83,10 @@ isEnableEnlargementScroll__6dMap_cFv = 0x8004826c;
 seStart__11JAIZelBasicFUlP3VecUlScffffUc = 0x802a6720;
 
 dKy_itudemo_se__Fv = 0x801971d8;
+
+setCharColor__7JUTFontFQ28JUtility6TColor = 0x802c1e1c;
+drawString_size_scale__7JUTFontFffffPCcUlb = 0x802c1f24;
+J2DFillBox__FffffQ28JUtility6TColor = 0x802cdf3c;
+setPort__13J2DOrthoGraphFv = 0x802cdcb4;
+draw__12dDlst_FMAP_cFv = 0x801bb024;
+FmapProc__12dMenu_Fmap_cFv = 0x801b6610;

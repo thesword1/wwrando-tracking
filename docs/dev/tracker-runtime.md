@@ -43,6 +43,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `asm/tracker/tracker_detect.[ch]` | Check detection, manual marks, per-group counts |
 | `asm/tracker/tracker_runtime.c` | Game hooks, entrance triggers, per-frame update |
 | `asm/tracker/tracker_state.h` | Runtime state / debug struct in the `tracker_state` reserve |
+| `asm/tracker/tracker_ui.[ch]` | Sea chart UI: hooks into the chart menu, counters and drawing; its state is in the `tracker_ui_state` reserve |
 | `asm/tracker/tracker_host.c` | Host build only: mock RAM and the table pointer |
 | `asm/tracker/Makefile` | Host build (`make -C asm/tracker host`) |
 | `tracker/serialize.py` | Table format (documented at the top of the file), serializer and a Python reader |
@@ -83,6 +84,8 @@ the C code, linked afterwards, can reference it.
 |---|---|
 | 0x8005D618 in `dSv_info_c::init` (new game) | `misc_rando_features.asm` makes this call `init_save_with_tweaks`. `tracker.asm` redirects it to `tracker_init_save`, which resets the tracker save data and then calls `init_save_with_tweaks`. The reset comes first so small keys from the starting items are counted. |
 | 0x8023502C in `dScnPly_Execute` (every gameplay frame, also with a menu open) | Replaces the call to `dKy_itudemo_se` with `tracker_on_frame`, which calls it and then `tracker_frame()` |
+| 0x803923EC: the `FmapProc` pointer-to-member that `__sinit_d_menu_fmap_cpp` copies into `mainProc[0]` | `tracker_fmap_proc` (sea chart UI input), which calls `FmapProc` |
+| 0x803925A0: `draw` in the vtable of `dDlst_FMAP_c` | `tracker_fmap_draw`, which calls `dDlst_FMAP_c::draw` and then draws the tracker over the chart |
 | `item_func_ptr` entries 0x13, 0x1D, 0x5B, 0x73, 0x77 (dungeon small keys) | `tweaks.add_in_game_tracker` points them at `tracker_<dungeon>_small_key_item_get_func`, which counts the key and calls the randomizer's `<dungeon>_small_key_item_get_func`. Both field pickups and Archipelago deliveries go through `execItemGet` and therefore through these. |
 
 `tracker_frame()` does nothing until the tables are valid. It skips the title screen and file
@@ -94,6 +97,50 @@ select (stage `""`, `sea_T`, `Name`, like `TWWClient.py`'s `check_ingame`). In g
    spawn (`0x803C9D3C`, `0x803C9D46`, `0x803C9D44`). Triggers are checked every frame instead of on
    stage changes, so a visit is recorded again if a save without it is reloaded in the same place.
 3. recomputes the totals and per-group checked counts in the runtime state.
+
+## Sea chart UI
+
+`tracker_ui.c` draws on the sea chart (`dMenu_Fmap_c`, `memory-map.md` section 4). Both hooks are
+data patches, so no vanilla code is changed:
+
+- **Input:** `mainProc[0]` (`FmapProc`) is called once per frame while the normal sea chart is open
+  and idle. It isn't called during the open and close animations, on the Y compare page
+  (`mainProc[1]`), or in the warp, wallpaper and fishman modes. `tracker_fmap_proc` records the
+  frame and the view (`mFmapProcIdx`), then calls `FmapProc`.
+- **Drawing:** `dDlst_FMAP_c::draw` is the 2D display-list callback that draws the chart.
+  `tracker_fmap_draw` calls it, then draws the tracker on top. It only draws if
+  `tracker_fmap_proc` ran in this frame or the one before, and the chart's view is one the tracker
+  handles. Everything else (animations, the compare page, warp mode) stays vanilla. The
+  `dMenu_Fmap_c` is found from the display-list object (`fmapDl` is at +0x1C).
+
+Drawing uses the current graf port (`J2DOrthoGraph`, 640x480 screen space) and the chart's message
+font (`mFont`):
+
+- Text: `font->setGX()` (vtable +0x0C), `JUTFont::setCharColor`, then
+  `JUTFont::drawString_size_scale(x, y, w, h, str, len, true)`. `y` is the baseline. Text width comes
+  from `getWidthEntry` (vtable +0x2C) scaled by `w / getCellWidth()` (vtable +0x30).
+- Boxes: `J2DFillBox(x, y, w, h, color)`. It **doesn't** set up the GX state for untextured quads,
+  so a box drawn after text comes out as garbage. `trk_fill_box` calls `J2DOrthoGraph::setPort()`
+  (which runs `setup2D`) first. The draw hook ends with `setPort()` too.
+- `JUtility::TColor` arguments are declared as a 4-byte struct passed by value. GCC passes it as a
+  pointer to a copy, the same as MWCC.
+
+Layout constants (`TRK_GRID_*`, `TRK_CELL_*`) are in screen space and were measured on Dolphin
+screenshots. A 640x528 screenshot shows screen-space point (x, y) at about (0.97x + 9, 0.975y + 19).
+
+**World view** (`SelectGrid`): every sea square with tracked locations shows a counter in its top
+left corner, and the empty strip of the salvage panel shows `Checked n/total`. A counter is the
+remaining (unchecked) count, or `available/remaining` once logic is available, in a light box:
+
+| Colour | Status (`enum TrkUiStatus`) |
+|---|---|
+| grey | everything checked |
+| blue (#2929CC) | some unchecked location is in logic |
+| red (#CC2929) | nothing unchecked is in logic |
+| dark brown | logic not available (until the logic runtime lands) |
+
+`tracker_ui_group_counter()` computes a group's counter. Logic comes from `trk_ui_location_logic()`,
+which returns "unknown" until the logic runtime is wired in.
 
 ## Save data
 
@@ -178,9 +225,10 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x10C4 bytes of code and read-only data, plus the 0x6000-byte table reserve and
-the 0x100-byte state reserve. In total the custom code section grows by 0x71DC bytes (29,148), and
-the game heap shrinks by the same amount.
+The tracker adds 0x1974 bytes of code and read-only data (0x898 of it for the sea chart UI), plus the
+0x6000-byte table reserve, the 0x100-byte state reserve and the 0x40-byte UI state reserve. In total
+the custom code section grows by about 0x7AC4 bytes (31,428), and the game heap shrinks by the same
+amount.
 
 ## Tests
 
@@ -204,6 +252,13 @@ the game heap shrinks by the same amount.
   tag resets the save data, and takes a screenshot. Set `WW_TRACKER_DOLPHIN_CACHE` to a directory
   to keep the built ISO and an in-game savestate between runs (about 20 s per run with the cache,
   about 90 s without).
+
+- `test/test_tracker_ui.py`: the sea chart UI's counters (`tracker_ui_group_counter`), on the host.
+- `test/test_tracker_ui_dolphin.py` (marker `dolphin`): builds the `progression_all` fixture, opens the
+  sea chart with D-pad Up and checks through `tracker_ui_state` in RAM that the tracker draws on the
+  world view, follows manual marks, stops drawing in the square view and after the chart is closed,
+  and that A/B/D-pad Down still work. Screenshots are printed with `-s`; set
+  `WW_TRACKER_SCREENSHOT_DIR` to also copy them to a directory.
 
 Run them with the rest of the suite:
 

@@ -59,6 +59,10 @@ class TrkState(ctypes.Structure):
   ]
 
 
+class TrkUiCounter(ctypes.Structure):
+  _fields_ = [("remaining", ctypes.c_uint8), ("available", ctypes.c_uint8), ("status", ctypes.c_uint8)]
+
+
 def build_host_library(build_dir: Path) -> Path:
   if shutil.which("make") is None or shutil.which("gcc") is None:
     pytest.skip("make and gcc are needed to build the tracker C runtime for the host")
@@ -97,6 +101,7 @@ class TrackerHost:
     lib.tracker_small_keys_obtained.argtypes = [ctypes.c_int]
     lib.tracker_count_small_key.argtypes = [ctypes.c_int]
     lib.tracker_group_counts.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
+    lib.tracker_ui_group_counter.argtypes = [ctypes.c_uint16, ctypes.POINTER(TrkUiCounter)]
     self._data = None
     self.ram_base = lib.trk_host_ram_base()
 
@@ -145,6 +150,9 @@ class TrackerHost:
     checked, total = ctypes.c_uint16(), ctypes.c_uint16()
     self.lib.tracker_group_counts(group_index, ctypes.byref(checked), ctypes.byref(total))
     return checked.value, total.value
+
+  def ui_counter(self, group_index: int) -> TrkUiCounter:
+    return self.get("tracker_ui_group_counter", TrkUiCounter, group_index)
 
   def get(self, name: str, struct_type, index: int):
     out = struct_type()
