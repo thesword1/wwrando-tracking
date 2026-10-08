@@ -147,6 +147,8 @@ class WWRandomizer:
       self.randomize_items = True
     self.map_select = cmd_line_args.mapselect
     self.heap_display = cmd_line_args.heap
+    # Development flag until the user-facing tracker option exists.
+    self.in_game_tracker = getattr(cmd_line_args, "tracker", False)
     
     self.test_room_args = None
     if cmd_line_args.test:
@@ -517,6 +519,9 @@ class WWRandomizer:
     
     if self.archipelago_mode:
       tweaks.apply_post_randomization_changes_for_archipelago(self)
+    
+    if self.in_game_tracker:
+      tweaks.add_in_game_tracker(self)
   
   @classmethod
   def sanitize_seed(cls, seed):
