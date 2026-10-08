@@ -1,0 +1,11 @@
+# Randomized charts with sunken treasure progression, and required bosses mode.
+name: Player
+game: The Wind Waker
+The Wind Waker:
+  progression_triforce_charts: true
+  progression_treasure_charts: true
+  randomize_charts: true
+  required_bosses: true
+  num_required_bosses: 3
+  included_dungeons: ["Dragon Roost Cavern"]
+  excluded_dungeons: ["Wind Temple"]
