@@ -42,6 +42,12 @@ class TrkTrigger(ctypes.Structure):
 class TrkStage(ctypes.Structure):
   _fields_ = [("stage_name", ctypes.c_char * 8), ("group_id", ctypes.c_uint8)]
 
+class TrkDungeonInfo(ctypes.Structure):
+  _fields_ = [
+    ("group_id", ctypes.c_uint8), ("counter", ctypes.c_uint8), ("stage_id", ctypes.c_uint8),
+    ("small_keys", ctypes.c_uint8), ("flags", ctypes.c_uint8),
+  ]
+
 class TrkChart(ctypes.Structure):
   _fields_ = [
     ("destination_square", ctypes.c_uint8), ("vanilla_square", ctypes.c_uint8), ("chart_number", ctypes.c_uint8),
@@ -81,6 +87,10 @@ class TrkUiState(ctypes.Structure):
     ("pad1", ctypes.c_uint8 * 3), ("hint_frame", ctypes.c_uint32), ("go_mode_frame", ctypes.c_uint32),
     ("pad", ctypes.c_uint8 * 0x1C),
   ]
+
+
+class TrkUiKeys(ctypes.Structure):
+  _fields_ = [("obtained", ctypes.c_uint8), ("total", ctypes.c_uint8), ("big_key", ctypes.c_uint8)]
 
 
 class TrkUiInfo(ctypes.Structure):
@@ -150,6 +160,12 @@ class TrackerHost:
     lib.tracker_ui_menu_has_page.restype = ctypes.c_bool
     lib.trk_host_ui_state_ptr.restype = ctypes.POINTER(TrkUiState)
     lib.tracker_triforce_count.restype = ctypes.c_uint8
+    lib.trk_find_dungeon.argtypes = [ctypes.c_uint8, ctypes.POINTER(TrkDungeonInfo)]
+    lib.tracker_has_big_key.restype = ctypes.c_bool
+    lib.tracker_has_big_key.argtypes = [ctypes.c_uint8]
+    lib.tracker_ui_dungeon_keys.restype = ctypes.c_bool
+    lib.tracker_ui_dungeon_keys.argtypes = [ctypes.c_uint8, ctypes.POINTER(TrkUiKeys)]
+    lib.tracker_ui_keys_text.argtypes = [ctypes.POINTER(TrkUiKeys), ctypes.c_char_p]
     lib.tracker_triforce_text.argtypes = [ctypes.c_char_p]
     self._data = None
     self.ram_base = lib.trk_host_ram_base()
@@ -217,6 +233,15 @@ class TrackerHost:
     out = struct_type()
     getattr(self.lib, name)(index, ctypes.byref(out))
     return out
+
+  def ui_dungeon_keys(self, group_index: int) -> TrkUiKeys | None:
+    out = TrkUiKeys()
+    return out if self.lib.tracker_ui_dungeon_keys(group_index, ctypes.byref(out)) else None
+
+  def ui_keys_text(self, keys: TrkUiKeys) -> str:
+    out = ctypes.create_string_buffer(16)
+    self.lib.tracker_ui_keys_text(ctypes.byref(keys), out)
+    return out.value.decode("ascii")
 
   def string(self, offset: int) -> str:
     return self.lib.trk_string(offset).decode("ascii")

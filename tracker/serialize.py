@@ -43,8 +43,13 @@
 #   STAGES (10 bytes each, sorted by stage name): the group whose list the dungeon map and Quest Status screens open
 #     in a stage (tracker/stages.py). Only groups in GROUPS.
 #     +0 char[8] stage name (NUL-padded), +8 u8 group ID, +9 pad
+#   DUNGEONS (6 bytes each, ordered by group ID): the dungeons in GROUPS that have keys, for the key counts in their
+#     location list's header (tracker/dungeons.py).
+#     +0 u8 group ID, +1 u8 small-keys-obtained counter index (save data), +2 u8 stage ID (for the big key bit),
+#     +3 u8 number of small keys, +4 u8 DungeonFlag, +5 pad
 
 from collections.abc import Iterable, Mapping, Sequence
+import dataclasses
 from dataclasses import dataclass, field
 from enum import IntEnum
 import struct
@@ -53,6 +58,7 @@ import zlib
 from typing import Any
 
 from tracker.charts import COMPLETE_MAP_ADDR, GET_MAP_ADDR, TrackerChart, build_tracker_chart_table
+from tracker.dungeons import TrackerDungeon, build_tracker_dungeons
 from tracker.entrances import EXITS, TrackerEntranceSet, build_tracker_entrance_set
 from tracker.items import serialize_item_reads
 from tracker.logic_compiler import CompiledLogic, TrackerLogicInput, compile_tracker_logic
@@ -63,7 +69,7 @@ from tracker.locations import (
 from tracker.stages import build_stage_groups, stage_group_entries
 
 MAGIC = b"WWTK"
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 HEADER_SIZE = 0x20
 DIR_ENTRY_SIZE = 8
 
@@ -91,6 +97,7 @@ class Section(IntEnum):
   LOGIC = 6
   ITEMS = 7
   STAGES = 8
+  DUNGEONS = 9
 
 NUM_SECTIONS = len(Section)
 
@@ -100,6 +107,7 @@ ENTRANCE_FORMAT = ">BBBBHH"
 TRIGGER_FORMAT = ">8sBBBx"
 CHART_FORMAT = ">BBBBBBBBHxx"
 STAGE_FORMAT = ">8sBx"
+DUNGEON_FORMAT = ">BBBBBx"
 ENTRY_SIZES = {
   Section.LOCATIONS: struct.calcsize(LOCATION_FORMAT),
   Section.GROUPS: struct.calcsize(GROUP_FORMAT),
@@ -110,6 +118,7 @@ ENTRY_SIZES = {
   Section.LOGIC: 1,
   Section.ITEMS: 8,
   Section.STAGES: struct.calcsize(STAGE_FORMAT),
+  Section.DUNGEONS: struct.calcsize(DUNGEON_FORMAT),
 }
 
 
@@ -140,6 +149,8 @@ class TrackerTables:
   logic: CompiledLogic | None = None
   # Stage name -> group (tracker/stages.py).
   stage_groups: Mapping[str, TrackerGroup] = field(default_factory=dict)
+  # Dungeons with keys (tracker/dungeons.py), among groups().
+  dungeons: Sequence[TrackerDungeon] = ()
 
   def groups(self) -> list[TrackerGroup]:
     """Every sea square, plus the list-page groups that have locations or tracked entrances."""
@@ -172,7 +183,9 @@ def build_tracker_tables(
       {seed_entrance.entrance.name: seed_entrance.index for seed_entrance in entrance_set.entrances},
     )
   stage_groups = build_stage_groups(get_randomized_exits(entrance_options))
-  return TrackerTables(location_set, entrance_set, build_tracker_chart_table(chart_mapping), logic, stage_groups)
+  tables = TrackerTables(location_set, entrance_set, build_tracker_chart_table(chart_mapping), logic, stage_groups)
+  options = logic_input.options if logic_input is not None else None
+  return dataclasses.replace(tables, dungeons=build_tracker_dungeons(tables.groups(), options))
 
 
 def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
@@ -274,6 +287,15 @@ def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
     stage_data += struct.pack(STAGE_FORMAT, encoded, group_id)
   sections[Section.STAGES] = (stage_data, len(stage_entries))
 
+  dungeon_data = bytearray()
+  group_ids = {group.id for group in groups}
+  for dungeon in tables.dungeons:
+    assert dungeon.group.id in group_ids
+    dungeon_data += struct.pack(
+      DUNGEON_FORMAT, dungeon.group.id, dungeon.counter_index, dungeon.stage_id, dungeon.small_keys, dungeon.flags,
+    )
+  sections[Section.DUNGEONS] = (dungeon_data, len(tables.dungeons))
+
   directory = bytearray()
   body = bytearray()
   offset = HEADER_SIZE + DIR_ENTRY_SIZE*NUM_SECTIONS
@@ -319,4 +341,5 @@ def parse_tracker_tables(blob: bytes) -> dict[str, object]:
     "charts": [(*entry[:8], string(entry[8])) for entry in entries(Section.CHARTS, CHART_FORMAT)],
     "logic": blob[directory[Section.LOGIC][0]:directory[Section.LOGIC][0]+directory[Section.LOGIC][1]],
     "stages": [(entry[0].rstrip(b"\0").decode("ascii"), entry[1]) for entry in entries(Section.STAGES, STAGE_FORMAT)],
+    "dungeons": entries(Section.DUNGEONS, DUNGEON_FORMAT),
   }

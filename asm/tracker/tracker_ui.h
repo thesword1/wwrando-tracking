@@ -116,6 +116,20 @@ bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y);
 int tracker_ui_stage_group(void);
 bool tracker_ui_menu_input(int stage_group, u16 buttons, s8 stick_y);
 bool tracker_ui_menu_has_page(void);
+// A dungeon's keys (tracker_ui_dungeon_keys).
+enum TrkUiBigKey {
+  TRK_UI_BK_NONE = 0, // The dungeon has no big key
+  TRK_UI_BK_MISSING = 1,
+  TRK_UI_BK_OWNED = 2,
+};
+typedef struct {
+  u8 obtained; // Small keys obtained (at most total)
+  u8 total; // Small keys in the dungeon, 0 for none
+  u8 big_key; // enum TrkUiBigKey
+} TrkUiKeys;
+
+bool tracker_ui_dungeon_keys(u8 group_index, TrkUiKeys* out);
+void tracker_ui_keys_text(const TrkUiKeys* keys, char* out);
 u8 tracker_triforce_count(void);
 void tracker_triforce_text(char* out);
 

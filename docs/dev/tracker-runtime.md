@@ -53,6 +53,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `tracker/serialize.py` | Table format (documented at the top of the file), serializer and a Python reader |
 | `tracker/logic_compiler.py` | Logic compiler, bytecode format and Python reference evaluator |
 | `tracker/stages.py` | Stage name to group table for the dungeon map and Quest Status pages |
+| `tracker/dungeons.py` | Dungeon key table (small key totals, big key) for the key counts in a dungeon list's header |
 
 Rules for the C code (see the comment in `tracker.c`):
 
@@ -172,6 +173,17 @@ some of its 15 rows (at most 4):
 
 A square without tracked locations still gets a square view panel if it has info lines. Lines too
 wide for the panel are drawn at a smaller size.
+
+**Dungeon keys:** a dungeon's location list (wherever it's shown) has its keys in the title row, right-aligned left
+of the counter (`trk_draw_keys`): `Keys n/total` (grey once all are obtained) and `BK`, struck through until the big
+key is owned and in a dark box once it is. `tracker_ui_dungeon_keys()` (host-tested, with `tracker_ui_keys_text()`)
+reads them: the total and flags from the DUNGEONS section, which `tracker/dungeons.py` builds for every dungeon group
+in the tables with keys (all but Forsaken Fortress) from the locations whose "Original item" is a small or big key in
+`logic/item_locations.txt` (DRC 4, FW 1, TotG 2, ET 3, WT 2, one big key each; the website has the same counts); the
+obtained count from the tracker's small key counters (save data +0x04, clamped to the total); the big key from bit 2
+of the dungeon stage's `mDungeonItem` (`tracker_has_big_key()`: the saved stage info at 0x803C4F88 + 0x24 * stage +
+0x21, or the live copy at 0x803C53A1 while in that stage, the same read as the logic's big key items). In the Start
+With modes (flags from the options) they're shown as all obtained / owned.
 
 **List page** (Z on the world or square view): everything that isn't on a sea square. That's
 every group with tracked locations whose ID is 50 or more: dungeons, Hyrule, Ganon's Tower, Mailbox,
@@ -380,6 +392,7 @@ and the Dolphin tests read it from RAM.
 | LOGIC | bytes | Compiled logic bytecode (`tracker/logic_compiler.py` documents the opcodes) |
 | ITEMS | 8 B | How to read each logic item's count from game memory (`tracker/items.py`) |
 | STAGES | 10 B | stage name, group ID, sorted by stage name (`tracker/stages.py`) |
+| DUNGEONS | 6 B | group ID, small-keys-obtained counter, stage ID, small key total, flags (has big key, Start With small / big keys) (`tracker/dungeons.py`) |
 
 Locations are ordered by group, so each group's locations are contiguous. The C reader checks the
 magic and format version (`trk_tables_valid`); bump `FORMAT_VERSION` and `TRK_FORMAT_VERSION`
@@ -391,10 +404,10 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x538C bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0xB60 for the
+The tracker adds 0x5918 bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0xB60 for the
 dungeon map and Quest Status pages and their hint, 0x2C4 for the Triforce counter, 0xD00 for the logic
-interpreter and 0x2D0 for GO MODE), plus the 0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state reserve. In
-total the custom code section grows by about 0xB5CC bytes (46,540), and the game heap shrinks by the same amount. The STAGES section adds
+interpreter, 0x2D0 for GO MODE and 0x58C for the dungeon key counts), plus the 0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state reserve. In
+total the custom code section grows by about 0xBB58 bytes (47,960), and the game heap shrinks by the same amount. The STAGES section adds
 about 0x350 bytes to the tables, inside the reserve.
 
 ## Tests
@@ -452,6 +465,13 @@ about 0x350 bytes to the tables, inside the reserve.
   `charts_required_bosses` seeds before and after setting an entrance's visited bit and the chart's
   owned bit, for screenshots. Screenshots are printed with `-s`; set
   `WW_TRACKER_SCREENSHOT_DIR` to also copy them to a directory.
+
+- Dungeon keys: `test/test_tracker_serialize.py` checks the totals and the DUNGEONS section (and the flag constants
+  against the C headers), `test/test_tracker_c.py` the C reader, `test/test_tracker_ui.py` `tracker_ui_dungeon_keys()`
+  (counters, saved and live big key bits, clamping, Start With) and the text. `test/test_tracker_keys_dolphin.py`
+  (marker `dolphin`) gives DRC small keys and its big key through the give-item array and opens its list from the sea
+  chart's list page (screenshots `keys-drc`, `keys-drc-bk`), and opens Forbidden Woods' list on the dungeon map after
+  getting its small key (`keys-dmap-fw`).
 
 - `test/test_tracker_ui.py` also checks `tracker_triforce_count()`/`tracker_triforce_text()` for every shard bitfield.
   `test/test_tracker_collect_dolphin.py` (marker `dolphin`) opens Quest Status, sets 0, 3 and 8 shards in RAM and
