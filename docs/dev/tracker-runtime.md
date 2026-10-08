@@ -46,7 +46,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `asm/tracker/tracker_state.h` | Runtime state / debug struct in the `tracker_state` reserve |
 | `asm/tracker/tracker_logic.[ch]` | Logic bytecode interpreter, evaluation triggers, in-logic results |
 | `asm/tracker/tracker_ui.[ch]` | Sea chart UI: hooks into the chart menu, counters and drawing; its state is in the `tracker_ui_state` reserve |
-| `asm/tracker/tracker_collect.c` | Triforce shard counter on the pause menu's Quest Status screen |
+| `asm/tracker/tracker_collect.c` | Triforce shard counter on the pause menu's Quest Status screen (drawn from the hook in `tracker_ui_menu.c`) |
 | `asm/tracker/tracker_ui_menu.c` | The sea chart UI's pages on the dungeon map and the Quest Status screen: hooks into `dMenu_Dmap_c` and `dMenu_Collect_c` |
 | `asm/tracker/tracker_host.c` | Host build only: mock RAM and the table pointer |
 | `asm/tracker/Makefile` | Host build (`make -C asm/tracker host`) |
@@ -246,7 +246,8 @@ closed when another menu is opened or a menu is reopened.
 ## Triforce shard counter
 
 The Quest Status screen (`dMenu_Collect_c`) draws the owned shards as pieces of one Triforce, which is hard to count.
-`tracker_collect_draw` (`tracker_collect.c`) draws `n/8` (`tracker_triforce_text()`, from the bits of `mTriforce` at
+`trk_draw_triforce_counter` (`tracker_collect.c`, called from the `draw` hook `tracker_collect_draw` in
+`tracker_ui_menu.c`) draws `n/8` (`tracker_triforce_text()`, from the bits of `mTriforce` at
 0x803C4CC6) in a dark box under it, white once all eight are owned. There's no vanilla digit pane near the Triforce
 to reuse (the Tingle statue counter in `misc_rando_features.asm` reuses the chart counter's), so it's drawn like the
 sea chart UI: the screen's `mpFont` (+0x2470), `trk_draw_text` and `trk_fill_box`, after a `setPort()` because the
@@ -256,7 +257,8 @@ The position comes from the Triforce frame pane (`'trib'`, `mFC8` at +0xFC8): ce
 (J2DPane +0x1C, screen space after the screen's draw: 344,137-464,233 when idle). Its alpha (+0xAC) relative to its
 fully shown alpha (`mInitAlpha`, 120) fades the counter, so it follows the screen's open, close and L/R slide
 animations. It isn't drawn when `mCollectMode` (+0x27EE) isn't 0 (song demo or playback, save or options window) or
-while an item's description is shown (`m7E8.mUserArea` at +0x81E is 1). It's part of the tracker patch, so it's only
+while an item's description is shown (`m7E8.mUserArea` at +0x81E is 1), which also covers a tracker page being
+shown (the page sets that flag). It's part of the tracker patch, so it's only
 there when the In-Game Tracker option is on. `TrkUiState.collect_draw_frame` records the last frame it was drawn,
 for the Dolphin test.
 
