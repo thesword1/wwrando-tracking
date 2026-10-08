@@ -425,8 +425,8 @@ void FmapProc__12dMenu_Fmap_cFv(void* fmap);
 #define TRK_TOTALS_Y 262.0f
 #define TRK_TOTALS_SIZE 16.0f
 #define TRK_COUNTER_PAD 2.0f
-// Location list over the zoomed square. The dungeon map and Quest Status screens show the same panel in the
-// middle of the screen (tracker_ui_menu.c).
+// Location list over the zoomed square. The dungeon map and Quest Status screens show the same panel at another
+// position (tracker_ui_menu.c).
 #define TRK_PANEL_X 48.0f
 #define TRK_PANEL_Y 26.0f
 #define TRK_PANEL_W 380.0f
@@ -779,7 +779,7 @@ TRK_INLINE s8 trk_ui_stick_y(void) {
 }
 
 // Called first by each menu's input hook. Starts without a page if the menu was closed since the last frame (or
-// another menu ran), and re-evaluates the logic then.
+// another menu ran). The sea chart re-evaluates the logic then; the other menus do when a page opens.
 static void trk_ui_menu_frame(u8 menu) {
   TrkUiState* ui = TRK_UI_STATE;
   if (TRK_STATE->frame_count - ui->proc_frame > 2 || ui->menu != menu) {

@@ -26,7 +26,7 @@ CAVE_SPAWN = "Cave09,0,0"
 SEA_SPAWN = "sea,44,0"
 
 # TrkUiState up to menu (asm/tracker/tracker_ui.h).
-UI_STATE_FORMAT = ">IIBBBBbBBBBBBBB"
+UI_STATE_FORMAT = ">IIBBBBbBBBBBBBIB"
 MENU_DMAP, MENU_COLLECT = 2, 3
 
 
@@ -34,7 +34,7 @@ def read_ui_state(memory) -> dict:
   data = memory.read_bytes(CUSTOM_SYMBOLS["tracker_ui_state"], struct.calcsize(UI_STATE_FORMAT))
   names = [
     "proc_frame", "draw_frame", "view", "list_group", "sel", "scroll", "stick_dir", "stick_timer", "flash_timer", "last_toggle",
-    "page", "page_sel", "page_scroll", "page_group", "menu",
+    "page", "page_sel", "page_scroll", "page_group", "collect_draw_frame", "menu",
   ]
   return dict(zip(names, struct.unpack(UI_STATE_FORMAT, data)))
 
