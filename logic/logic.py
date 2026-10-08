@@ -42,6 +42,9 @@ class Logic:
     # Locations and requirements.
     self.item_locations = Logic.load_and_parse_item_locations()
     self.load_and_parse_macros()
+    if self.options.enable_tuner_logic:
+      # Same as the APWorld's has_tingle_bombs.
+      self.set_macro("Tingle Bombs", "Bombs | Tingle Tuner")
     
     self.nested_entrance_macros: dict[str, str] = {}
     

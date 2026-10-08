@@ -14,11 +14,16 @@ from options.wwrando_options import EntranceMixMode, KeyLunacyMode, Options, Swo
 from randomizer import Plando
 
 # Options that are still chosen locally when randomizing for Archipelago: everything that doesn't affect gameplay logic
-# (cosmetics, controls, dry run), plus enemy palettes.
+# (cosmetics, controls, dry run), plus the ones below.
 AP_MODE_LOCAL_OPTIONS = [
   option.name for option in Options.all()
   if not option.permalink
-] + ["randomize_enemy_palettes"]
+] + [
+  "randomize_enemy_palettes",
+  # The APWorld has this option but doesn't write it into .aptww files, so the local setting is used. For AP seeds it
+  # doesn't change the ISO; it's only there so the in-game tracker's logic can match the world's settings.
+  "enable_tuner_logic",
+]
 
 class APTWWFileError(Exception):
   # The message is rich text (for display in the GUI). Use plain_text() when printing to a console.
