@@ -139,6 +139,22 @@ remaining (unchecked) count, or `available/remaining` once logic is available, i
 | red (#CC2929) | nothing unchecked is in logic |
 | dark brown | logic not available (until the logic runtime lands) |
 
+**Square view** (`ZoomGridLv1Proc`, after A on a square): if the square has tracked locations, a
+panel over the zoomed map lists them: the square's name and counter, then one row per location with
+a checkbox and the name in its status colour (struck through and grey once checked), then a hint
+line and the position in the list. Fifteen rows fit; the list scrolls with the selection.
+
+| Input (square view) | Action |
+|---|---|
+| Main stick up/down | Select. Holding repeats after 14 frames, then every 4. A fresh push wraps around |
+| X | Toggle the selected location's manual mark (save data). Refused for auto-detected checks: the row flashes red |
+
+Vanilla doesn't read the main stick or X in square view, so both work without blocking any vanilla
+input. A, B and Y keep their vanilla meanings. The input is read from `g_mDoCPd_cpadInfo[0].mButtonTrig`
+(0x803A4E22, X = 0x0040) and the raw stick Y of `JUTGamePad::mPadStatus[0]` (0x803ED81B).
+`tracker_ui_list_input()` is host-testable: it takes abstract buttons (`TRK_BTN_*`) and the stick
+value. The selection is kept per group and reset when another group's list is shown.
+
 `tracker_ui_group_counter()` computes a group's counter. Logic comes from `trk_ui_location_logic()`,
 which returns "unknown" until the logic runtime is wired in.
 
@@ -225,9 +241,9 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x1974 bytes of code and read-only data (0x898 of it for the sea chart UI), plus the
+The tracker adds 0x2320 bytes of code and read-only data (0x125C of it for the sea chart UI), plus the
 0x6000-byte table reserve, the 0x100-byte state reserve and the 0x40-byte UI state reserve. In total
-the custom code section grows by about 0x7AC4 bytes (31,428), and the game heap shrinks by the same
+the custom code section grows by about 0x8478 bytes (33,912), and the game heap shrinks by the same
 amount.
 
 ## Tests
@@ -253,11 +269,14 @@ amount.
   to keep the built ISO and an in-game savestate between runs (about 20 s per run with the cache,
   about 90 s without).
 
-- `test/test_tracker_ui.py`: the sea chart UI's counters (`tracker_ui_group_counter`), on the host.
+- `test/test_tracker_ui.py`: the sea chart UI's counters (`tracker_ui_group_counter`) and the
+  location list's input (selection, repeat, wrap, scrolling, marking, refused toggles), on the host.
 - `test/test_tracker_ui_dolphin.py` (marker `dolphin`): builds the `progression_all` fixture, opens the
   sea chart with D-pad Up and checks through `tracker_ui_state` in RAM that the tracker draws on the
-  world view, follows manual marks, stops drawing in the square view and after the chart is closed,
-  and that A/B/D-pad Down still work. Screenshots are printed with `-s`; set
+  world view, follows manual marks and stops drawing after the chart is closed, and that A/B/D-pad
+  Down still work. In square view it selects with the main stick, marks and unmarks with X (checking
+  the bit in the save region at 0x803C533C, which is written to the memory card with the save) and
+  checks that an auto-detected location can't be unmarked. Screenshots are printed with `-s`; set
   `WW_TRACKER_SCREENSHOT_DIR` to also copy them to a directory.
 
 Run them with the rest of the suite:
