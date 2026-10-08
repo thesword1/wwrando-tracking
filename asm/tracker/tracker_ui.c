@@ -67,7 +67,7 @@ TRK_EXPORT u8 tracker_ui_location_status(u16 location_index) {
 }
 
 // Moves a list selection and scrolls the list so it stays visible.
-static void trk_ui_move_selection(u8* sel, u8* scroll, int delta, u16 count, bool wrap) {
+static void trk_ui_move_selection(u8* sel, u8* scroll, int delta, u16 count, bool wrap, u8 rows) {
   int new_sel = *sel + delta;
   if (new_sel < 0) {
     new_sel = wrap ? count - 1 : 0;
@@ -77,14 +77,14 @@ static void trk_ui_move_selection(u8* sel, u8* scroll, int delta, u16 count, boo
   *sel = (u8)new_sel;
   if (*sel < *scroll) {
     *scroll = *sel;
-  } else if (*sel >= *scroll + TRK_UI_LIST_ROWS) {
-    *scroll = (u8)(*sel - TRK_UI_LIST_ROWS + 1);
+  } else if (*sel >= *scroll + rows) {
+    *scroll = (u8)(*sel - rows + 1);
   }
 }
 
 // Main stick up/down for a list: moves on a fresh push (wrapping around), then auto-repeats while
 // held (stopping at the ends). Returns whether the selection moved.
-static bool trk_ui_stick_select(TrkUiState* ui, s8 stick_y, u8* sel, u8* scroll, u16 count) {
+static bool trk_ui_stick_select(TrkUiState* ui, s8 stick_y, u8* sel, u8* scroll, u16 count, u8 rows) {
   s8 dir = 0;
   if (stick_y > TRK_UI_STICK_THRESHOLD) {
     dir = -1;
@@ -93,11 +93,11 @@ static bool trk_ui_stick_select(TrkUiState* ui, s8 stick_y, u8* sel, u8* scroll,
   }
   bool moved = false;
   if (dir != 0 && dir != ui->stick_dir) {
-    trk_ui_move_selection(sel, scroll, dir, count, true);
+    trk_ui_move_selection(sel, scroll, dir, count, true, rows);
     ui->stick_timer = TRK_UI_REPEAT_DELAY;
     moved = true;
   } else if (dir != 0 && --ui->stick_timer == 0) {
-    trk_ui_move_selection(sel, scroll, dir, count, false);
+    trk_ui_move_selection(sel, scroll, dir, count, false, rows);
     ui->stick_timer = TRK_UI_REPEAT_RATE;
     moved = true;
   }
@@ -123,7 +123,8 @@ TRK_EXPORT void tracker_ui_list_input(u8 group_index, u16 buttons, s8 stick_y) {
   if (ui->flash_timer > 0) {
     ui->flash_timer--;
   }
-  if (trk_ui_stick_select(ui, stick_y, &ui->sel, &ui->scroll, group.num_locations)) {
+  u8 rows = (u8)(TRK_UI_LIST_ROWS - tracker_ui_info_lines(group_index, NULL));
+  if (trk_ui_stick_select(ui, stick_y, &ui->sel, &ui->scroll, group.num_locations, rows)) {
     ui->flash_timer = 0;
   }
 
@@ -195,6 +196,54 @@ TRK_EXPORT int tracker_ui_group_entrance(u8 group_index) {
   return result;
 }
 
+// The info lines of a group's location list (see TrkUiInfo), up to TRK_UI_MAX_INFO. Writes them to
+// out unless it's NULL and returns how many there are.
+// - Tracked entrances on the square's island, or nested in the group (a dungeon's boss door, an
+//   inner cave's entrance in its cave).
+// - For a square with a tracked sunken treasure, the chart that leads there.
+TRK_EXPORT u16 tracker_ui_info_lines(u8 group_index, TrkUiInfo* out) {
+  TrkGroup group;
+  trk_get_group(group_index, &group);
+  bool is_square = group.id >= 1 && group.id <= TRK_SQUARES;
+  u16 count = 0;
+  u16 num_entrances = trk_count(TRK_SEC_ENTRANCES);
+  for (u16 i = 0; i < num_entrances && count < TRK_UI_MAX_INFO; i++) {
+    TrkEntrance entrance;
+    trk_get_entrance(i, &entrance);
+    bool here = is_square ? entrance.island_number == group.id : entrance.parent_group == group.id;
+    if (!here) {
+      continue;
+    }
+    if (out != NULL) {
+      out[count].kind = TRK_INFO_ENTRANCE;
+      out[count].revealed = tracker_is_entrance_visited(i);
+      out[count].index = i;
+    }
+    count++;
+  }
+  if (is_square && count < TRK_UI_MAX_INFO && group.id <= trk_count(TRK_SEC_CHARTS)) {
+    bool has_treasure = false;
+    for (u16 i = 0; i < group.num_locations; i++) {
+      TrkLocation loc;
+      trk_get_location(group.first_location + i, &loc);
+      if (loc.type == TRK_TYPE_CHART) {
+        has_treasure = true;
+      }
+    }
+    TrkChart chart;
+    trk_get_chart(group.id - 1, &chart);
+    if (has_treasure && chart.destination_square == group.id) {
+      if (out != NULL) {
+        out[count].kind = TRK_INFO_CHART;
+        out[count].revealed = (trk_mem_u8(TRK_GET_MAP_ADDR + chart.owned_offset) & chart.owned_mask) != 0;
+        out[count].index = group.id - 1;
+      }
+      count++;
+    }
+  }
+  return count;
+}
+
 // All input while the normal sea chart is idle. view is the chart's view (enum TrkUiView) and
 // square_group the group of the square shown in square view (-1 for none). Returns whether the
 // tracker consumed the input, in which case the chart's own input handler must not run.
@@ -231,7 +280,7 @@ TRK_EXPORT bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stic
   if (ui->page == TRK_PAGE_GROUPS) {
     u16 count;
     tracker_ui_page_group(0, &count);
-    trk_ui_stick_select(ui, stick_y, &ui->page_sel, &ui->page_scroll, count);
+    trk_ui_stick_select(ui, stick_y, &ui->page_sel, &ui->page_scroll, count, TRK_UI_LIST_ROWS);
     if (buttons & TRK_BTN_A) {
       int group_index = tracker_ui_page_group(ui->page_sel, NULL);
       if (group_index >= 0) {
@@ -449,6 +498,15 @@ static void trk_draw_world(const TrkDraw* draw) {
   }
 }
 
+// Draws text at the given size, or smaller if it would be wider than max_width.
+static void trk_draw_text_fit(JUTFont* font, float x, float y, float size, float max_width, const char* str, TrkColor color) {
+  float width = trk_text_width(font, str, size);
+  if (width > max_width) {
+    size = size*max_width/width;
+  }
+  trk_draw_text(font, x, y, size, str, color);
+}
+
 static void trk_draw_right_aligned(JUTFont* font, float right, float y, float size, const char* str, TrkColor color) {
   trk_draw_text(font, right - trk_text_width(font, str, size), y, size, str, color);
 }
@@ -499,7 +557,11 @@ static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const ch
   trk_draw_right_aligned(font, right, TRK_PANEL_Y + TRK_TITLE_SIZE + 3.0f, TRK_TITLE_SIZE, text, trk_status_colors[counter.status]);
   trk_fill_box(draw, TRK_PANEL_X + 6.0f, TRK_ROWS_Y - 4.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
 
-  for (u16 row = 0; row < TRK_UI_LIST_ROWS && ui->scroll + row < group.num_locations; row++) {
+  TrkUiInfo info[TRK_UI_MAX_INFO];
+  u16 num_info = tracker_ui_info_lines(group_index, info);
+  u16 rows = TRK_UI_LIST_ROWS - num_info;
+  u16 row = 0;
+  for (; row < rows && ui->scroll + row < group.num_locations; row++) {
     u16 i = ui->scroll + row;
     u16 location_index = group.first_location + i;
     TrkLocation loc;
@@ -524,10 +586,36 @@ static void trk_draw_location_list(const TrkDraw* draw, u8 group_index, const ch
     }
   }
 
+  // Info lines right after the locations, under a separator.
+  for (u16 i = 0; i < num_info; i++, row++) {
+    float top = TRK_ROWS_Y + row*TRK_ROW_H;
+    if (i == 0 && group.num_locations > 0) {
+      trk_fill_box(draw, TRK_PANEL_X + 6.0f, top + 1.0f, TRK_PANEL_W - 12.0f, 1.0f, trk_hint_color);
+    }
+    char line[96];
+    char* end;
+    if (info[i].kind == TRK_INFO_ENTRANCE) {
+      TrkEntrance entrance;
+      trk_get_entrance(info[i].index, &entrance);
+      end = trk_format_str(line, trk_string(entrance.entrance_name));
+      end = trk_format_str(end, " -> ");
+      trk_format_str(end, info[i].revealed ? trk_string(entrance.exit_name) : "?");
+    } else {
+      TrkChart chart;
+      trk_get_chart(info[i].index, &chart);
+      end = trk_format_str(line, "Chart: ");
+      trk_format_str(end, info[i].revealed ? trk_string(chart.name) : "not owned");
+    }
+    trk_draw_text_fit(font, TRK_PANEL_X + 10.0f, top + TRK_ROW_H - 5.0f, TRK_HINT_SIZE + 1.0f, TRK_PANEL_W - 20.0f, line,
+      info[i].revealed ? trk_text_color : trk_hint_color);
+  }
+
   trk_draw_entrance_line(draw, group_index);
   float hint_y = TRK_PANEL_Y + TRK_PANEL_H - 8.0f;
   trk_draw_text(font, TRK_PANEL_X + 8.0f, hint_y, TRK_HINT_SIZE, hint, trk_hint_color);
-  trk_draw_position(draw, right, hint_y, ui->sel, group.num_locations);
+  if (group.num_locations > 0) {
+    trk_draw_position(draw, right, hint_y, ui->sel, group.num_locations);
+  }
 }
 
 // The groups on the list page with their counters. The footer says how the selected group is reached.
@@ -582,7 +670,7 @@ static int trk_fmap_square_group(u8* fmap) {
   }
   TrkGroup group;
   trk_get_group(group_index, &group);
-  return group.num_locations > 0 ? group_index : -1;
+  return group.num_locations > 0 || tracker_ui_info_lines((u8)group_index, NULL) > 0 ? group_index : -1;
 }
 
 void tracker_fmap_proc(u8* fmap) {

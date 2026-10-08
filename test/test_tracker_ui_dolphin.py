@@ -94,6 +94,16 @@ def run_dolphin(iso: Path, cache_dir: Path, user_dir: Path):
     raise
   return dolphin
 
+CHARTS_FIXTURE = FIXTURES_DIR / "charts_required_bosses.aptww"
+
+@pytest.fixture(scope="module")
+def charts_cache_dir(tmp_path_factory) -> Path:
+  return make_cache_dir(tmp_path_factory, CHARTS_FIXTURE, TEST_SPAWN)
+
+@pytest.fixture(scope="module")
+def charts_iso(charts_cache_dir: Path) -> Path:
+  return build_tracker_iso(charts_cache_dir, CHARTS_FIXTURE, TEST_SPAWN)
+
 @pytest.fixture
 def dolphin(ui_iso: Path, ui_cache_dir: Path, tmp_path: Path):
   dolphin = run_dolphin(ui_iso, ui_cache_dir, tmp_path / "dolphin-user")
@@ -234,3 +244,50 @@ def test_list_page(er_dolphin):
   dolphin.pad.press("D_DOWN")
   time.sleep(1.5)
   assert not is_drawing(memory)
+
+
+def open_square_view(dolphin):
+  """Opens the chart and zooms into the square under the cursor (Outset, where the player is)."""
+  dolphin.pad.press("D_UP")
+  dolphin.wait_for(is_drawing, timeout=10, message="The tracker doesn't draw on the sea chart")
+  dolphin.pad.press("A")
+  dolphin.wait_for(
+    lambda memory: read_ui_state(memory)["view"] == VIEW_SQUARE and is_drawing(memory), timeout=5,
+    message="The tracker doesn't draw on the square view",
+  )
+
+
+def test_entrance_reveal(er_dolphin):
+  # In this seed Outset has no tracked locations, only its two randomized entrances, so its square
+  # view lists just those, with "?" as the destination until visited.
+  dolphin = er_dolphin
+  memory = dolphin.memory
+  tables = tables_from_plando(load_plando(ENTRANCE_RANDO_FIXTURE))
+  outset_entrances = [e for e in tables.entrance_set.entrances if e.entrance.island_number == 44 and not e.entrance.nested_in]
+  assert len(outset_entrances) == 2
+  open_square_view(dolphin)
+  keep_screenshot(dolphin.screenshot(), "entrance-reveal-unknown")
+  entrance = outset_entrances[0]
+  visited_addr = SAVE_VISITED_ADDR + entrance.index // 8
+  memory.write_u8(visited_addr, memory.read_u8(visited_addr) | 1 << (entrance.index % 8))
+  time.sleep(0.3)
+  assert is_drawing(memory)
+  keep_screenshot(dolphin.screenshot(), "entrance-reveal-visited")
+
+
+def test_chart_reveal(charts_iso, charts_cache_dir, tmp_path):
+  # Randomized charts: Outset's sunken treasure shows which chart leads there once it's owned.
+  tables = tables_from_plando(load_plando(CHARTS_FIXTURE))
+  chart = next(c for c in tables.charts if c.destination_island_number == 44)
+  assert chart.vanilla_island_number != 44
+  dolphin = run_dolphin(charts_iso, charts_cache_dir, tmp_path / "dolphin-user")
+  try:
+    memory = dolphin.memory
+    open_square_view(dolphin)
+    keep_screenshot(dolphin.screenshot(), "chart-reveal-not-owned")
+    memory.write_u8(chart.owned_address, memory.read_u8(chart.owned_address) | chart.owned_mask)
+    time.sleep(0.3)
+    assert is_drawing(memory)
+    keep_screenshot(dolphin.screenshot(), "chart-reveal-owned")
+  finally:
+    dolphin.stop()

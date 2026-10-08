@@ -73,6 +73,12 @@ class TrkUiState(ctypes.Structure):
   ]
 
 
+class TrkUiInfo(ctypes.Structure):
+  _fields_ = [("kind", ctypes.c_uint8), ("revealed", ctypes.c_uint8), ("index", ctypes.c_uint16)]
+
+TRK_UI_MAX_INFO = 4
+
+
 def build_host_library(build_dir: Path) -> Path:
   if shutil.which("make") is None or shutil.which("gcc") is None:
     pytest.skip("make and gcc are needed to build the tracker C runtime for the host")
@@ -119,6 +125,8 @@ class TrackerHost:
     lib.tracker_ui_list_input.argtypes = [ctypes.c_uint8, ctypes.c_uint16, ctypes.c_int8]
     lib.tracker_ui_page_group.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint16)]
     lib.tracker_ui_group_entrance.argtypes = [ctypes.c_uint8]
+    lib.tracker_ui_info_lines.restype = ctypes.c_uint16
+    lib.tracker_ui_info_lines.argtypes = [ctypes.c_uint8, ctypes.POINTER(TrkUiInfo)]
     lib.tracker_ui_input.restype = ctypes.c_bool
     lib.tracker_ui_input.argtypes = [ctypes.c_uint8, ctypes.c_int, ctypes.c_uint16, ctypes.c_int8]
     lib.trk_host_ui_state_ptr.restype = ctypes.POINTER(TrkUiState)
@@ -174,6 +182,12 @@ class TrackerHost:
   @property
   def ui_state(self) -> TrkUiState:
     return self.lib.trk_host_ui_state_ptr().contents
+
+  def ui_info_lines(self, group_index: int) -> list[tuple[int, int, int]]:
+    out = (TrkUiInfo * TRK_UI_MAX_INFO)()
+    count = self.lib.tracker_ui_info_lines(group_index, out)
+    assert count == self.lib.tracker_ui_info_lines(group_index, None)
+    return [(info.kind, info.revealed, info.index) for info in out[:count]]
 
   def ui_counter(self, group_index: int) -> TrkUiCounter:
     return self.get("tracker_ui_group_counter", TrkUiCounter, group_index)

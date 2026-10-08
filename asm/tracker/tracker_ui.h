@@ -42,12 +42,25 @@ enum TrkUiPage {
 #define TRK_UI_STICK_THRESHOLD 40
 #define TRK_UI_REPEAT_DELAY 14
 #define TRK_UI_REPEAT_RATE 4
-// Rows of a location list that fit on screen.
+// Rows of a list that fit on screen. A location list's info lines take some of them.
 #define TRK_UI_LIST_ROWS 15
 // Frames a refused toggle is shown.
 #define TRK_UI_FLASH_FRAMES 20
 
 #define TRK_UI_NO_GROUP 0xFF
+
+// Info lines under a location list: where a square's (or a cave's/dungeon's) randomized entrances
+// lead, once visited, and which chart leads to a square's sunken treasure, once owned.
+enum TrkUiInfoKind {
+  TRK_INFO_ENTRANCE = 0, // index: entrance index
+  TRK_INFO_CHART = 1, // index: chart index (destination square - 1)
+};
+typedef struct {
+  u8 kind;
+  u8 revealed; // Visited (entrance) / owned (chart)
+  u16 index;
+} TrkUiInfo;
+#define TRK_UI_MAX_INFO 4
 
 // UI state, in the tracker_ui_state reserve (asm/patches/tracker.asm). Not saved. The Dolphin tests
 // read it from RAM (test/test_tracker_ui_dolphin.py).
@@ -84,6 +97,7 @@ u8 tracker_ui_location_status(u16 location_index);
 void tracker_ui_list_input(u8 group_index, u16 buttons, s8 stick_y);
 int tracker_ui_page_group(u16 n, u16* count);
 int tracker_ui_group_entrance(u8 group_index);
+u16 tracker_ui_info_lines(u8 group_index, TrkUiInfo* out);
 bool tracker_ui_input(u8 view, int square_group, u16 buttons, s8 stick_y);
 
 #ifdef TRACKER_HOST
