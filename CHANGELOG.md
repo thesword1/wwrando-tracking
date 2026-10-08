@@ -12,6 +12,7 @@
 
 * Offline mode: without an `.aptww` file the randomizer generates a solo seed locally again (GUI: leave the APTWW File field empty; command line: omit `--aptww`). Items are placed directly in the ISO and received when picked up (the Archipelago item-delivery patch is only applied for `.aptww` seeds), and offline seeds get a spoiler log, non-spoiler log and permalink. The GUI shows the gameplay options (progression locations, item modes, entrances, starting items, required bosses, difficulty) for offline seeds and greys them out while an `.aptww` file is selected. Archipelago mode is unchanged: `.aptww` seeds produce byte-identical ISOs. Offline seeds have no hints.
 * Offline mode supports all six Archipelago placement modes for small keys, big keys, and maps & compasses: Start With (given when starting a new save), Vanilla, Own Dungeon, Any Dungeon (any dungeon of a required boss), Local and Key-Lunacy (the same thing without Archipelago).
+* Offline Swords Optional mode: the swords are still placed in the world, but the logic uses the swordless requirements and never expects you to have a sword (as in the Archipelago world).
 
 ### Version 1.11.0 (in progress, not released yet)
 
