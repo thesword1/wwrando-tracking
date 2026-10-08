@@ -85,7 +85,10 @@ def make_cache_dir(tmp_path_factory, fixture: Path = FIXTURE, spawn: str = TEST_
   return path
 
 def build_tracker_iso(cache_dir: Path, fixture: Path = FIXTURE, spawn: str = TEST_SPAWN) -> Path:
-  """Builds an AP-mode ISO with the tracker that boots straight into gameplay at the given spawn."""
+  """
+  Builds an AP-mode ISO with the tracker that boots straight into gameplay at the given spawn (with
+  a new save), or normally to the title screen if spawn is empty.
+  """
   isos = list(cache_dir.glob("*.iso"))
   if not isos:
     output = cache_dir / "build"
@@ -93,8 +96,8 @@ def build_tracker_iso(cache_dir: Path, fixture: Path = FIXTURE, spawn: str = TES
     subprocess.run(
       [
         sys.executable, "wwrando.py", "--aptww", str(fixture), "--clean-iso", os.environ["WW_ISO_PATH"],
-        "--output-folder", str(output), "--tracker", "--test", spawn,
-      ],
+        "--output-folder", str(output), "--tracker",
+      ] + (["--test", spawn] if spawn else []),
       cwd=REPO_ROOT, check=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
     )
     built = list(output.glob("*.iso"))
