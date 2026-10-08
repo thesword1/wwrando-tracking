@@ -1,0 +1,14 @@
+# Nested entrance randomizer with mixed pools, plus a few extra caves to shuffle.
+name: Player
+game: The Wind Waker
+The Wind Waker:
+  progression_combat_secret_caves: true
+  progression_savage_labyrinth: true
+  randomize_dungeon_entrances: true
+  randomize_secret_cave_entrances: true
+  randomize_miniboss_entrances: true
+  randomize_boss_entrances: true
+  randomize_secret_cave_inner_entrances: true
+  randomize_fairy_fountain_entrances: true
+  mix_entrances: mix_pools
+  randomize_starting_island: true

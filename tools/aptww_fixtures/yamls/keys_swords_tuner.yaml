@@ -1,0 +1,12 @@
+# Non-default dungeon item placement, swords optional, tuner logic, harder logic.
+name: Player
+game: The Wind Waker
+The Wind Waker:
+  randomize_smallkeys: keylunacy
+  randomize_bigkeys: local
+  randomize_mapcompass: any_dungeon
+  sword_mode: swords_optional
+  enable_tuner_logic: true
+  progression_tingle_chests: true
+  logic_obscurity: normal
+  logic_precision: normal

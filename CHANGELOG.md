@@ -3,6 +3,7 @@
 * Forked from tanjo3's Archipelago branch (v2.5.2) as the base for an offline mode and an in-game tracker. See `PROJECT_PLAN.md`.
 * Version string now carries a `-tracking` suffix; the about box credits LagoLunatic and tanjo3 and links this repository.
 * Developer tooling: `tools/devkitppc/assemble.sh` reassembles the custom ASM/C patches in a pinned devkitPPC container, and a new ASM CI workflow checks the committed patch diffs are reproducible. See `docs/dev/toolchain.md`.
+* Added `.aptww` test fixtures covering several AP option sets (`test/fixtures/aptww/`) and a dev-only script to regenerate them from an Archipelago checkout (`tools/aptww_fixtures/`).
 
 
 ### Version 1.11.0 (in progress, not released yet)
