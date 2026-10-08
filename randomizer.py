@@ -221,6 +221,8 @@ class WWRandomizer:
       
       for i in range(self.options.starting_hcs):
         self.starting_items.append("Heart Container")
+      
+      self.starting_items += Logic.get_starting_dungeon_items_static(self.options)
     
     self.custom_model_name = self.options.custom_player_model
     self.using_custom_sail_texture = False
@@ -297,6 +299,13 @@ class WWRandomizer:
     
     self.fully_initialized = True
   
+  def get_starting_gear(self) -> list[str]:
+    # The items given when starting a new save file (besides the ones that have their own options, like hearts).
+    if self.archipelago_mode:
+      # The AP client gives the start inventory, including dungeon items in the Start With modes.
+      return self.options.starting_gear
+    return self.options.starting_gear + Logic.get_starting_dungeon_items_static(self.options)
+  
   def get_max_progress_length(self) -> int:
     max_progress_val = 0
     
@@ -348,7 +357,7 @@ class WWRandomizer:
       if self.options.sword_mode == SwordMode.SWORDS_OPTIONAL or self.options.sword_mode == SwordMode.SWORDLESS:
         patcher.apply_patch(self, "swordless")
         tweaks.update_text_for_swordless(self)
-      tweaks.update_starting_gear(self, self.options.starting_gear)
+      tweaks.update_starting_gear(self, self.get_starting_gear())
       if self.options.chest_type_matches_contents:
         tweaks.replace_dark_wood_chest_texture(self)
       if self.options.remove_title_and_ending_videos:
