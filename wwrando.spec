@@ -63,8 +63,11 @@ exe = EXE(pyz,
           strip=False,
           upx=True,
           runtime_tmpdir=None,
-          # On Linux the console flag does nothing and the binary keeps its terminal output (CLI mode needs it).
-          console=False,
+          # A console executable so --version, --help and --noui print to the terminal they're started from. On Windows,
+          # hide_console closes the console window again when there's no terminal (started from Explorer). On Linux the
+          # console flag does nothing.
+          console=True,
+          hide_console="hide-early" if sys.platform == "win32" else None,
           # PyInstaller only supports executable icons on Windows and macOS.
           icon="assets/icon.ico" if sys.platform == "win32" else None )
 

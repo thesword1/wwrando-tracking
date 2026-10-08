@@ -18,7 +18,7 @@ else:
 exe_ext = ""
 if platform.system() == "Windows":
   exe_ext = ".exe"
-  platform_name = "win"
+  platform_name = "windows"
 if platform.system() == "Darwin":
   exe_ext = ".app"
   platform_name = "mac"
@@ -29,8 +29,8 @@ exe_path = os.path.join(".", "dist", base_name + exe_ext)
 if not (os.path.isfile(exe_path) or os.path.isdir(exe_path)):
   raise Exception("Executable not found: %s" % exe_path)
 
-if platform.system() == "Linux":
-  # e.g. wwrando-2.5.2-tracking-linux-x64, which is also the name of the folder the tarball unpacks to.
+if platform.system() in ("Linux", "Windows"):
+  # e.g. wwrando-2.5.2-tracking-linux-x64, which is also the name of the folder the archive unpacks to.
   release_archive_name = "wwrando-" + VERSION_WITHOUT_COMMIT + "-" + platform_name + bitness_suffix.replace("_", "-")
 else:
   release_archive_name = "release_archive_" + VERSION_WITHOUT_COMMIT + bitness_suffix
@@ -57,3 +57,6 @@ if platform.system() == "Linux":
   # A tarball keeps the executable bit.
   tarball_path = shutil.make_archive(release_archive_path, "gztar", root_dir=os.path.join(".", "dist"), base_dir=release_archive_name)
   print("Wrote release archive: %s" % tarball_path)
+elif platform.system() == "Windows":
+  zip_path = shutil.make_archive(release_archive_path, "zip", root_dir=os.path.join(".", "dist"), base_dir=release_archive_name)
+  print("Wrote release archive: %s" % zip_path)
