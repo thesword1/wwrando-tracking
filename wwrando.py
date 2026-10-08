@@ -42,6 +42,18 @@ def make_argparser() -> argparse.ArgumentParser:
     help="Skip loading GUI, randomize immediately with saved settings.",
   )
   parser.add_argument(
+    '--aptww', type=str, metavar="PATH",
+    help="Randomize using the specified Archipelago .aptww file. Implies --noui.",
+  )
+  parser.add_argument(
+    '--clean-iso', type=str, metavar="PATH",
+    help="Use the specified vanilla ISO instead of the one from saved settings.",
+  )
+  parser.add_argument(
+    '--output-folder', type=str, metavar="PATH",
+    help="Write output files to the specified folder instead of the one from saved settings.",
+  )
+  parser.add_argument(
     '-d', '--dry', action='store_true',
     help="Randomize in-memory and write logs only, do not read or write any ISOs.",
   )
@@ -214,14 +226,16 @@ def run_no_ui(args):
   yaml = YAML(typ="safe")
   
   options = Options()
-  with open(SETTINGS_PATH) as f:
-    settings: dict = yaml.load(f)
-    for option_name, option_value in settings.items():
-      if option_name not in options.by_name():
-        continue
-      options[option_name] = option_value
+  settings: dict = {}
+  if os.path.isfile(SETTINGS_PATH):
+    with open(SETTINGS_PATH) as f:
+      settings = yaml.load(f) or {}
+  for option_name, option_value in settings.items():
+    if option_name not in options.by_name():
+      continue
+    options[option_name] = option_value
   
-  seed = settings["seed"]
+  seed = settings.get("seed")
   
   if args.permalink:
     seed, options = WWRandomizer.decode_permalink(args.permalink, options)
@@ -229,16 +243,40 @@ def run_no_ui(args):
   if args.seed:
     seed = args.seed
   
+  clean_iso_path = (args.clean_iso or settings.get("clean_iso_path") or "").strip()
+  output_folder = (args.output_folder or settings.get("output_folder") or "").strip()
+  
   rando_kwargs = {
     "seed": seed,
-    "clean_iso_path": settings["clean_iso_path"].strip(),
-    "randomized_output_folder": settings["output_folder"],
+    "clean_iso_path": clean_iso_path,
+    "randomized_output_folder": output_folder,
     "options": options, # TODO filter out invalid options
     "cmd_line_args": args,
   }
   
   if args.autoseed:
     rando_kwargs["seed"] = seedgen.make_random_seed_name()
+  
+  if args.aptww:
+    from aptww import APTWWFileError, read_ap_plando_file
+    if not args.dry and not os.path.isfile(clean_iso_path):
+      sys.exit("Error: Must specify path to your vanilla Wind Waker ISO (North American version) with --clean-iso PATH.")
+    if not os.path.isdir(output_folder):
+      sys.exit("Error: Must specify a valid output folder for the randomized files with --output-folder PATH.")
+    if not os.path.isfile(args.aptww):
+      sys.exit(f"Error: APTWW file not found: {args.aptww}")
+    try:
+      plando = read_ap_plando_file(args.aptww, options)
+    except APTWWFileError as e:
+      sys.exit(f"Error: {e.plain_text()}")
+    # The seed is determined by the multiworld, not by the saved settings.
+    rando_kwargs["seed"] = plando.seed
+    rando_kwargs["plando"] = plando
+  elif not (args.dry or args.bulk or args.stagesearch or args.printflags or args.disassemble):
+    sys.exit(
+      "Error: An Archipelago .aptww file is required to randomize (pass it with --aptww PATH).\n"
+      "Offline randomization without Archipelago is not available yet."
+    )
   
   if args.profile:
     profiler = cProfile.Profile()
@@ -343,7 +381,7 @@ def run_with_ui(args):
 if __name__ == "__main__":
   args = make_argparser().parse_args()
   
-  if args.bulk or args.stagesearch or args.printflags:
+  if args.bulk or args.stagesearch or args.printflags or args.aptww:
     args.noui = True
   
   if args.noui:

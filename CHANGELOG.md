@@ -6,6 +6,7 @@
 * Added `.aptww` test fixtures covering several AP option sets (`test/fixtures/aptww/`) and a dev-only script to regenerate them from an Archipelago checkout (`tools/aptww_fixtures/`).
 * Developer tooling: Dolphin automation harness (`tools/dolphin/`) that boots an ISO in flatpak Dolphin with an isolated user directory, drives controller input through Dolphin's pipe backend, reads/writes emulated RAM, and takes screenshots and savestates. See `docs/dev/dolphin-harness.md`.
 * Developer docs: verified NTSC-U memory map for the in-game tracker (save layout, the free 0x50-byte `dSv_reserve_c` area at 0x803C532C used for tracker save data, inventory addresses, item-get path, sea chart menu inputs and text drawing). See `docs/dev/memory-map.md`.
+* The randomizer can now be run headless from the command line with an Archipelago file: `wwrando.py --aptww PATH --clean-iso PATH --output-folder PATH`. The .aptww loader moved out of the GUI into `aptww.py`.
 
 
 ### Version 1.11.0 (in progress, not released yet)
