@@ -7,10 +7,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
       mark = pytest.mark.saving
       item.add_marker(mark)
 
-  # Dolphin tests open emulator windows and need a local ISO, so only run them on request.
-  if "dolphin" not in (config.getoption("markexpr") or ""):
-    selected = [item for item in items if item.get_closest_marker("dolphin") is None]
-    deselected = [item for item in items if item.get_closest_marker("dolphin") is not None]
+  # Dolphin tests open emulator windows and need a local ISO, and slow tests take minutes, so only run them on request.
+  for marker in ["dolphin", "slow"]:
+    if marker in (config.getoption("markexpr") or ""):
+      continue
+    selected = [item for item in items if item.get_closest_marker(marker) is None]
+    deselected = [item for item in items if item.get_closest_marker(marker) is not None]
     if deselected:
       config.hook.pytest_deselected(items=deselected)
       items[:] = selected
