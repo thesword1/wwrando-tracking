@@ -92,17 +92,18 @@ NONPROGRESS_ITEMS = [
   ["Piece of Heart"]*44 + \
   ["Heart Container"]*9
 
+# The number of each consumable matches the Archipelago world's item pool (the vanilla game's counts).
 CONSUMABLE_ITEMS = \
    1 * ["Green Rupee"] + \
    2 * ["Blue Rupee"] + \
    3 * ["Yellow Rupee"] + \
-   5 * ["Red Rupee"] + \
+   8 * ["Red Rupee"] + \
   10 * ["Purple Rupee"] + \
   15 * ["Orange Rupee"] + \
-  15 * ["Silver Rupee"] + \
+  20 * ["Silver Rupee"] + \
    1 * ["Rainbow Rupee"] + \
   \
-   9 * ["Joy Pendant"] + \
+  20 * ["Joy Pendant"] + \
    9 * ["Skull Necklace"] + \
    1 * ["Boko Baba Seed"] + \
    9 * ["Golden Feather"] + \

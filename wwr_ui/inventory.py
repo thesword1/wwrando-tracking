@@ -58,6 +58,11 @@ DUNGEON_NONPROGRESS_ITEMS = \
   ["WT Dungeon Map", "WT Compass"]
 
 REGULAR_ITEMS += DUNGEON_NONPROGRESS_ITEMS
+
+# Like the Archipelago world's start inventory, Triforce Charts and Treasure Charts can be starting items too.
+REGULAR_ITEMS += ["Triforce Chart %d" % i for i in range(1, 8+1)]
+REGULAR_ITEMS += ["Treasure Chart %d" % i for i in range(1, 41+1)]
+
 REGULAR_ITEMS.sort()
 
 PROGRESSIVE_ITEMS = \
