@@ -198,7 +198,6 @@ setting (Advanced Options tab, default off) that only changes the tracker's logi
 - No Triforce shard counter and no "items needed" estimate (the website tracker has one).
 - The tracker only tracks progress locations, so it can't help with optional locations.
 - Tracker marks are only kept if you save the game. Loading a save from a different seed resets the tracker data.
-- The GUI's update checker still looks at upstream's releases, so ignore what it says about updates.
 - Only tested in Dolphin.
 
 ## Bugs and questions
