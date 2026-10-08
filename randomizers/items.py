@@ -9,6 +9,7 @@ from randomizers.base_randomizer import BaseRandomizer
 from wwlib.dzx import DZx, ACTR, SCOB, TRES, DZxLayer
 from wwlib.events import EventList
 from tweaks import add_trap_chest_event_to_stage
+from options.wwrando_options import KeyLunacyMode
 
 class ItemRandomizer(BaseRandomizer):
   def __init__(self, rando):
@@ -135,7 +136,16 @@ class ItemRandomizer(BaseRandomizer):
     
     # Temporarily remove all requirements for entering all dungeons while we randomize them.
     # This is for when dungeons are nested. Simply having all items except keys isn't enough if a dungeon is locked behind another dungeon.
-    self.logic.temporarily_make_dungeon_entrance_macros_accessible()
+    # This only works when every dungeon's items stay inside that dungeon though. When dungeon items can go into other
+    # dungeons, a dungeon's keys could end up inside a dungeon nested behind its own locked doors, so in that case the
+    # real entrance requirements are kept, and items are placed in an order where each one is reachable.
+    any_dungeon_mode = any(
+      self.logic.get_dungeon_item_mode(item_name) == KeyLunacyMode.ANY_DUNGEON
+      for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
+      if self.logic.is_dungeon_item(item_name)
+    )
+    if not any_dungeon_mode:
+      self.logic.temporarily_make_dungeon_entrance_macros_accessible()
     
     if self.rando.dungeons_and_caves_only_start:
       # Choose a random location out of the 6 easiest locations to access in DRC.
@@ -150,34 +160,54 @@ class ItemRandomizer(BaseRandomizer):
         "Dragon Roost Cavern - Bird's Nest",
       ])
     
-    # Randomize small keys.
+    # Dungeon items in the Vanilla mode go where they are found in the vanilla game.
+    vanilla_items_to_place = [
+      item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
+      if self.logic.is_dungeon_item(item_name)
+      and self.logic.get_dungeon_item_mode(item_name) == KeyLunacyMode.VANILLA
+    ]
+    for item_name in vanilla_items_to_place:
+      location_name = next(
+        loc for loc in self.logic.vanilla_dungeon_item_locations[item_name]
+        if loc not in self.logic.prerandomization_item_locations
+      )
+      self.logic.set_prerandomization_item_location(location_name, item_name)
+    for item_name in vanilla_items_to_place:
+      self.logic.add_owned_item(item_name) # Temporarily add vanilla dungeon items while placing the other ones.
+    
+    # Randomize small keys, then big keys, then dungeon maps and compasses.
     small_keys_to_place = [
       item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
       if item_name.endswith(" Small Key")
-      and not self.logic.can_dungeon_item_be_anywhere(item_name)
+      and self.is_dungeon_item_placed_randomly_in_dungeons(item_name)
     ]
-    for item_name in small_keys_to_place:
-      self.place_dungeon_item(item_name)
-      self.logic.add_owned_item(item_name) # Temporarily add small keys to the player's inventory while placing them.
-    
-    # Randomize big keys.
     big_keys_to_place = [
       item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
       if item_name.endswith(" Big Key")
-      and not self.logic.can_dungeon_item_be_anywhere(item_name)
+      and self.is_dungeon_item_placed_randomly_in_dungeons(item_name)
     ]
-    for item_name in big_keys_to_place:
-      self.place_dungeon_item(item_name)
-      self.logic.add_owned_item(item_name) # Temporarily add big keys to the player's inventory while placing them.
-    
-    # Randomize dungeon maps and compasses.
     other_dungeon_items_to_place = [
       item_name for item_name in (self.logic.unplaced_progress_items + self.logic.unplaced_nonprogress_items)
       if (item_name.endswith(" Dungeon Map") or item_name.endswith(" Compass"))
-      and not self.logic.can_dungeon_item_be_anywhere(item_name)
+      and self.is_dungeon_item_placed_randomly_in_dungeons(item_name)
     ]
-    for item_name in other_dungeon_items_to_place:
-      self.place_dungeon_item(item_name)
+    items_to_place = small_keys_to_place + big_keys_to_place + other_dungeon_items_to_place
+    while items_to_place:
+      # Place the first item in the list that has a location available. (With the dungeon entrances made
+      # accessible above this is always the first one. Otherwise, keys that are only reachable behind another
+      # dungeon's locked doors wait until the keys for those doors have been placed.)
+      for item_name in items_to_place:
+        possible_locations = self.get_possible_dungeon_item_locations(item_name)
+        if possible_locations:
+          break
+      else:
+        raise Exception("No valid locations left to place dungeon items!")
+      items_to_place.remove(item_name)
+      
+      location_name = self.rng.choice(possible_locations)
+      self.logic.set_prerandomization_item_location(location_name, item_name)
+      if item_name.endswith(" Key"):
+        self.logic.add_owned_item(item_name) # Temporarily add keys to the player's inventory while placing them.
     
     # Remove the items we temporarily added.
     for item_name in items_to_temporarily_add:
@@ -186,11 +216,16 @@ class ItemRandomizer(BaseRandomizer):
       self.logic.remove_owned_item(item_name)
     for item_name in big_keys_to_place:
       self.logic.remove_owned_item(item_name)
+    for item_name in vanilla_items_to_place:
+      self.logic.remove_owned_item(item_name)
     
     # Reset the dungeon entrance macros.
     self.logic.update_entrance_connection_macros()
+  
+  def is_dungeon_item_placed_randomly_in_dungeons(self, item_name):
+    return self.logic.get_dungeon_item_mode(item_name) in (KeyLunacyMode.DUNGEON, KeyLunacyMode.ANY_DUNGEON)
 
-  def place_dungeon_item(self, item_name):
+  def get_possible_dungeon_item_locations(self, item_name):
     if self.options.progression_dungeons:
       # If dungeons themselves are progress, do not allow dungeon items to appear in any dungeon
       # locations that are nonprogress (e.g. Tingle Chests).
@@ -224,11 +259,7 @@ class ItemRandomizer(BaseRandomizer):
         if loc != self.drc_failsafe_location
       ]
     
-    if not possible_locations:
-      raise Exception("No valid locations left to place dungeon items!")
-    
-    location_name = self.rng.choice(possible_locations)
-    self.logic.set_prerandomization_item_location(location_name, item_name)
+    return possible_locations
   
   def randomize_progression_items_forward_fill(self):
     accessible_undone_locations = self.logic.get_accessible_remaining_locations(for_progression=True)

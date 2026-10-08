@@ -11,6 +11,7 @@
 * Tracker data layer: `tracker/entrances.py` lists the randomizable entrances (display name, island square or parent exit, vanilla destination) and, for each exit, the stage visits that reveal which entrance leads there (including the Cliff Plateau Isles inner cave special case on the sea stage), and builds the seed's tracked entrances with their visited-bit indices. `tracker/charts.py` gives each chart's destination square in the seed and the item ID and save bits that show it is owned or salvaged.
 
 * Offline mode: without an `.aptww` file the randomizer generates a solo seed locally again (GUI: leave the APTWW File field empty; command line: omit `--aptww`). Items are placed directly in the ISO and received when picked up (the Archipelago item-delivery patch is only applied for `.aptww` seeds), and offline seeds get a spoiler log, non-spoiler log and permalink. The GUI shows the gameplay options (progression locations, item modes, entrances, starting items, required bosses, difficulty) for offline seeds and greys them out while an `.aptww` file is selected. Archipelago mode is unchanged: `.aptww` seeds produce byte-identical ISOs. Offline seeds have no hints.
+* Offline mode supports all six Archipelago placement modes for small keys, big keys, and maps & compasses: Start With (given when starting a new save), Vanilla, Own Dungeon, Any Dungeon (any dungeon of a required boss), Local and Key-Lunacy (the same thing without Archipelago).
 
 ### Version 1.11.0 (in progress, not released yet)
 

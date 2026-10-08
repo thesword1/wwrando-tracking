@@ -138,7 +138,7 @@ class ExtraStartingItemsRandomizer(BaseRandomizer):
     # This tweak is written in an idempotent way, so this should be ok to call a second time.
     tweaks.update_starting_gear(
       self.rando,
-      self.options.starting_gear + self.random_starting_items
+      self.rando.get_starting_gear() + self.random_starting_items
     )
   
   def write_to_spoiler_log(self) -> str:

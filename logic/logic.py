@@ -61,6 +61,16 @@ class Logic:
       self.done_item_locations[location_name] = None
       self.done_item_locations_info[location_name] = {"game": None, "classification": None}
     
+    # Where each dungeon item is found in the vanilla game (used by the Vanilla dungeon item placement modes).
+    self.vanilla_dungeon_item_locations: dict[str, list[str]] = {}
+    for location_name, location_data in self.item_locations.items():
+      original_item_name = location_data.get("Original item")
+      if original_item_name not in ["Small Key", "Big Key", "Dungeon Map", "Compass"]:
+        continue
+      zone_name, _ = self.split_location_name_by_zone(location_name)
+      dungeon_item_name = self.DUNGEON_NAME_TO_SHORT_DUNGEON_NAME[zone_name] + " " + original_item_name
+      self.vanilla_dungeon_item_locations.setdefault(dungeon_item_name, []).append(location_name)
+    
     self.rock_spire_shop_ship_locations = []
     for location_name in self.item_locations:
       if location_name.startswith("Rock Spire Isle - Beedle's Special Shop Ship - "):
@@ -558,17 +568,9 @@ class Logic:
     types = self.item_locations[location_name]["Types"]
     paths = self.item_locations[location_name]["Paths"]
     
-    # Don't allow dungeon items to appear outside their proper dungeon unless their placement mode allows it.
+    # Don't allow dungeon items to appear outside the dungeons their placement mode allows.
     if self.is_dungeon_item(item_name) and not self.can_dungeon_item_be_anywhere(item_name):
-      short_dungeon_name = item_name.split(" ")[0]
-      dungeon_name = self.DUNGEON_NAMES[short_dungeon_name]
-      if not self.is_dungeon_location(location_name, dungeon_name_to_match=dungeon_name):
-        return False
-      if "Boss" in types:
-        # Don't allow dungeon items to be placed on the dungeon boss.
-        return False
-      if "Randomizable Miniboss Room" in types and self.options.randomize_miniboss_entrances:
-        # Don't allow dungeon items to be placed in miniboss rooms when they are randomized.
+      if not self.check_dungeon_item_valid_in_location(item_name, location_name):
         return False
     
     # Beedle's shop does not work properly if the same item is in multiple slots of the same shop.
@@ -844,18 +846,64 @@ class Logic:
   def all_dungeon_items(self):
     return DUNGEON_PROGRESS_ITEMS + DUNGEON_NONPROGRESS_ITEMS
   
+  @staticmethod
+  def get_dungeon_item_mode_static(options: Options, item_name: str) -> KeyLunacyMode:
+    if item_name.endswith(" Small Key"):
+      return options.randomize_smallkeys
+    elif item_name.endswith(" Big Key"):
+      return options.randomize_bigkeys
+    else:
+      return options.randomize_mapcompass
+  
+  @staticmethod
+  def get_starting_dungeon_items_static(options: Options) -> list[str]:
+    # Dungeon items whose placement mode says to start with them.
+    starting_gear = options.starting_gear.copy()
+    starting_dungeon_items = []
+    for item_name in DUNGEON_PROGRESS_ITEMS + DUNGEON_NONPROGRESS_ITEMS:
+      if Logic.get_dungeon_item_mode_static(options, item_name) != KeyLunacyMode.START_WITH:
+        continue
+      if item_name in starting_gear:
+        # Maps and compasses can also be selected as starting gear.
+        starting_gear.remove(item_name)
+        continue
+      starting_dungeon_items.append(item_name)
+    return starting_dungeon_items
+  
   def get_dungeon_item_mode(self, item_name) -> KeyLunacyMode:
     assert self.is_dungeon_item(item_name)
-    if item_name.endswith(" Small Key"):
-      return self.options.randomize_smallkeys
-    elif item_name.endswith(" Big Key"):
-      return self.options.randomize_bigkeys
-    else:
-      return self.options.randomize_mapcompass
+    return Logic.get_dungeon_item_mode_static(self.options, item_name)
   
   def can_dungeon_item_be_anywhere(self, item_name):
     # Without Archipelago there is only one world, so "local" placement is the same as Key-Lunacy.
     return self.get_dungeon_item_mode(item_name) in (KeyLunacyMode.LOCAL, KeyLunacyMode.KEYLUNACY)
+  
+  def check_dungeon_item_valid_in_location(self, item_name: str, location_name: str):
+    # Where a dungeon item may be placed when its placement mode restricts it to dungeons.
+    mode = self.get_dungeon_item_mode(item_name)
+    if mode == KeyLunacyMode.VANILLA:
+      return location_name in self.vanilla_dungeon_item_locations[item_name]
+    
+    types = self.item_locations[location_name]["Types"]
+    short_dungeon_name = item_name.split(" ")[0]
+    dungeon_name = self.DUNGEON_NAMES[short_dungeon_name]
+    banned_dungeons = self.rando.boss_reqs.banned_dungeons
+    if mode == KeyLunacyMode.ANY_DUNGEON and dungeon_name not in banned_dungeons:
+      # Any dungeon except those of bosses that are not required in required bosses mode. (Items for those
+      # dungeons stay in their own dungeon.)
+      zone_name, _ = self.split_location_name_by_zone(location_name)
+      if not self.is_dungeon_location(location_name) or zone_name in banned_dungeons:
+        return False
+    else:
+      if not self.is_dungeon_location(location_name, dungeon_name_to_match=dungeon_name):
+        return False
+    if "Boss" in types:
+      # Don't allow dungeon items to be placed on the dungeon boss.
+      return False
+    if "Randomizable Miniboss Room" in types and self.options.randomize_miniboss_entrances:
+      # Don't allow dungeon items to be placed in miniboss rooms when they are randomized.
+      return False
+    return True
   
   def is_dungeon_location(self, location_name, dungeon_name_to_match=None):
     zone_name, specific_location_name = self.split_location_name_by_zone(location_name)
