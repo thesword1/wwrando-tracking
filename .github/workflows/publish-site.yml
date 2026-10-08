@@ -1,11 +1,7 @@
 name: Publish Website
 
+# Upstream's website deploy. GitHub Pages isn't enabled on this fork, so only run it manually.
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'docs/**'
-      - '.github/workflows/publish-site.yml'
   workflow_dispatch:
 
 permissions:
