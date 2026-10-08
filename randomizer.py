@@ -122,6 +122,8 @@ class WWRandomizer:
     # and entrances, and items are delivered by the AP client. Otherwise the seed is generated locally (offline mode).
     self.plando = plando
     self.archipelago_mode = plando is not None
+    if not self.archipelago_mode:
+      self.resolve_dependent_offline_options()
     if self.archipelago_mode:
       self.permalink = None
     else:
@@ -268,6 +270,13 @@ class WWRandomizer:
       if self.boss_reqs.is_enabled():
         self.boss_reqs.validate_boss_options()
       
+      num_starting_gear = len(self.get_starting_gear()) + self.options.num_extra_starting_items
+      if num_starting_gear > tweaks.MAXIMUM_ADDITIONAL_STARTING_ITEMS:
+        raise InvalidOptionsError(
+          f"Too many starting items: {num_starting_gear} selected (including dungeon items in the Start With modes "
+          f"and extra random starting items), but at most {tweaks.MAXIMUM_ADDITIONAL_STARTING_ITEMS} are supported."
+        )
+      
       num_progress_locations = self.logic.get_num_progression_locations()
       max_required_bosses_banned_locations = self.logic.get_max_required_bosses_banned_locations()
       self.all_randomized_progress_items = self.logic.unplaced_progress_items.copy()
@@ -304,6 +313,12 @@ class WWRandomizer:
     self.logic.update_entrance_connection_macros() # Reset the entrance macros.
     
     self.fully_initialized = True
+  
+  def resolve_dependent_offline_options(self):
+    # Like the APWorld (generate_early), only randomize secret cave inner entrances if both puzzle secret caves and
+    # combat secret caves are progress locations.
+    if not (self.options.progression_puzzle_secret_caves and self.options.progression_combat_secret_caves):
+      self.options.randomize_secret_cave_inner_entrances = False
   
   def get_starting_gear(self) -> list[str]:
     # The items given when starting a new save file (besides the ones that have their own options, like hearts).

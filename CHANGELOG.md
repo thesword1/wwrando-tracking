@@ -16,6 +16,7 @@
 * New "Enable Tuner Logic" option (from the Archipelago world): the logic may expect the Tingle Tuner instead of Bombs for Tingle Chests. .aptww files don't include it, so for Archipelago seeds it is a local setting that only matters for the in-game tracker.
 * In-game tracker runtime foundation: the tracker's C sources (`asm/tracker/`) are compiled into main.dol through the new `asm/patches/tracker.asm`, and `tracker/serialize.py` packs a seed's location, group, entrance and chart tables into a versioned binary format that the C code reads from a 24 KB reserve. The same C code builds on the host with mock RAM for unit tests (`make -C asm/tracker host`). Works for AP and offline seeds; enabled only with the development flag `wwrando.py --tracker` for now, and without it the output is unchanged. See `docs/dev/tracker-runtime.md`.
 * Required Bosses Mode can now always or never require specific dungeons (the Archipelago world's Included/Excluded Dungeons) in offline seeds. Invalid combinations are reported before randomizing. Permalinks support these dungeon lists.
+* Offline item pool parity with the Archipelago world: consumable counts match its item pool (more Red/Silver Rupees and Joy Pendants), Triforce and Treasure Charts can be starting items (like its start inventory), inner secret cave entrances are only randomized when both Puzzle and Combat Secret Caves are progress locations, and selecting more starting items than the game supports is reported before randomizing.
 
 ### Version 1.11.0 (in progress, not released yet)
 

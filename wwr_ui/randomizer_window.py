@@ -727,6 +727,10 @@ class WWRandomizerWindow(QMainWindow):
     if options.sword_mode in [SwordMode.SWORDLESS, SwordMode.NO_STARTING_SWORD, SwordMode.SWORDS_OPTIONAL]:
       items_to_filter_out += 3 * ["Progressive Sword"]
     
+    if not (options.progression_puzzle_secret_caves and options.progression_combat_secret_caves):
+      # Inner secret cave entrances are only randomized when both kinds of secret caves are progress locations.
+      should_enable_options["randomize_secret_cave_inner_entrances"] = False
+    
     if not options.required_bosses:
       should_enable_options["num_required_bosses"] = False
       should_enable_options["included_dungeons"] = False

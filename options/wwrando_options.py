@@ -312,7 +312,8 @@ class Options(BaseOptions):
   )
   randomize_secret_cave_inner_entrances: bool = option(
     default=False,
-    description="Allows the pit in Ice Ring Isle's secret cave and the rear exit out of Cliff Plateau Isles' secret cave to act as entrances to be randomized.",
+    description="Allows the pit in Ice Ring Isle's secret cave and the rear exit out of Cliff Plateau Isles' secret cave to act as entrances to be randomized.<br>"
+      "Only available when both Puzzle Secret Caves and Combat Secret Caves are progress locations.",
   )
   randomize_fairy_fountain_entrances: bool = option(
     default=False,
