@@ -824,10 +824,12 @@ class WWRandomizerWindow(QMainWindow):
   
   def open_about(self):
     text = """The Wind Waker Archipelago Randomizer Version %s<br><br>
-      Originally created by LagoLunatic, modified by tanjo3<br><br>
+      Tracking edition: offline mode and in-game tracker<br><br>
+      Originally created by LagoLunatic, Archipelago support by tanjo3, tracking edition by thesword1<br><br>
       For instructions on how to set up a multiworld, see the <a href=\"https://github.com/tanjo3/tww_apworld/blob/master/docs/setup_en.md">setup guide</a>.<br>
       Report issues in the Wind Waker thread in the Archipelago server.<br><br>
-      Source code:<br><a href=\"https://github.com/tanjo3/wwrando/tree/archipelago\">https://github.com/tanjo3/wwrando/tree/archipelago</a>""" % VERSION
+      Source code:<br><a href=\"https://github.com/thesword1/wwrando-tracking\">https://github.com/thesword1/wwrando-tracking</a><br>
+      Based on:<br><a href=\"https://github.com/tanjo3/wwrando/tree/archipelago\">https://github.com/tanjo3/wwrando/tree/archipelago</a>""" % VERSION
     
     self.about_dialog = QMessageBox()
     self.about_dialog.setTextFormat(Qt.TextFormat.RichText)
