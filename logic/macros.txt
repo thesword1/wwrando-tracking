@@ -95,7 +95,7 @@ All 8 Triforce Shards:
 
 Tingle Bombs:
   Bombs
-  # Note: If an option to require Tingle Tuner is added, this macro should have Bombs replaced with Tingle Tuner when that option is on.
+  # Note: With the enable_tuner_logic option, the Tingle Tuner also counts (the logic changes this macro to "Bombs | Tingle Tuner").
 Can Activate Tingle Bomb Triggers Without Tingle Tuner:
   Nothing
   # This tweak is always enabled.
