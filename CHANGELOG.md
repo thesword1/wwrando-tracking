@@ -1,3 +1,8 @@
+### Version 2.5.2-tracking.2 (in progress)
+
+* Windows release builds: `wwrando-<version>-windows-x64.zip` with a one-file `wwrando-tracking.exe`, built and tested by the release workflow next to the Linux build. Both release builds are now checked for complete bundled data and run dry randomizations (offline and `.aptww`) in CI. The executable hides its console window when started from Explorer and prints `--version`/`--help`/`--noui` output when started from a terminal.
+* README: Windows download notes (SmartScreen, antivirus false positives). Known limitations explain why Archipelago server hints can't be shown on the in-game tracker with the standard Archipelago client.
+
 ### Version 2.5.2-tracking (in progress)
 
 * The GUI's update checker now checks this repository's releases and understands `-tracking.N` versions.
