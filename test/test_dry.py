@@ -6,11 +6,6 @@ from enum import StrEnum
 from test_helpers import *
 import pytest
 
-# The Archipelago base removed standalone randomization (WWRandomizer requires a plando and the
-# permalink system doesn't support the new KeyLunacyMode options). Offline mode (Phase 2 of
-# PROJECT_PLAN.md) restores it; remove this marker then.
-pytestmark = pytest.mark.xfail(reason="Standalone randomization is disabled on the Archipelago base until offline mode lands", strict=False)
-
 def dry_rando_with_options(options) -> WWRandomizer:
   args = make_argparser().parse_args(args=["--dry"])
   rando_kwargs = {
@@ -70,6 +65,9 @@ def test_regression_entrance_inner_rando():
   options.randomize_boss_entrances = True
   options.required_bosses = True
   options.num_required_bosses = 3
+  
+  # This regression was found with the old default starting items, which leave fewer progress items to place.
+  start_with_legacy_starting_gear(options)
   
   rando = dry_rando_with_options(options)
   rando.randomize_all()

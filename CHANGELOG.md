@@ -9,6 +9,7 @@
 * The randomizer can now be run headless from the command line with an Archipelago file: `wwrando.py --aptww PATH --clean-iso PATH --output-folder PATH`. The .aptww loader moved out of the GUI into `aptww.py`.
 * Tracker data layer: `tracker/locations.py` builds the per-seed table of tracked locations (only the seed's progress locations, minus dungeons of non-required bosses), each with its sea chart square or list-page group (dungeon, Hyrule, Ganon's Tower, Mailbox, The Great Sea, or a cave whose entrance is randomized), a short display name, and the memory byte/mask that marks it checked (ported from the Archipelago TWW world, MIT). Sunken Treasure detection follows the seed's chart mapping.
 
+* Offline mode: without an `.aptww` file the randomizer generates a solo seed locally again (GUI: leave the APTWW File field empty; command line: omit `--aptww`). Items are placed directly in the ISO and received when picked up (the Archipelago item-delivery patch is only applied for `.aptww` seeds), and offline seeds get a spoiler log, non-spoiler log and permalink. The GUI shows the gameplay options (progression locations, item modes, entrances, starting items, required bosses, difficulty) for offline seeds and greys them out while an `.aptww` file is selected. Archipelago mode is unchanged: `.aptww` seeds produce byte-identical ISOs. Offline seeds have no hints.
 
 ### Version 1.11.0 (in progress, not released yet)
 
