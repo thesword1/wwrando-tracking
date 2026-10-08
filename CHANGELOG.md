@@ -7,6 +7,7 @@
 * Developer tooling: Dolphin automation harness (`tools/dolphin/`) that boots an ISO in flatpak Dolphin with an isolated user directory, drives controller input through Dolphin's pipe backend, reads/writes emulated RAM, and takes screenshots and savestates. See `docs/dev/dolphin-harness.md`.
 * Developer docs: verified NTSC-U memory map for the in-game tracker (save layout, the free 0x50-byte `dSv_reserve_c` area at 0x803C532C used for tracker save data, inventory addresses, item-get path, sea chart menu inputs and text drawing). See `docs/dev/memory-map.md`.
 * The randomizer can now be run headless from the command line with an Archipelago file: `wwrando.py --aptww PATH --clean-iso PATH --output-folder PATH`. The .aptww loader moved out of the GUI into `aptww.py`.
+* Tracker data layer: `tracker/locations.py` builds the per-seed table of tracked locations (only the seed's progress locations, minus dungeons of non-required bosses), each with its sea chart square or list-page group (dungeon, Hyrule, Ganon's Tower, Mailbox, The Great Sea, or a cave whose entrance is randomized), a short display name, and the memory byte/mask that marks it checked (ported from the Archipelago TWW world, MIT). Sunken Treasure detection follows the seed's chart mapping.
 
 
 ### Version 1.11.0 (in progress, not released yet)
