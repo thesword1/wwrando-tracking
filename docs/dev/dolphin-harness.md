@@ -46,8 +46,11 @@ via `-s`), `extra_config` (`{"Dolphin.Core.CPUThread": "False"}` → `-C` argume
   The user's own Dolphin config in `~/.var/app/org.DolphinEmu.dolphin-emu` is never read
   or written.
 - Notable settings: skip IPL, no confirm-on-stop, no panic handlers, no OSD messages,
-  **background input on** (otherwise hotkeys and pad input are ignored while the render
-  window is unfocused), no audio, analytics off, fixed 640x528 render window.
+  **background input on** (otherwise pad input is ignored while the render window is
+  unfocused), no audio, analytics off, fixed 640x528 render window.
+- Hotkeys need a separate setting: `Dolphin.General.HotkeysRequireFocus=False`, passed with `-C`
+  on every launch (it has no effect when written to `Dolphin.ini`). Without it, screenshots and
+  savestates silently fail whenever the window manager doesn't focus the render window.
 - Dolphin is started as
   `flatpak run --filesystem=<user dir> --filesystem=<iso dir>:ro org.DolphinEmu.dolphin-emu -u <user dir> -e <iso> -b`.
   The flatpak can read the host filesystem (`host:ro`) but has a private `/tmp`, so the

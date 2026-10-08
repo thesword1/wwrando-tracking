@@ -30,11 +30,15 @@ Without the flag, the output is byte-identical to a build without the tracker. T
 
 | File | Contents |
 |---|---|
-| `asm/patches/tracker.asm` | The `tracker_data` reserve (0x6000 bytes) and `.include "tracker/tracker.c"` |
+| `asm/patches/tracker.asm` | The `tracker_data` (0x6000 bytes) and `tracker_state` (0x100 bytes) reserves, `.include "tracker/tracker.c"`, and the hooks |
 | `asm/tracker/tracker.c` | Single translation unit that `#include`s every module, so the whole runtime is one assembled chunk |
 | `asm/tracker/tracker_types.h` | `u8`/`u16`/`u32`, `bool`, `TRK_INLINE` (always_inline, since the game build uses `-fno-inline`) |
 | `asm/tracker/tracker_mem.h` | All reads/writes of game memory and the tables go through these helpers |
 | `asm/tracker/tracker_tables.[ch]` | Reader for the table format |
+| `asm/tracker/tracker_save.[ch]` | Tracker save data (reset, seed tag, small-key counters, manual and visited bits) |
+| `asm/tracker/tracker_detect.[ch]` | Check detection, manual marks, per-group counts |
+| `asm/tracker/tracker_runtime.c` | Game hooks, entrance triggers, per-frame update |
+| `asm/tracker/tracker_state.h` | Runtime state / debug struct in the `tracker_state` reserve |
 | `asm/tracker/tracker_host.c` | Host build only: mock RAM and the table pointer |
 | `asm/tracker/Makefile` | Host build (`make -C asm/tracker host`) |
 | `tracker/serialize.py` | Table format (documented at the top of the file), serializer and a Python reader |
@@ -68,6 +72,65 @@ doesn't carry 24 KB of zeros. The tweak writes the whole reserve (tables plus ze
 and moves the start of the game's heap past it. The reserve comes first in `tracker.asm` so that
 the C code, linked afterwards, can reference it.
 
+## Hooks
+
+| Where | What |
+|---|---|
+| 0x8005D618 in `dSv_info_c::init` (new game) | `misc_rando_features.asm` makes this call `init_save_with_tweaks`. `tracker.asm` redirects it to `tracker_init_save`, which resets the tracker save data and then calls `init_save_with_tweaks`. The reset comes first so small keys from the starting items are counted. |
+| 0x8023502C in `dScnPly_Execute` (every gameplay frame, also with a menu open) | Replaces the call to `dKy_itudemo_se` with `tracker_on_frame`, which calls it and then `tracker_frame()` |
+| `item_func_ptr` entries 0x13, 0x1D, 0x5B, 0x73, 0x77 (dungeon small keys) | `tweaks.add_in_game_tracker` points them at `tracker_<dungeon>_small_key_item_get_func`, which counts the key and calls the randomizer's `<dungeon>_small_key_item_get_func`. Both field pickups and Archipelago deliveries go through `execItemGet` and therefore through these. |
+
+`tracker_frame()` does nothing until the tables are valid. It skips the title screen and file
+select (stage `""`, `sea_T`, `Name`, like `TWWClient.py`'s `check_ingame`). In gameplay it:
+
+1. validates the save data, resetting it if its layout version or seed tag doesn't match the
+   tables. This covers a save from another seed or from before the tracker was enabled.
+2. sets the visited bit of every entrance whose trigger matches the current stage name, room and
+   spawn (`0x803C9D3C`, `0x803C9D46`, `0x803C9D44`). Triggers are checked every frame instead of on
+   stage changes, so a visit is recorded again if a save without it is reloaded in the same place.
+3. recomputes the totals and per-group checked counts in the runtime state.
+
+## Save data
+
+The tracker uses the 0x50 bytes of `dSv_reserve_c` at 0x803C532C (`memory-map.md`, section 1.4),
+which are saved to the memory card:
+
+| Offset | Size | Contents |
+|---|---|---|
+| 0x00 | 1 | layout version (1; 0 = never initialised) |
+| 0x01 | 1 | flags (reserved) |
+| 0x02 | 2 | seed tag (from the tables header) |
+| 0x04 | 6 | small keys obtained: DRC, FW, TotG, ET, WT, spare |
+| 0x10 | 48 | manual marks, bit *i* = location *i* |
+| 0x40 | 8 | visited entrances, bit *i* = entrance *i* |
+
+Bit *i* of a bitfield is in byte `i >> 3`, mask `1 << (i & 7)`.
+
+## Detection
+
+`tracker_is_auto_checked(i)` follows `TWWClient.py` exactly:
+
+- CHART, BOCTO and EVENT test the location's byte and mask.
+- CHEST, SWTCH and PCKUP test the stage's saved copy. If that bit isn't set and the current stage ID
+  (0x803C53A4) is the location's stage, they test the same bit in the live copy at 0x803C5380.
+- SPECL: Lenzo needs both bits 0x06 (0x07 implies it). The three letters need 0x03. Maggie's
+  delivery reward counts once Moblin's Letter was owned (bit 15 of 0x803C4C98) and is no longer in
+  the delivery bag. Ankle needs 0x803C523E & 0x40 and 0x803C5249 & 0x0F.
+- NONE is never auto-checked.
+
+`tracker_is_checked(i)` is auto-checked or manually marked. `tracker_toggle_manual(i)` refuses
+(returns false) for auto-checked locations, so an auto-detected check stays locked (D8).
+`tracker_group_counts(group, &checked, &total)` counts one group. The per-frame update also keeps
+all of them in the runtime state.
+
+## Runtime state
+
+`TrkState` (`tracker_state.h`) at the `tracker_state` symbol isn't saved. It holds a magic
+(`TRKS`), the frame counter, total/checked/auto-checked counts, the number of save resets, the
+in-game flag, the current stage/room/spawn, the last entrance marked visited, and the checked count
+of each group (by group index, up to 128 groups). The UI branches will read the counts from here,
+and the Dolphin test reads it from RAM.
+
 ## Table format
 
 `tracker/serialize.py` has the byte-level description. In short: a 0x20-byte header (magic
@@ -95,8 +158,9 @@ bytecode.
 
 ## Size in main.dol
 
-With the table reader only, the tracker adds 0x568 bytes of code plus the 0x6000-byte reserve:
-main.dol grows by 26,124 bytes, and the game heap shrinks by the same amount.
+The tracker adds 0x10C4 bytes of code and read-only data, plus the 0x6000-byte table reserve and
+the 0x100-byte state reserve. In total the custom code section grows by 0x71DC bytes (29,148), and
+the game heap shrinks by the same amount.
 
 ## Tests
 
@@ -107,10 +171,25 @@ main.dol grows by 26,124 bytes, and the game heap shrinks by the same amount.
   reader returns exactly what the serializer wrote, for every fixture. Skipped when `make` or `gcc`
   is missing. CI (ubuntu) has both.
 
+- `test/test_tracker_c_runtime.py`: detection of every location type against flags set the way
+  `TWWClient.py` reads them, including the live-stage fallback, the chart mapping and all six
+  special cases. It also covers manual marks, save reset on new game or another seed, small-key
+  counters, entrance triggers (including the Cliff Plateau Isles inner cave) and per-group counts.
+- `test/test_tracker_dolphin.py` (marker `dolphin`, needs flatpak Dolphin and `WW_ISO_PATH`):
+  builds an AP ISO (`entrance_rando` fixture) with `--tracker --test sea,44,0`, which boots straight
+  into gameplay with a new save. It then checks in RAM that the tables are loaded, the save data
+  carries the seed tag, chest/switch/pickup/event flags written into RAM are detected (including
+  the live copy), and a DRC small key sent through the AP give-item array is counted. It also
+  checks that the Cliff Plateau inner-cave spawn marks its entrance visited and that a foreign seed
+  tag resets the save data, and takes a screenshot. Set `WW_TRACKER_DOLPHIN_CACHE` to a directory
+  to keep the built ISO and an in-game savestate between runs (about 20 s per run with the cache,
+  about 90 s without).
+
 Run them with the rest of the suite:
 
 ```sh
 pytest test -m "not saving" -q
+WW_ISO_PATH=/path/to/vanilla.iso WW_TRACKER_DOLPHIN_CACHE=/some/dir pytest test/test_tracker_dolphin.py -m dolphin -s
 ```
 
 After changing anything under `asm/`, regenerate the patch diffs with `tools/devkitppc/assemble.sh`

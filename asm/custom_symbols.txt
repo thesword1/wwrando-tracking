@@ -113,18 +113,43 @@ sys/main.dol:
   progressive_magic_meter_item_func: 0x803FF0DC
   tracker_data: 0x803FF124
   tracker_data_end: 0x80405124
-  trk_tables_valid: 0x80405124
-  trk_seed_tag: 0x804051BC
-  trk_table_flags: 0x804051D8
-  trk_count: 0x804051F4
-  trk_section: 0x8040521C
-  trk_string: 0x80405260
-  trk_get_location: 0x80405294
-  trk_get_group: 0x80405360
-  trk_find_group: 0x80405408
-  trk_get_entrance: 0x804054A8
-  trk_get_trigger: 0x8040554C
-  trk_get_chart: 0x804055DC
+  tracker_state: 0x80405124
+  tracker_reserve_end: 0x80405224
+  trk_tables_valid: 0x804053C8
+  trk_seed_tag: 0x80405460
+  trk_table_flags: 0x8040547C
+  trk_count: 0x80405498
+  trk_section: 0x804054C0
+  trk_string: 0x80405504
+  trk_get_location: 0x80405538
+  trk_get_group: 0x80405604
+  trk_find_group: 0x804056AC
+  trk_get_entrance: 0x8040574C
+  trk_get_trigger: 0x804057F0
+  trk_get_chart: 0x80405880
+  trk_save_reset: 0x80405930
+  trk_save_validate: 0x804059A0
+  tracker_small_keys_obtained: 0x80405A0C
+  tracker_count_small_key: 0x80405A18
+  tracker_is_manual: 0x80405A70
+  trk_save_toggle_manual: 0x80405AB0
+  tracker_is_entrance_visited: 0x80405AE4
+  trk_save_set_entrance_visited: 0x80405B24
+  tracker_is_auto_checked: 0x80405B48
+  tracker_is_checked: 0x80405CD0
+  tracker_toggle_manual: 0x80405D28
+  tracker_group_counts: 0x80405DA0
+  tracker_is_in_game: 0x80405E38
+  tracker_check_stage: 0x80405EC8
+  tracker_update_counts: 0x80405FE4
+  tracker_frame: 0x8040611C
+  tracker_on_frame: 0x804061B8
+  tracker_init_save: 0x804061DC
+  tracker_drc_small_key_item_get_func: 0x80406220
+  tracker_fw_small_key_item_get_func: 0x80406248
+  tracker_totg_small_key_item_get_func: 0x80406270
+  tracker_et_small_key_item_get_func: 0x80406298
+  tracker_wt_small_key_item_get_func: 0x804062C0
 files/rels/d_a_demo_item.rel:
   check_give_item: 0x1344
 files/rels/d_a_npc_bs1.rel:

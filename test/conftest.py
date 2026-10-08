@@ -14,3 +14,17 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     if deselected:
       config.hook.pytest_deselected(items=deselected)
       items[:] = selected
+
+
+@pytest.fixture(scope="session")
+def tracker_host_library(tmp_path_factory) -> Path:
+  from tracker_c_host import build_host_library
+  return build_host_library(tmp_path_factory.mktemp("tracker_c"))
+
+@pytest.fixture
+def tracker(tracker_host_library):
+  """The tracker C runtime built for the host, with cleared mock RAM and no tables."""
+  from tracker_c_host import TrackerHost
+  host = TrackerHost(tracker_host_library)
+  host.reset_ram()
+  return host

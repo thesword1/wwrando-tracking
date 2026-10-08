@@ -13,20 +13,7 @@ sys.path.insert(0, str(REPO_ROOT / "gclib"))
 from tracker.serialize import Section, serialize_tracker_tables
 from test_aptww_fixtures import FIXTURE_PATHS, load_plando
 from test_tracker_serialize import tables_from_plando
-from tracker_c_host import (
-  TrackerHost, TrkChart, TrkEntrance, TrkGroup, TrkLocation, TrkTrigger, build_host_library,
-)
-
-
-@pytest.fixture(scope="session")
-def host_library(tmp_path_factory) -> Path:
-  return build_host_library(tmp_path_factory.mktemp("tracker_c"))
-
-@pytest.fixture
-def tracker(host_library) -> TrackerHost:
-  host = TrackerHost(host_library)
-  host.reset_ram()
-  return host
+from tracker_c_host import TrackerHost, TrkChart, TrkEntrance, TrkGroup, TrkLocation, TrkTrigger
 
 
 def test_invalid_tables(tracker: TrackerHost):

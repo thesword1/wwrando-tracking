@@ -64,6 +64,8 @@ TRACKER_DATA_RESERVE_SIZE = 0x6000
 # Limits of the save data layout (docs/dev/memory-map.md): 384 manual-mark bits, 64 visited bits.
 MAX_LOCATIONS = 384
 MAX_ENTRANCES = 64
+# Size of the per-group counts in the runtime state (asm/tracker/tracker_state.h).
+MAX_GROUPS = 128
 
 NO_VALUE = 0xFF
 
@@ -187,6 +189,7 @@ def serialize_tracker_tables(tables: TrackerTables, seed_tag: int) -> bytes:
       assert [loc.index for loc in group_locations] == list(range(first, first + len(group_locations))), \
         f"Locations of group {group.name!r} aren't contiguous"
     group_data += struct.pack(GROUP_FORMAT, group.id, group.kind.value, first, len(group_locations), strings.add(group.name))
+  assert len(groups) <= MAX_GROUPS, f"Too many tracker groups: {len(groups)}"
   sections[Section.GROUPS] = (group_data, len(groups))
 
   entrance_data = bytearray()

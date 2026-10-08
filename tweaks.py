@@ -2843,10 +2843,22 @@ def add_in_game_tracker(self: WWRandomizer):
   tables = build_tracker_tables(active_location_names, chart_mapping, entrance_pairings, entrance_options, required_bosses)
   blob = serialize_tracker_tables(tables, seed_tag)
   
-  # The reserve is .bss in the patch, so write all of it (zero-padded) to extend main.dol over it.
+  # The reserve (tables, then the runtime state) is .bss in the patch, so write all of it (zero-padded) to extend
+  # main.dol over it.
   data_start = self.main_custom_symbols["tracker_data"]
-  reserve_size = self.main_custom_symbols["tracker_data_end"] - data_start
-  if len(blob) > reserve_size:
-    raise Exception(f"In-game tracker tables are too large: 0x{len(blob):X} bytes (reserve is 0x{reserve_size:X})")
+  tables_size = self.main_custom_symbols["tracker_data_end"] - data_start
+  reserve_size = self.main_custom_symbols["tracker_reserve_end"] - data_start
+  if len(blob) > tables_size:
+    raise Exception(f"In-game tracker tables are too large: 0x{len(blob):X} bytes (reserve is 0x{tables_size:X})")
   padded_blob = blob + b"\0"*(reserve_size - len(blob))
   patcher.add_or_extend_main_dol_free_space_section(self, list(padded_blob), data_start)
+  
+  # Count small keys obtained per dungeon by wrapping the dungeon small keys' item get funcs (set up by
+  # allow_dungeon_items_to_appear_anywhere).
+  item_get_funcs_list = 0x803888C8
+  for item_id, short_dungeon_name in [(0x13, "drc"), (0x1D, "fw"), (0x5B, "totg"), (0x73, "et"), (0x77, "wt")]:
+    item_get_func_addr = item_get_funcs_list + item_id*4
+    original_func = self.main_custom_symbols[f"{short_dungeon_name}_small_key_item_get_func"]
+    assert self.dol.read_data(fs.read_u32, item_get_func_addr) == original_func
+    tracker_func = self.main_custom_symbols[f"tracker_{short_dungeon_name}_small_key_item_get_func"]
+    self.dol.write_data(fs.write_u32, item_get_func_addr, tracker_func)
