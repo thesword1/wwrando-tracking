@@ -1132,9 +1132,10 @@ Can Defeat All Required Bosses:
 Rematch Bosses Skipped:
   Option "skip_rematch_bosses" Enabled
 In Swordless Mode:
-  Option "sword_mode" Is "Swordless"
+  # Swords Optional mode uses the swordless logic too.
+  Option "sword_mode" Is "Swordless" | Option "sword_mode" Is "Swords Optional"
 Outside Swordless Mode:
-  Option "sword_mode" Is Not "Swordless"
+  Option "sword_mode" Is Not "Swordless" & Option "sword_mode" Is Not "Swords Optional"
 In Required Bosses Mode:
   Option "required_bosses" Enabled
 Outside Required Bosses Mode:

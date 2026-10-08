@@ -90,11 +90,21 @@ class Logic:
     for i in range(1, 41+1):
       self.treasure_chart_names.append("Treasure Chart %d" % i)
     
-    if self.options.sword_mode == SwordMode.SWORDLESS:
+    # In Swords Optional mode the swords are still placed, but the logic never expects you to have one (like the
+    # APWorld, where they become useful items instead of progression items).
+    self.swords_in_logic = self.options.sword_mode not in [SwordMode.SWORDLESS, SwordMode.SWORDS_OPTIONAL]
+    if self.options.sword_mode == SwordMode.SWORDS_OPTIONAL:
+      self.all_nonprogress_items += [
+        item_name for item_name in self.all_progress_items
+        if item_name == "Progressive Sword"
+      ]
+    
+    if self.options.sword_mode in [SwordMode.SWORDLESS, SwordMode.SWORDS_OPTIONAL]:
       self.all_progress_items = [
         item_name for item_name in self.all_progress_items
         if item_name != "Progressive Sword"
       ]
+    if self.options.sword_mode == SwordMode.SWORDLESS:
       self.all_nonprogress_items = [
         item_name for item_name in self.all_nonprogress_items
         if item_name != "Hurricane Spin"
@@ -789,7 +799,7 @@ class Logic:
     
     all_progress_items_filtered = []
     for item_name in useful_items:
-      if item_name == "Progressive Sword" and self.options.sword_mode == SwordMode.SWORDLESS:
+      if item_name == "Progressive Sword" and not self.swords_in_logic:
         continue
       if self.is_dungeon_item(item_name) and not self.options.progression_dungeons:
         continue
@@ -1068,7 +1078,11 @@ class Logic:
       match = re.search(r"^(Progressive .+) x(\d+)$", req_name)
       item_name = match.group(1)
       num_required = int(match.group(2))
-      items_needed[item_name] = max(num_required, items_needed.setdefault(item_name, 0))
+      if item_name == "Progressive Sword" and not self.swords_in_logic:
+        # Swords never help in the logic, so they're never needed.
+        pass
+      else:
+        items_needed[item_name] = max(num_required, items_needed.setdefault(item_name, 0))
     elif " Capacity Upgrade" in req_name:
       match = re.search(r"^(.+ Capacity Upgrade) x(\d+)$", req_name)
       item_name = match.group(1)
@@ -1146,6 +1160,10 @@ class Logic:
     assert match
     item_name = match.group(1)
     num_required = int(match.group(2))
+    
+    if item_name == "Progressive Sword" and not self.swords_in_logic:
+      # Swords Optional mode can still place swords, but the logic never counts them.
+      return num_required == 0
     
     num_owned = self.currently_owned_items.count(item_name)
     return num_owned >= num_required
@@ -1265,7 +1283,7 @@ class Logic:
         if max_num_of_each_item_to_check[item_name] == 0:
           del max_num_of_each_item_to_check[item_name]
     
-    if self.options.sword_mode == SwordMode.SWORDLESS:
+    if not self.swords_in_logic:
       if "Progressive Sword" in max_num_of_each_item_to_check:
         del max_num_of_each_item_to_check["Progressive Sword"]
       if "Hurricane Spin" in max_num_of_each_item_to_check:
