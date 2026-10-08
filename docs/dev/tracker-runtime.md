@@ -138,7 +138,9 @@ Layout constants (`TRK_GRID_*`, `TRK_CELL_*`) are in screen space and were measu
 screenshots. A 640x528 screenshot shows screen-space point (x, y) at about (0.97x + 9, 0.975y + 19).
 
 **World view** (`SelectGrid`): every sea square with tracked locations shows a counter in its top
-left corner, and the empty strip of the salvage panel shows `Checked n/total`. A counter is the
+left corner, and the empty strip of the salvage panel shows `Checked n/total`. While the goal is in logic
+(`tracker_go_mode()`), `GO MODE` is drawn in white on a blue (#2929CC) box under that strip, above the compass
+(`trk_draw_go_mode`, `TRK_GO_MODE_Y`). A counter is the
 remaining (unchecked) count, or `available/remaining` once logic is available, in a light box:
 
 | Colour | Status (`enum TrkUiStatus`) |
@@ -254,6 +256,10 @@ alpha relative to its fully shown alpha. `TrkUiState.hint_frame` (+0x1C) records
 Dolphin test. The sea chart keeps its own hint, `Z: other locations` under the checked total: on the chart the
 tracker is already shown, and Z adds the other locations page.
 
+**GO MODE:** while the menu is idle and the goal is in logic, the same `GO MODE` box as on the sea chart (at the hint's
+size) is drawn under the hint, or in its place if Z has nothing to open, with the hint's fade. `TrkUiState.go_mode_frame`
+(+0x20) records the last frame it was drawn on any screen, for the Dolphin test.
+
 ## Triforce shard counter
 
 The Quest Status screen (`dMenu_Collect_c`) draws the owned shards as pieces of one Triforce, which is hard to count.
@@ -316,9 +322,17 @@ what's behind a randomized entrance is out of logic until that entrance is visit
 farming count another location once it's checked or in logic, and required bosses count once their location is
 checked or in logic.
 
+**Goal (GO MODE).** After the locations, the bytecode computes one goal slot: the macro `Can Reach and Defeat
+Ganondorf`, which is what the randomizer checks for beatability and what Archipelago's "Defeat Ganondorf" location
+(not tracked) requires. It includes `Can Defeat All Required Bosses` (the required bosses resolved at patch time, from
+the plando in both modes, each counting once checked or in logic) and Swordless mode (`Hero's Sword | In Swordless
+Mode`). The LOGIC header's goal count (+8) is 0 or 1; the interpreter stores the result in `TrkState.goal_in_logic`
+and `tracker_go_mode()` returns it while the logic is available. It isn't a location and doesn't change any count.
+There's no "Done" state: defeating Ganondorf ends the game.
+
 The bytecode is straight-line postfix code: shared subexpressions (macros used several times) are evaluated first
-into result slots, then one slot per tracked location, so an evaluation is one pass with a small stack and no
-recursion. `evaluate_bytecode` is the Python reference. Sizes: 1.5-4.1 KB for the fixtures and all-options offline
+into result slots, then one slot per tracked location and the goal slot, so an evaluation is one pass with a small
+stack and no recursion. `evaluate_bytecode` is the Python reference. Sizes: 1.5-4.1 KB for the fixtures and all-options offline
 seeds (budget 8 KB, tested), maximum stack depth 33 (limit 64).
 
 ### Evaluation at runtime
@@ -346,7 +360,7 @@ one evaluation takes about 11,600 time base ticks, **0.29 ms** (1.7% of a frame)
 (`TRKS`), the frame counter, total/checked/auto-checked counts, the number of save resets, the
 in-game flag, the current stage/room/spawn, the last entrance marked visited, and the checked count
 of each group (by group index, up to 128 groups), then the logic's results: evaluation count and duration,
-status, the in-logic bit of each location and the in-logic count of each group. The UI reads the counts from here,
+status, the in-logic bit of each location, the in-logic count of each group and the goal bit (`goal_in_logic`, +0x16C). The UI reads the counts from here,
 and the Dolphin tests read it from RAM.
 
 ## Table format
@@ -377,10 +391,10 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x50E0 bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0xB60 for the
-dungeon map and Quest Status pages and their hint, 0x2C4 for the Triforce counter and 0xD00 for the logic
-interpreter), plus the 0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state reserve. In
-total the custom code section grows by about 0xB320 bytes (45,856), and the game heap shrinks by the same amount. The STAGES section adds
+The tracker adds 0x538C bytes of code and read-only data (about 0x2348 of it for the sea chart UI, 0xB60 for the
+dungeon map and Quest Status pages and their hint, 0x2C4 for the Triforce counter, 0xD00 for the logic
+interpreter and 0x2D0 for GO MODE), plus the 0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state reserve. In
+total the custom code section grows by about 0xB5CC bytes (46,540), and the game heap shrinks by the same amount. The STAGES section adds
 about 0x350 bytes to the tables, inside the reserve.
 
 ## Tests
@@ -401,6 +415,13 @@ about 0x350 bytes to the tables, inside the reserve.
   seed; evaluation triggers; in-logic counts; no logic and corrupted bytecode.
   `test/test_tracker_logic_dolphin.py` (marker `dolphin`) checks evaluations after loading, after item gets and on
   opening the chart against the reference for the state in RAM, and prints the evaluation time.
+- GO MODE: `test/test_tracker_logic.py` checks the goal slot against the randomizer's `Logic`
+  (`check_requirement_met("Can Reach and Defeat Ganondorf")`) for random inventories on every fixture and offline
+  option set (including Required Bosses, Swordless and Swords Optional), and that it needs every required boss;
+  `test/test_tracker_logic_c.py` checks `tracker_go_mode()` against the reference and for logic without a goal slot
+  or with corrupted bytecode. `test/test_tracker_go_mode_dolphin.py` (marker `dolphin`) gives the items Ganondorf
+  needs through the give-item array (all but the last Triforce shard first) and checks GO MODE on the sea chart and
+  the Quest Status screen (screenshots `go-mode-not-yet`, `go-mode-chart`, `go-mode-collect`).
 - `test/test_tracker_items.py`: every logic item has a read descriptor, the C reader agrees with the Python
   reference on random memory, and counts for memory as the item get functions leave it.
   `test/test_tracker_items_dolphin.py` (marker `dolphin`) gives items through the Archipelago give-item array in

@@ -92,7 +92,8 @@ typedef struct {
   u8 menu; // 0x18: enum TrkUiMenu whose input handler last ran
   u8 pad1[3]; // 0x19
   u32 hint_frame; // 0x1C: TrkState frame_count when the "Z: tracker" hint was last drawn (tracker_ui_menu.c)
-  u8 pad[0x20]; // 0x20
+  u32 go_mode_frame; // 0x20: TrkState frame_count when "GO MODE" was last drawn
+  u8 pad[0x1C]; // 0x24
 } TrkUiState;
 
 #define TRK_UI_COUNTER_UNKNOWN 0xFF

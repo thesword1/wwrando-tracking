@@ -7,7 +7,7 @@
 #include "tracker_types.h"
 
 #define TRK_MAGIC 0x5757544B // "WWTK"
-#define TRK_FORMAT_VERSION 2
+#define TRK_FORMAT_VERSION 3
 #define TRK_HEADER_SIZE 0x20
 #define TRK_DIR_ENTRY_SIZE 8
 

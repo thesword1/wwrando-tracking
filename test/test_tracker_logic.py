@@ -12,8 +12,8 @@ from logic.logic import Logic
 from options.wwrando_options import EntranceMixMode, KeyLunacyMode, Options, SwordMode, TrickDifficulty
 from tracker.locations import ENTRANCE_CATEGORIES, get_randomized_exits
 from tracker.logic_compiler import (
-  LOGIC_HEADER_SIZE, MAX_STACK_DEPTH, LogicState, TrackerLogicInput, _Compiler, _LogicRandoStub, checked, or_,
-  evaluate_bytecode, evaluate_node,
+  GOAL_REQUIREMENT, LOGIC_HEADER_SIZE, MAX_STACK_DEPTH, LogicState, TrackerLogicInput, _Compiler, _LogicRandoStub,
+  checked, or_, evaluate_bytecode, evaluate_bytecode_with_goal, evaluate_node,
 )
 from tracker.serialize import (
   TRACKER_DATA_RESERVE_SIZE, Section, TrackerTables, build_tracker_tables, parse_tracker_tables,
@@ -61,7 +61,7 @@ def item_counts(owned_items: list[str]) -> dict[str, int]:
 
 def compare_with_logic(logic: Logic, tables: TrackerTables, starting_items: list[str], num_inventories: int, rng_seed: int):
   """For random inventories, with every entrance visited and nothing checked, the tracker's logic must say exactly
-  what the randomizer's Logic says."""
+  what the randomizer's Logic says, for every location and for the goal (GO MODE)."""
   rng = random.Random(rng_seed)
   blob = tables.logic.serialize()
   location_names = [loc.name for loc in tables.location_set.locations]
@@ -69,20 +69,28 @@ def compare_with_logic(logic: Logic, tables: TrackerTables, starting_items: list
   pool = list(logic.all_progress_items)
   mismatches = []
   num_in_logic = 0
-  for _ in range(num_inventories):
-    owned = list(starting_items) + rng.sample(pool, rng.randint(0, len(pool)))
+  goal_outcomes = set()
+  # Random inventories, plus nothing and everything so that the goal is seen both ways.
+  inventories = [[], pool] + [rng.sample(pool, rng.randint(0, len(pool))) for _ in range(num_inventories)]
+  for inventory in inventories:
+    owned = list(starting_items) + inventory
     logic.currently_owned_items = [logic.clean_item_name(item_name) for item_name in owned]
     logic.clear_req_caches()
     state = LogicState(item_counts(logic.currently_owned_items), all_visited, set())
-    results = evaluate_bytecode(blob, tables.logic.items, state)
+    results, goal = evaluate_bytecode_with_goal(blob, tables.logic.items, state)
     for name, result in zip(location_names, results):
       expected = logic.check_location_accessible(name)
       num_in_logic += expected
       if result != expected:
         mismatches.append((name, expected, sorted(owned)))
+    expected_goal = logic.check_requirement_met(GOAL_REQUIREMENT)
+    goal_outcomes.add(expected_goal)
+    if goal != expected_goal:
+      mismatches.append((GOAL_REQUIREMENT, expected_goal, sorted(owned)))
   assert not mismatches, mismatches[:3]
   # Make sure the inventories exercised both outcomes.
-  assert 0 < num_in_logic < num_inventories * len(location_names)
+  assert 0 < num_in_logic < len(inventories) * len(location_names)
+  assert goal_outcomes == {False, True}
 
 
 OFFLINE_OPTION_SETS = {
@@ -162,9 +170,10 @@ def test_bytecode_matches_expressions():
     blob = tables.logic.serialize()
     for _ in range(200):
       state = random_state(rng, tables)
-      results = evaluate_bytecode(blob, tables.logic.items, state)
+      results, goal = evaluate_bytecode_with_goal(blob, tables.logic.items, state)
       cache = {}
       assert results == [evaluate_node(expr, state, cache) for expr in tables.logic.location_exprs]
+      assert goal == evaluate_node(tables.logic.goal_expr, state, cache)
 
 def test_offline_bytecode_matches_expressions(offline_seed):
   _, tables = offline_seed
@@ -173,7 +182,9 @@ def test_offline_bytecode_matches_expressions(offline_seed):
   for _ in range(100):
     state = random_state(rng, tables)
     cache = {}
-    assert evaluate_bytecode(blob, tables.logic.items, state) == [evaluate_node(expr, state, cache) for expr in tables.logic.location_exprs]
+    results, goal = evaluate_bytecode_with_goal(blob, tables.logic.items, state)
+    assert results == [evaluate_node(expr, state, cache) for expr in tables.logic.location_exprs]
+    assert goal == evaluate_node(tables.logic.goal_expr, state, cache)
 
 
 def all_items_state(tables: TrackerTables, visited, checked_locations=()) -> LogicState:
@@ -231,6 +242,35 @@ def test_required_bosses_count_once_checked():
   state.checked = {names.index(loc) for loc in plando.required_bosses}
   assert evaluate_node(macro, state)
 
+def test_goal_needs_required_bosses():
+  # GO MODE needs the required bosses: with every item but nothing visited, the bosses behind randomized dungeon
+  # entrances are out of logic, so the goal is too, until their locations are checked (or the entrances visited).
+  options = offline_options("swords_optional_start_with_keys_tricks_bosses")
+  rando = dry_rando(options, "goalbosses")
+  plando = rando.get_seed_plando()
+  tables = tracker_tables(rando.options, plando, rando.starting_items)
+  blob = tables.logic.serialize()
+  names = [loc.name for loc in tables.location_set.locations]
+  bosses = {names.index(loc) for loc in plando.required_bosses}
+  assert bosses
+  assert not evaluate_bytecode_with_goal(blob, tables.logic.items, all_items_state(tables, []))[1]
+  assert evaluate_bytecode_with_goal(blob, tables.logic.items, all_items_state(tables, [], bosses))[1]
+  assert evaluate_bytecode_with_goal(blob, tables.logic.items, all_items_state(tables, range(64)))[1]
+  # All bosses but one isn't enough.
+  assert not evaluate_bytecode_with_goal(blob, tables.logic.items, all_items_state(tables, [], sorted(bosses)[1:]))[1]
+  # Nor is having the bosses without the items Ganondorf needs.
+  no_items = LogicState({}, set(range(64)), bosses)
+  assert not evaluate_bytecode_with_goal(blob, tables.logic.items, no_items)[1]
+
+def test_goal_swordless():
+  # In Swordless mode Ganondorf doesn't need a sword (Can Defeat Ganondorf: Hero's Sword | In Swordless Mode).
+  options = offline_options("swordless_tuner_keylunacy")
+  rando = dry_rando(options, "goalswordless")
+  tables = tracker_tables(rando.options, rando.get_seed_plando(), rando.starting_items)
+  assert "Progressive Sword" not in tables.logic.items
+  blob = tables.logic.serialize()
+  assert evaluate_bytecode_with_goal(blob, tables.logic.items, all_items_state(tables, range(64)))[1]
+
 def test_start_with_keys_need_no_reads():
   options = offline_options("swords_optional_start_with_keys_tricks_bosses")
   rando = dry_rando(options, "startwithkeys")
@@ -255,6 +295,7 @@ def test_serialized_logic_section():
     assert logic_blob[4] <= MAX_STACK_DEPTH
     assert logic_blob[5] == len(tables.logic.items)
     assert int.from_bytes(logic_blob[6:8], "big") == len(logic_blob) - LOGIC_HEADER_SIZE
+    assert logic_blob[8] == 1 and tables.logic.goal_expr is not None
 
 # Bytecode size budget. The rest of the tables take at most ~14.1 KB of the 24 KB reserve (all locations and
 # entrances tracked).

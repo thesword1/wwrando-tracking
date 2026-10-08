@@ -14,7 +14,7 @@ from aptww import read_ap_plando_file
 from options.wwrando_options import EntranceMixMode, Options
 from tracker.items import ItemReadKind, get_item_read, read_item_count
 from tracker.locations import ENTRANCE_CATEGORIES
-from tracker.logic_compiler import LogicState, TrackerLogicInput, evaluate_bytecode
+from tracker.logic_compiler import LogicState, TrackerLogicInput, _emit, evaluate_bytecode_with_goal
 from tracker.serialize import TrackerTables, build_tracker_tables, serialize_tracker_tables
 from test_aptww_fixtures import FIXTURE_PATHS
 from test_helpers import enable_all_progression_location_options
@@ -73,12 +73,15 @@ def randomize_state(tracker: TrackerHost, tables: TrackerTables, addresses: list
     sum((rng.random() < density) << bit for bit in range(8)) for _ in range(8)
   ))
 
-def python_results(tracker: TrackerHost, tables: TrackerTables) -> list[bool]:
+def python_results_with_goal(tracker: TrackerHost, tables: TrackerTables) -> tuple[list[bool], bool]:
   lib = tracker.lib
   counts = {name: read_item_count(get_item_read(name), tracker.read_u8) for name in tables.logic.items}
   visited = {i for i in range(len(tables.entrance_set.entrances)) if lib.tracker_is_entrance_visited(i)}
   checked = {loc.index for loc in tables.location_set.locations if lib.tracker_is_checked(loc.index)}
-  return evaluate_bytecode(tables.logic.serialize(), tables.logic.items, LogicState(counts, visited, checked))
+  return evaluate_bytecode_with_goal(tables.logic.serialize(), tables.logic.items, LogicState(counts, visited, checked))
+
+def python_results(tracker: TrackerHost, tables: TrackerTables) -> list[bool]:
+  return python_results_with_goal(tracker, tables)[0]
 
 def c_results(tracker: TrackerHost, tables: TrackerTables) -> list[bool]:
   tracker.lib.tracker_logic_evaluate()
@@ -92,8 +95,10 @@ def check_random_states(tracker: TrackerHost, tables: TrackerTables, num_states:
   num_in_logic = 0
   for _ in range(num_states):
     randomize_state(tracker, tables, addresses, rng)
-    expected = python_results(tracker, tables)
+    expected, expected_goal = python_results_with_goal(tracker, tables)
     assert c_results(tracker, tables) == expected
+    assert tracker.lib.tracker_go_mode() == expected_goal
+    assert tracker.state.goal_in_logic == expected_goal
     num_in_logic += sum(expected)
   assert 0 < num_in_logic < num_states * len(tables.location_set.locations)
 
@@ -159,6 +164,7 @@ def test_in_logic_counts(tracker: TrackerHost):
     lib.tracker_frame()
   num_locations = len(tables.location_set.locations)
   assert tracker.state.num_in_logic == num_locations
+  assert lib.tracker_go_mode()
   groups = tables.groups()
   for group_index, group in enumerate(groups):
     in_group = len(tables.location_set.locations_in_group(group))
@@ -178,6 +184,7 @@ def test_in_logic_counts(tracker: TrackerHost):
     lib.tracker_frame()
   expected = python_results(tracker, tables)
   assert tracker.state.num_in_logic == sum(expected) < num_locations
+  assert not lib.tracker_go_mode()
   out_of_logic = next(i for i, result in enumerate(expected) if not result)
   assert lib.tracker_ui_location_status(out_of_logic) == UI_OUT_OF_LOGIC
 
@@ -187,7 +194,7 @@ def test_no_logic_or_bad_bytecode(tracker: TrackerHost):
   load(tracker, dataclasses.replace(tables, logic=None))
   lib.tracker_logic_evaluate()
   assert tracker.state.logic_status == LOGIC_NONE
-  assert not lib.tracker_logic_available() and not lib.tracker_is_in_logic(0)
+  assert not lib.tracker_logic_available() and not lib.tracker_is_in_logic(0) and not lib.tracker_go_mode()
 
   blob = bytearray(serialize_tracker_tables(tables, SEED_TAG))
   logic = tables.logic.serialize()
@@ -202,3 +209,34 @@ def test_no_logic_or_bad_bytecode(tracker: TrackerHost):
     assert tracker.state.logic_status in (LOGIC_OK, LOGIC_ERROR)
     if tracker.state.logic_status == LOGIC_ERROR:
       assert not any(lib.tracker_is_in_logic(i) for i in range(len(tables.location_set.locations)))
+      assert not lib.tracker_go_mode() and not tracker.state.goal_in_logic
+
+def test_go_mode(tracker: TrackerHost):
+  # The goal slot sets the GO MODE bit; tables whose logic has no goal slot never show it.
+  tables = entrance_rando_tables()
+  load(tracker, tables)
+  lib = tracker.lib
+  enter_game(tracker)
+  for address in item_addresses(tables):
+    tracker.write_u8(address, 0xFF)
+  tracker.write_u8(CURRENT_STAGE_ID_ADDR, 0)
+  tracker.write_bytes(SAVE_VISITED_ADDR, b"\xFF" * 8)
+  lib.tracker_logic_evaluate()
+  assert lib.tracker_go_mode() and tracker.state.goal_in_logic == 1
+  assert python_results_with_goal(tracker, tables)[1]
+  # Without the bow (Light Arrows are Progressive Bow x3), Ganondorf is out of logic.
+  tracker.write_u8(get_item_read("Progressive Bow").address, 0)
+  lib.tracker_logic_evaluate()
+  assert not lib.tracker_go_mode() and not python_results_with_goal(tracker, tables)[1]
+
+  # Logic without a goal slot (num_goals 0) is valid and never shows GO MODE.
+  no_goal = dataclasses.replace(tables, logic=_emit(tables.logic.location_exprs))
+  assert no_goal.logic.serialize()[8] == 0
+  load(tracker, no_goal)
+  enter_game(tracker)
+  for address in item_addresses(tables):
+    tracker.write_u8(address, 0xFF)
+  tracker.write_u8(CURRENT_STAGE_ID_ADDR, 0)
+  tracker.write_bytes(SAVE_VISITED_ADDR, b"\xFF" * 8)
+  lib.tracker_logic_evaluate()
+  assert tracker.state.logic_status == LOGIC_OK and not lib.tracker_go_mode()

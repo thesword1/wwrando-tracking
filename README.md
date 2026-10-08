@@ -176,6 +176,13 @@ visited and locations checked, like the [WWRando-APTracker](https://thesword1.gi
 - Required bosses count as defeated once their heart container is checked or in logic.
 - Items count when you get them, including items sent by the Archipelago server.
 
+### GO MODE
+
+Once you can reach and defeat Ganondorf in logic with what you have (including the required bosses in Required Bosses
+Mode, which count once their heart container is checked or in logic), a blue **`GO MODE`** label appears under the
+checked total on the sea chart, and under the `Z: tracker` label on the dungeon map and the Quest Status screen. It
+uses the same logic as the colours, so it's not shown while Ganon's Tower or a required boss is still out of logic.
+
 ### Views and controls
 
 - **World view**: the counters described above.
