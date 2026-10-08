@@ -15,23 +15,28 @@ from pathlib import Path
 
 import pytest
 
-from test_aptww_fixtures import FIXTURES_DIR
+from test_aptww_fixtures import FIXTURES_DIR, load_plando
 from test_tracker_dolphin import (
   CUSTOM_SYMBOLS, TRK_STATE_MAGIC, build_tracker_iso, make_cache_dir, pytestmark, read_state,  # noqa: F401
 )
+from test_tracker_serialize import tables_from_plando
 
 FIXTURE = FIXTURES_DIR / "progression_all.aptww"
 TEST_SPAWN = "sea,44,0"
 
-UI_STATE_FORMAT = ">IIB"
-VIEW_NONE, VIEW_WORLD = 0, 1
+UI_STATE_FORMAT = ">IIBBBBbBBB"
+VIEW_NONE, VIEW_WORLD, VIEW_SQUARE = 0, 1, 2
+TOGGLE_MARKED, TOGGLE_UNMARKED, TOGGLE_REFUSED = 1, 2, 3
 
-SAVE_MANUAL_ADDR = 0x803C532C + 0x10
+SAVE_ADDR = 0x803C532C
+SAVE_SIZE = 0x50
+SAVE_MANUAL_ADDR = SAVE_ADDR + 0x10
 
 
 def read_ui_state(memory) -> dict:
   data = memory.read_bytes(CUSTOM_SYMBOLS["tracker_ui_state"], struct.calcsize(UI_STATE_FORMAT))
-  return dict(zip(["proc_frame", "draw_frame", "view"], struct.unpack(UI_STATE_FORMAT, data)))
+  names = ["proc_frame", "draw_frame", "view", "list_group", "sel", "scroll", "stick_dir", "stick_timer", "flash_timer", "last_toggle"]
+  return dict(zip(names, struct.unpack(UI_STATE_FORMAT, data)))
 
 def is_drawing(memory) -> bool:
   frame = read_state(memory)["frame_count"]
@@ -86,15 +91,59 @@ def test_chart_overview(dolphin):
   dolphin.wait_for(lambda memory: read_state(memory)["num_checked"] == num_checked + 8, timeout=5, message="Marks not counted")
   keep_screenshot(dolphin.screenshot(), "chart-overview-marked")
 
-  # The square view isn't drawn on (yet), and the chart's own controls still work.
+  # The chart's own controls still work.
   dolphin.pad.press("A")
-  dolphin.wait_for(lambda memory: read_ui_state(memory)["view"] == VIEW_NONE, timeout=5, message="A didn't zoom in")
-  time.sleep(1)
-  assert not is_drawing(memory)
+  dolphin.wait_for(lambda memory: read_ui_state(memory)["view"] == VIEW_SQUARE, timeout=5, message="A didn't zoom in")
   dolphin.pad.press("B")
-  dolphin.wait_for(is_drawing, timeout=5, message="B didn't zoom back out")
+  dolphin.wait_for(lambda memory: read_ui_state(memory)["view"] == VIEW_WORLD, timeout=5, message="B didn't zoom back out")
 
   # Closing the chart stops the drawing.
   dolphin.pad.press("D_DOWN")
   time.sleep(1.5)
   assert not is_drawing(memory)
+
+
+def test_square_view(dolphin):
+  memory = dolphin.memory
+  tables = tables_from_plando(load_plando(FIXTURE))
+  groups = tables.groups()
+  outset = next(i for i, g in enumerate(groups) if g.name == "Outset Island")
+  locations = tables.location_set.locations_in_group(groups[outset])
+
+  # The cursor starts on Outset, where the player is. A zooms into its square view.
+  dolphin.pad.press("D_UP")
+  dolphin.wait_for(is_drawing, timeout=10, message="The tracker doesn't draw on the sea chart")
+  dolphin.pad.press("A")
+  dolphin.wait_for(
+    lambda memory: read_ui_state(memory)["view"] == VIEW_SQUARE and is_drawing(memory), timeout=5,
+    message="The tracker doesn't draw on the square view",
+  )
+  ui = read_ui_state(memory)
+  assert (ui["list_group"], ui["sel"]) == (outset, 0)
+  keep_screenshot(dolphin.screenshot(), "square-view")
+
+  # The main stick selects, X marks the selected location. The mark is in the save data.
+  dolphin.pad.tilt(0, -1, duration=0.1)
+  dolphin.wait_for(lambda memory: read_ui_state(memory)["sel"] == 1, timeout=5, message="Stick down didn't select")
+  loc = locations[1]
+  bit_addr, mask = SAVE_MANUAL_ADDR + loc.index // 8, 1 << (loc.index % 8)
+  assert SAVE_ADDR <= bit_addr < SAVE_ADDR + SAVE_SIZE
+  dolphin.pad.press("X")
+  dolphin.wait_for(lambda memory: memory.read_u8(bit_addr) & mask, timeout=5, message="X didn't mark the location")
+  assert read_ui_state(memory)["last_toggle"] == TOGGLE_MARKED
+  keep_screenshot(dolphin.screenshot(), "square-view-marked")
+  dolphin.pad.press("X")
+  dolphin.wait_for(lambda memory: not memory.read_u8(bit_addr) & mask, timeout=5, message="X didn't unmark the location")
+
+  # Auto-detected locations can't be unmarked.
+  first = locations[0]
+  memory.write_u8(first.check.address, memory.read_u8(first.check.address) | first.check.mask)
+  dolphin.pad.tilt(0, 1, duration=0.1)
+  dolphin.wait_for(lambda memory: read_ui_state(memory)["sel"] == 0, timeout=5, message="Stick up didn't select")
+  dolphin.pad.press("X")
+  dolphin.wait_for(lambda memory: read_ui_state(memory)["last_toggle"] == TOGGLE_REFUSED, timeout=5, message="Toggle wasn't refused")
+  assert not memory.read_u8(SAVE_MANUAL_ADDR + first.index // 8) & (1 << (first.index % 8))
+
+  # B still zooms back out.
+  dolphin.pad.press("B")
+  dolphin.wait_for(lambda memory: read_ui_state(memory)["view"] == VIEW_WORLD, timeout=5, message="B didn't zoom back out")
