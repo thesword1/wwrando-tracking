@@ -1,6 +1,7 @@
 // Game hooks (asm/patches/tracker.asm, tweaks.add_in_game_tracker) and the per-frame update.
 
 #include "tracker_detect.h"
+#include "tracker_logic.h"
 #include "tracker_mem.h"
 #include "tracker_save.h"
 #include "tracker_state.h"
@@ -78,10 +79,12 @@ TRK_EXPORT void tracker_update_counts(void) {
   u16 num_groups = trk_count(TRK_SEC_GROUPS);
   u16 num_checked = 0;
   u16 num_auto_checked = 0;
+  u16 num_in_logic = 0;
   for (u16 group_index = 0; group_index < num_groups && group_index < TRK_MAX_GROUPS; group_index++) {
     TrkGroup group;
     trk_get_group(group_index, &group);
     u8 group_checked = 0;
+    u8 group_available = 0;
     for (u16 i = 0; i < group.num_locations; i++) {
       u16 location_index = group.first_location + i;
       if (tracker_is_auto_checked(location_index)) {
@@ -89,15 +92,20 @@ TRK_EXPORT void tracker_update_counts(void) {
         group_checked++;
       } else if (tracker_is_manual(location_index)) {
         group_checked++;
+      } else if (tracker_is_in_logic(location_index)) {
+        group_available++;
       }
     }
     state->group_checked[group_index] = group_checked;
+    state->group_available[group_index] = group_available;
     num_checked += group_checked;
+    num_in_logic += group_available;
   }
   state->num_locations = trk_count(TRK_SEC_LOCATIONS);
   state->num_groups = (u8)num_groups;
   state->num_checked = num_checked;
   state->num_auto_checked = num_auto_checked;
+  state->num_in_logic = num_in_logic;
 }
 
 TRK_EXPORT void tracker_frame(void) {
@@ -117,6 +125,7 @@ TRK_EXPORT void tracker_frame(void) {
   trk_save_validate();
   tracker_check_stage();
   tracker_update_counts();
+  tracker_logic_frame();
 }
 
 #ifndef TRACKER_HOST

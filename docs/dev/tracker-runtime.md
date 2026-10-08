@@ -34,7 +34,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 
 | File | Contents |
 |---|---|
-| `asm/patches/tracker.asm` | The `tracker_data` (0x6000 bytes) and `tracker_state` (0x100 bytes) reserves, `.include "tracker/tracker.c"`, and the hooks |
+| `asm/patches/tracker.asm` | The `tracker_data` (0x6000 bytes), `tracker_state` (0x200 bytes) and `tracker_ui_state` reserves, `.include "tracker/tracker.c"`, and the hooks |
 | `asm/tracker/tracker.c` | Single translation unit that `#include`s every module, so the whole runtime is one assembled chunk |
 | `asm/tracker/tracker_types.h` | `u8`/`u16`/`u32`, `bool`, `TRK_INLINE` (always_inline, since the game build uses `-fno-inline`) |
 | `asm/tracker/tracker_mem.h` | All reads/writes of game memory and the tables go through these helpers |
@@ -44,6 +44,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `asm/tracker/tracker_items.[ch]` | Item counts for the logic from the ITEMS read descriptors (`tracker/items.py`) |
 | `asm/tracker/tracker_runtime.c` | Game hooks, entrance triggers, per-frame update |
 | `asm/tracker/tracker_state.h` | Runtime state / debug struct in the `tracker_state` reserve |
+| `asm/tracker/tracker_logic.[ch]` | Logic bytecode interpreter, evaluation triggers, in-logic results |
 | `asm/tracker/tracker_ui.[ch]` | Sea chart UI: hooks into the chart menu, counters and drawing; its state is in the `tracker_ui_state` reserve |
 | `asm/tracker/tracker_host.c` | Host build only: mock RAM and the table pointer |
 | `asm/tracker/Makefile` | Host build (`make -C asm/tracker host`) |
@@ -84,6 +85,7 @@ the C code, linked afterwards, can reference it.
 | Where | What |
 |---|---|
 | 0x8005D618 in `dSv_info_c::init` (new game) | `misc_rando_features.asm` makes this call `init_save_with_tweaks`. `tracker.asm` redirects it to `tracker_init_save`, which resets the tracker save data and then calls `init_save_with_tweaks`. The reset comes first so small keys from the starting items are counted. |
+| 0x800C2E1C in `execItemGet` (every item get: pickups, chests, shops, NPCs, Archipelago deliveries) | Replaces the `bctrl` to the item's function with `bl tracker_exec_item_func` (`tracker.asm`), which calls it and then `tracker_on_item_get()` to request a logic evaluation |
 | 0x8023502C in `dScnPly_Execute` (every gameplay frame, also with a menu open) | Replaces the call to `dKy_itudemo_se` with `tracker_on_frame`, which calls it and then `tracker_frame()` |
 | 0x803923EC: the `FmapProc` pointer-to-member that `__sinit_d_menu_fmap_cpp` copies into `mainProc[0]` | `tracker_fmap_proc` (sea chart UI input), which calls `FmapProc` |
 | 0x803925A0: `draw` in the vtable of `dDlst_FMAP_c` | `tracker_fmap_draw`, which calls `dDlst_FMAP_c::draw` and then draws the tracker over the chart |
@@ -242,13 +244,33 @@ into result slots, then one slot per tracked location, so an evaluation is one p
 recursion. `evaluate_bytecode` is the Python reference. Sizes: 1.5-4.1 KB for the fixtures and all-options offline
 seeds (budget 8 KB, tested), maximum stack depth 33 (limit 64).
 
+### Evaluation at runtime
+
+`asm/tracker/tracker_logic.c` runs the bytecode in one pass (item counts are read once per evaluation through the
+ITEMS descriptors) and stores each location's result as a bit in `TrkState.in_logic`. Malformed bytecode is
+detected (bounds, stack, slot order) and makes the results unknown (`logic_status` = error) instead of crashing.
+Following D7 it runs on events, not every frame:
+
+- when the sea chart opens (`tracker_fmap_proc` sees the chart's first frame),
+- 30 frames after an item get (the `execItemGet` hook), so that the magic meter, which the HUD fills gradually, is
+  counted,
+- on the next frame when the checked count, the visited entrances or the save data (reset) change, and on the first
+  gameplay frame.
+
+`tracker_is_in_logic(i)` and `tracker_logic_available()` are the API for the UI. The per-frame update also keeps
+the number of unchecked in-logic locations per group (`group_available`) and in total (`num_in_logic`).
+
+Measured in Dolphin (`test_tracker_logic_dolphin.py`, progression_all fixture: 313 locations, 3.8 KB of bytecode):
+one evaluation takes about 11,600 time base ticks, **0.29 ms** (1.7% of a frame).
+
 ## Runtime state
 
 `TrkState` (`tracker_state.h`) at the `tracker_state` symbol isn't saved. It holds a magic
 (`TRKS`), the frame counter, total/checked/auto-checked counts, the number of save resets, the
 in-game flag, the current stage/room/spawn, the last entrance marked visited, and the checked count
-of each group (by group index, up to 128 groups). The UI branches will read the counts from here,
-and the Dolphin test reads it from RAM.
+of each group (by group index, up to 128 groups), then the logic's results: evaluation count and duration,
+status, the in-logic bit of each location and the in-logic count of each group. The UI reads the counts from here,
+and the Dolphin tests read it from RAM.
 
 ## Table format
 
@@ -277,9 +299,9 @@ bytecode.
 
 ## Size in main.dol
 
-The tracker adds 0x35B8 bytes of code and read-only data (0x2348 of it for the sea chart UI), plus the
-0x6000-byte table reserve, the 0x100-byte state reserve and the 0x40-byte UI state reserve. In total
-the custom code section grows by about 0x9710 bytes (38,672), and the game heap shrinks by the same
+The tracker adds 0x42BC bytes of code and read-only data (about 0x2348 of it for the sea chart UI and 0xD00 for the
+logic interpreter), plus the 0x6000-byte table reserve, the 0x200-byte state reserve and the 0x40-byte UI state
+reserve. In total the custom code section grows by about 0xA4FC bytes (42,236), and the game heap shrinks by the same
 amount.
 
 ## Tests
@@ -295,6 +317,11 @@ amount.
   `TWWClient.py` reads them, including the live-stage fallback, the chart mapping and all six
   special cases. It also covers manual marks, save reset on new game or another seed, small-key
   counters, entrance triggers (including the Cliff Plateau Isles inner cave) and per-group counts.
+- `test/test_tracker_logic_c.py`: the C interpreter gives the same results as the Python reference for 1000
+  random states (items, stage, manual marks, visited entrances) per `.aptww` fixture and for an all-options offline
+  seed; evaluation triggers; in-logic counts; no logic and corrupted bytecode.
+  `test/test_tracker_logic_dolphin.py` (marker `dolphin`) checks evaluations after loading, after item gets and on
+  opening the chart against the reference for the state in RAM, and prints the evaluation time.
 - `test/test_tracker_items.py`: every logic item has a read descriptor, the C reader agrees with the Python
   reference on random memory, and counts for memory as the item get functions leave it.
   `test/test_tracker_items_dolphin.py` (marker `dolphin`) gives items through the Archipelago give-item array in

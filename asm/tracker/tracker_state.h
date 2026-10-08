@@ -10,6 +10,7 @@
 
 #define TRK_STATE_MAGIC 0x54524B53 // "TRKS"
 #define TRK_MAX_GROUPS 128
+#define TRK_STATE_MAX_LOCATIONS 384
 
 typedef struct {
   u32 magic; // 0x00: TRK_STATE_MAGIC once the per-frame update has run
@@ -26,7 +27,19 @@ typedef struct {
   u8 num_groups; // 0x1D
   u8 pad[2]; // 0x1E
   u8 group_checked[TRK_MAX_GROUPS]; // 0x20: checked locations per group (by group index)
-} TrkState;
+  // Logic (asm/tracker/tracker_logic.c).
+  u32 logic_evals; // 0xA0: number of logic evaluations
+  u32 logic_ticks; // 0xA4: time base ticks the last evaluation took (40.5 MHz)
+  u32 logic_max_ticks; // 0xA8: longest evaluation
+  u16 num_in_logic; // 0xAC: unchecked locations in logic
+  u8 logic_status; // 0xAE: enum TrkLogicStatus
+  u8 logic_delay; // 0xAF: frames until a requested evaluation runs, 0 = none requested
+  u16 logic_seen_checked; // 0xB0: num_checked at the last evaluation
+  u16 logic_seen_resets; // 0xB2: save_resets at the last evaluation
+  u8 logic_seen_visited[8]; // 0xB4: visited-entrance bits at the last evaluation
+  u8 in_logic[TRK_STATE_MAX_LOCATIONS/8]; // 0xBC: bit i = location i is in logic
+  u8 group_available[TRK_MAX_GROUPS]; // 0xEC: unchecked locations in logic per group
+} TrkState; // 0x16C
 
 #ifdef TRACKER_HOST
 extern TrkState trk_host_state;

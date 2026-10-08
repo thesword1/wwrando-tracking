@@ -56,6 +56,11 @@ class TrkState(ctypes.Structure):
     ("in_game", ctypes.c_uint8), ("room", ctypes.c_int8), ("spawn", ctypes.c_int16), ("stage_name", ctypes.c_char * 8),
     ("last_visited_entrance", ctypes.c_uint8), ("num_groups", ctypes.c_uint8), ("pad", ctypes.c_uint8 * 2),
     ("group_checked", ctypes.c_uint8 * TRK_MAX_GROUPS),
+    ("logic_evals", ctypes.c_uint32), ("logic_ticks", ctypes.c_uint32), ("logic_max_ticks", ctypes.c_uint32),
+    ("num_in_logic", ctypes.c_uint16), ("logic_status", ctypes.c_uint8), ("logic_delay", ctypes.c_uint8),
+    ("logic_seen_checked", ctypes.c_uint16), ("logic_seen_resets", ctypes.c_uint16),
+    ("logic_seen_visited", ctypes.c_uint8 * 8), ("in_logic", ctypes.c_uint8 * 48),
+    ("group_available", ctypes.c_uint8 * TRK_MAX_GROUPS),
   ]
 
 
@@ -116,6 +121,11 @@ class TrackerHost:
     lib.tracker_small_keys_obtained.restype = ctypes.c_uint8
     lib.tracker_small_keys_obtained.argtypes = [ctypes.c_int]
     lib.tracker_count_small_key.argtypes = [ctypes.c_int]
+    for name in ["tracker_is_in_logic"]:
+      getattr(lib, name).restype = ctypes.c_bool
+      getattr(lib, name).argtypes = [ctypes.c_uint16]
+    lib.tracker_logic_available.restype = ctypes.c_bool
+    lib.tracker_logic_request.argtypes = [ctypes.c_uint8]
     lib.tracker_item_count.restype = ctypes.c_uint8
     lib.tracker_item_count.argtypes = [ctypes.c_uint16]
     lib.tracker_group_counts.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
