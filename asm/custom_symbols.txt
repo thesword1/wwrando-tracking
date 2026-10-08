@@ -140,22 +140,23 @@ sys/main.dol:
   tracker_is_checked: 0x8040630C
   tracker_toggle_manual: 0x80406364
   tracker_group_counts: 0x804063DC
-  tracker_is_in_game: 0x80406474
-  tracker_check_stage: 0x80406508
-  tracker_update_counts: 0x80406624
-  tracker_frame: 0x8040675C
-  tracker_on_frame: 0x804067F8
-  tracker_init_save: 0x8040681C
-  tracker_drc_small_key_item_get_func: 0x80406860
-  tracker_fw_small_key_item_get_func: 0x80406888
-  tracker_totg_small_key_item_get_func: 0x804068B0
-  tracker_et_small_key_item_get_func: 0x804068D8
-  tracker_wt_small_key_item_get_func: 0x80406900
-  tracker_ui_group_counter: 0x80406928
-  tracker_ui_location_status: 0x80406BFC
-  tracker_ui_list_input: 0x804070BC
-  tracker_fmap_proc: 0x804072A8
-  tracker_fmap_draw: 0x80407390
+  tracker_item_count: 0x80406474
+  tracker_is_in_game: 0x80406608
+  tracker_check_stage: 0x8040669C
+  tracker_update_counts: 0x804067B8
+  tracker_frame: 0x804068F0
+  tracker_on_frame: 0x8040698C
+  tracker_init_save: 0x804069B0
+  tracker_drc_small_key_item_get_func: 0x804069F4
+  tracker_fw_small_key_item_get_func: 0x80406A1C
+  tracker_totg_small_key_item_get_func: 0x80406A44
+  tracker_et_small_key_item_get_func: 0x80406A6C
+  tracker_wt_small_key_item_get_func: 0x80406A94
+  tracker_ui_group_counter: 0x80406ABC
+  tracker_ui_location_status: 0x80406D90
+  tracker_ui_list_input: 0x80407250
+  tracker_fmap_proc: 0x8040743C
+  tracker_fmap_draw: 0x80407524
 files/rels/d_a_demo_item.rel:
   check_give_item: 0x1344
 files/rels/d_a_npc_bs1.rel:

@@ -41,6 +41,7 @@ in Archipelago mode it's a local setting too (default off, like the APWorld) tha
 | `asm/tracker/tracker_tables.[ch]` | Reader for the table format |
 | `asm/tracker/tracker_save.[ch]` | Tracker save data (reset, seed tag, small-key counters, manual and visited bits) |
 | `asm/tracker/tracker_detect.[ch]` | Check detection, manual marks, per-group counts |
+| `asm/tracker/tracker_items.[ch]` | Item counts for the logic from the ITEMS read descriptors (`tracker/items.py`) |
 | `asm/tracker/tracker_runtime.c` | Game hooks, entrance triggers, per-frame update |
 | `asm/tracker/tracker_state.h` | Runtime state / debug struct in the `tracker_state` reserve |
 | `asm/tracker/tracker_ui.[ch]` | Sea chart UI: hooks into the chart menu, counters and drawing; its state is in the `tracker_ui_state` reserve |
@@ -229,7 +230,7 @@ and the Dolphin test reads it from RAM.
 | CHARTS | 12 B | destination square, chart number, item ID, owned and salvaged byte offset + mask, name |
 | STRINGS | bytes | NUL-terminated ASCII, referenced by offset |
 | LOGIC | bytes | Compiled logic bytecode (`tracker/logic_compiler.py` documents the opcodes) |
-| ITEMS | 8 B | Item-read descriptors for logic (Phase 3, empty for now) |
+| ITEMS | 8 B | How to read each logic item's count from game memory (`tracker/items.py`) |
 
 Locations are ordered by group, so each group's locations are contiguous. The C reader checks the
 magic and format version (`trk_tables_valid`); bump `FORMAT_VERSION` and `TRK_FORMAT_VERSION`
@@ -259,6 +260,10 @@ amount.
   `TWWClient.py` reads them, including the live-stage fallback, the chart mapping and all six
   special cases. It also covers manual marks, save reset on new game or another seed, small-key
   counters, entrance triggers (including the Cliff Plateau Isles inner cave) and per-group counts.
+- `test/test_tracker_items.py`: every logic item has a read descriptor, the C reader agrees with the Python
+  reference on random memory, and counts for memory as the item get functions leave it.
+  `test/test_tracker_items_dolphin.py` (marker `dolphin`) gives items through the Archipelago give-item array in
+  Dolphin and checks each descriptor's count.
 - `test/test_tracker_dolphin.py` (marker `dolphin`, needs flatpak Dolphin and `WW_ISO_PATH`):
   builds an AP ISO (`entrance_rando` fixture) with `--tracker --test sea,44,0`, which boots straight
   into gameplay with a new save. It then checks in RAM that the tables are loaded, the save data

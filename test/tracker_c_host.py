@@ -109,6 +109,8 @@ class TrackerHost:
     lib.tracker_small_keys_obtained.restype = ctypes.c_uint8
     lib.tracker_small_keys_obtained.argtypes = [ctypes.c_int]
     lib.tracker_count_small_key.argtypes = [ctypes.c_int]
+    lib.tracker_item_count.restype = ctypes.c_uint8
+    lib.tracker_item_count.argtypes = [ctypes.c_uint16]
     lib.tracker_group_counts.argtypes = [ctypes.c_uint16, ctypes.POINTER(ctypes.c_uint16), ctypes.POINTER(ctypes.c_uint16)]
     lib.tracker_ui_group_counter.argtypes = [ctypes.c_uint16, ctypes.POINTER(TrkUiCounter)]
     lib.tracker_ui_location_status.restype = ctypes.c_uint8
