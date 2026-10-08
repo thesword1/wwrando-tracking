@@ -8,6 +8,7 @@
 //   the views the tracker doesn't handle.
 
 #include "tracker_detect.h"
+#include "tracker_logic.h"
 #include "tracker_mem.h"
 #include "tracker_save.h"
 #include "tracker_state.h"
@@ -16,10 +17,12 @@
 
 #define TRK_SQUARES 49
 
-// Whether a location is in logic. The logic runtime isn't there yet, so this is always unknown.
+// Whether a location is in logic (unknown if the logic isn't available).
 TRK_INLINE u8 trk_ui_location_logic(u16 location_index) {
-  (void)location_index;
-  return TRK_UI_UNKNOWN;
+  if (!tracker_logic_available()) {
+    return TRK_UI_UNKNOWN;
+  }
+  return tracker_is_in_logic(location_index) ? TRK_UI_IN_LOGIC : TRK_UI_OUT_OF_LOGIC;
 }
 
 TRK_EXPORT void tracker_ui_group_counter(u16 group_index, TrkUiCounter* out) {
@@ -675,9 +678,12 @@ static int trk_fmap_square_group(u8* fmap) {
 
 void tracker_fmap_proc(u8* fmap) {
   TrkUiState* ui = TRK_UI_STATE;
-  // The chart was closed since the last frame: start without a page.
+  // The chart was closed since the last frame: start without a page, and re-evaluate the logic now.
   if (TRK_STATE->frame_count - ui->proc_frame > 2) {
     ui->page = TRK_PAGE_NONE;
+    if (trk_tables_valid()) {
+      tracker_logic_evaluate();
+    }
   }
   ui->proc_frame = TRK_STATE->frame_count;
   ui->view = TRK_VIEW_NONE;
