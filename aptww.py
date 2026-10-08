@@ -13,6 +13,13 @@ yaml = YAML(typ="safe")
 from options.wwrando_options import EntranceMixMode, KeyLunacyMode, Options, SwordMode, TrickDifficulty
 from randomizer import Plando
 
+# Options that are still chosen locally when randomizing for Archipelago: everything that doesn't affect gameplay logic
+# (cosmetics, controls, dry run), plus enemy palettes.
+AP_MODE_LOCAL_OPTIONS = [
+  option.name for option in Options.all()
+  if not option.permalink
+] + ["randomize_enemy_palettes"]
+
 class APTWWFileError(Exception):
   # The message is rich text (for display in the GUI). Use plain_text() when printing to a console.
   def plain_text(self) -> str:
@@ -122,6 +129,10 @@ def read_ap_plando_file(plando_file: str, options: Options) -> Plando:
     else:
       if field.name in ["randomized_gear", "starting_gear"]:
         setattr(options, field.name, field.default_factory())
+      elif field.name not in AP_MODE_LOCAL_OPTIONS:
+        # Gameplay options the .aptww doesn't specify keep their defaults, even if offline mode settings were saved.
+        default_options = Options()
+        setattr(options, field.name, default_options[field.name])
       if getattr(options, field.name) is None:
         setattr(options, field.name, field.default)
 

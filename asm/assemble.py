@@ -232,6 +232,10 @@ try:
   all_asm_files.remove("custom_data.asm")
   all_asm_files.remove("custom_funcs.asm")
   all_asm_files = ["custom_data.asm", "custom_funcs.asm"] + all_asm_files
+  # The offline-only patch goes last, so all other custom code (including the Archipelago patch, whose addresses the AP
+  # client reads) is at the same address whether or not it is applied.
+  all_asm_files.remove("offline_mode.asm")
+  all_asm_files.append("offline_mode.asm")
   
   # First parse all the asm files into code chunks.
   code_chunks = {}

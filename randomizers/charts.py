@@ -67,12 +67,13 @@ class ChartRandomizer(BaseRandomizer):
     return self.options.randomize_charts
   
   def _randomize(self):
-    # Chart randomization is done by the AP generator.
-    default_chart_mapping = copy.deepcopy(self.island_number_to_chart_name)
-    for i in range(1, 49+1):
-      shuffled_island_number = self.rando.plando.charts[i - 1]
-      self.island_number_to_chart_name[shuffled_island_number] = default_chart_mapping[i]
-    return
+    if self.rando.archipelago_mode:
+      # Chart randomization is done by the AP generator.
+      default_chart_mapping = copy.deepcopy(self.island_number_to_chart_name)
+      for i in range(1, 49+1):
+        shuffled_island_number = self.rando.plando.charts[i - 1]
+        self.island_number_to_chart_name[shuffled_island_number] = default_chart_mapping[i]
+      return
     
     original_item_names = list(self.island_number_to_chart_name.values())
     
