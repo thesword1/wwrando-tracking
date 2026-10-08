@@ -59,6 +59,9 @@ def test_regression_entrance_inner_rando():
   options.progression_dungeon_secrets = True
   options.progression_free_gifts = True
   options.progression_misc = True
+  # Inner entrances are only randomized when both kinds of secret caves are progress locations (as in the APWorld).
+  options.progression_puzzle_secret_caves = True
+  options.progression_combat_secret_caves = True
   
   options.randomize_secret_cave_inner_entrances = True
   
