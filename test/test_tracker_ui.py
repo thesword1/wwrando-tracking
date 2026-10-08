@@ -12,6 +12,9 @@ import ctypes
 
 from test_tracker_c_runtime import enter_game, entrance_rando, full, index_of, set_location_flag  # noqa: F401 (fixtures)
 from tracker_c_host import TrackerHost
+from tracker.entrances import EXITS
+
+EXIT_GROUPS = {name: exit.group.name for name, exit in EXITS.items()}
 
 # enum TrkUiStatus
 UI_NONE, UI_DONE, UI_IN_LOGIC, UI_OUT_OF_LOGIC, UI_UNKNOWN = range(5)
@@ -78,7 +81,8 @@ def test_list_selection(full: TrackerHost):
   full.ui_state.list_group = NO_GROUP
   windfall = group_index(full, "Windfall Island")
   count = len(full.tables.location_set.locations_in_group(full.tables.groups()[windfall]))
-  assert count > LIST_ROWS
+  rows = LIST_ROWS - len(full.ui_info_lines(windfall))
+  assert count > rows
 
   list_input(full, windfall)
   assert (full.ui_state.list_group, full.ui_state.sel, full.ui_state.scroll) == (windfall, 0, 0)
@@ -95,7 +99,7 @@ def test_list_selection(full: TrackerHost):
   push(full, windfall, STICK_UP)
   push(full, windfall, STICK_UP)
   assert full.ui_state.sel == count - 1
-  assert full.ui_state.scroll == count - LIST_ROWS
+  assert full.ui_state.scroll == count - rows
   list_input(full, windfall, stick=STICK_DOWN)
   assert full.ui_state.sel == 0 and full.ui_state.scroll == 0
   list_input(full, windfall, stick=STICK_DOWN, frames=REPEAT_DELAY - 1)
@@ -106,7 +110,7 @@ def test_list_selection(full: TrackerHost):
   assert full.ui_state.sel == 2
   list_input(full, windfall, stick=STICK_DOWN, frames=REPEAT_RATE*count)
   assert full.ui_state.sel == count - 1
-  assert full.ui_state.scroll == count - LIST_ROWS
+  assert full.ui_state.scroll == count - rows
   list_input(full, windfall)
 
   # Another group starts at the top.
@@ -232,3 +236,65 @@ def test_group_entrance(entrance_rando: TrackerHost):
   drc_entrance = entrances[tracker.lib.tracker_ui_group_entrance(group_index(tracker, "Dragon Roost Cavern"))]
   assert drc_entrance.exit.display_name == "Dragon Roost Cavern"
   assert tracker.lib.tracker_ui_group_entrance(group_index(tracker, "Ganon's Tower")) == -1
+
+
+INFO_ENTRANCE, INFO_CHART = 0, 1
+SAVE_VISITED_ADDR = 0x803C532C + 0x40
+GET_MAP_ADDR = 0x803C4CDC
+
+def load_fixture(tracker: TrackerHost, fixture: str):
+  from test_aptww_fixtures import FIXTURES_DIR, load_plando
+  from test_tracker_serialize import tables_from_plando
+  from tracker.serialize import serialize_tracker_tables
+  tables = tables_from_plando(load_plando(FIXTURES_DIR / f"{fixture}.aptww"))
+  tracker.set_tables(serialize_tracker_tables(tables, 0x1234))
+  tracker.tables = tables
+  enter_game(tracker)
+  tracker.lib.tracker_frame()
+
+
+def test_entrance_info_lines(entrance_rando: TrackerHost):
+  tracker = entrance_rando
+  enter_game(tracker)
+  tracker.lib.tracker_frame()
+  entrances = tracker.tables.entrance_set.entrances
+
+  # The tracked entrances on a square's island, hidden until visited.
+  outset = group_index(tracker, "Outset Island")
+  expected = [e.index for e in entrances if e.entrance.island_number == 44 and not e.entrance.nested_in]
+  assert len(expected) == 2
+  assert tracker.ui_info_lines(outset) == [(INFO_ENTRANCE, 0, i) for i in expected]
+  tracker.write_u8(SAVE_VISITED_ADDR + expected[0] // 8, 1 << (expected[0] % 8))
+  assert tracker.ui_info_lines(outset) == [(INFO_ENTRANCE, 1, expected[0]), (INFO_ENTRANCE, 0, expected[1])]
+
+  # Entrances nested in a group (a dungeon's miniboss and boss doors) are on that group's list.
+  fw = group_index(tracker, "Forbidden Woods")
+  nested = [e.index for e in entrances if e.entrance.nested_in and EXIT_GROUPS[e.entrance.nested_in] == "Forbidden Woods"]
+  assert nested
+  assert [index for _, _, index in tracker.ui_info_lines(fw)] == nested
+
+  # No charts in this seed's locations, and nothing on a square without tracked entrances.
+  assert tracker.ui_info_lines(group_index(tracker, "Windfall Island")) == []
+
+
+def test_chart_info_line(tracker: TrackerHost):
+  load_fixture(tracker, "charts_required_bosses")
+  charts = tracker.tables.charts
+  assert any(c.vanilla_island_number != c.destination_island_number for c in charts)
+  outset = group_index(tracker, "Outset Island")
+  chart = next(c for c in charts if c.destination_island_number == 44)
+  assert tracker.ui_info_lines(outset) == [(INFO_CHART, 0, 43)]
+  # Revealed once the chart that leads here is owned (not the island's vanilla chart).
+  tracker.write_u8(chart.owned_address, tracker.read_u8(chart.owned_address) | chart.owned_mask)
+  assert tracker.ui_info_lines(outset) == [(INFO_CHART, 1, 43)]
+
+
+def test_info_lines_take_list_rows(tracker: TrackerHost):
+  load_fixture(tracker, "progression_all")
+  windfall = group_index(tracker, "Windfall Island")
+  assert tracker.ui_info_lines(windfall) == [(INFO_CHART, 0, 10)]
+  tracker.ui_state.list_group = NO_GROUP
+  rows = LIST_ROWS - 1
+  for _ in range(rows):
+    push(tracker, windfall, STICK_DOWN)
+  assert (tracker.ui_state.sel, tracker.ui_state.scroll) == (rows, 1)
