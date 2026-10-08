@@ -4,6 +4,12 @@ from randomizer import WWRandomizer
 from options.wwrando_options import Options, TrickDifficulty
 from enum import StrEnum
 from test_helpers import *
+import pytest
+
+# The Archipelago base removed standalone randomization (WWRandomizer requires a plando and the
+# permalink system doesn't support the new KeyLunacyMode options). Offline mode (Phase 2 of
+# PROJECT_PLAN.md) restores it; remove this marker then.
+pytestmark = pytest.mark.xfail(reason="Standalone randomization is disabled on the Archipelago base until offline mode lands", strict=False)
 
 def dry_rando_with_options(options) -> WWRandomizer:
   args = make_argparser().parse_args(args=["--dry"])
