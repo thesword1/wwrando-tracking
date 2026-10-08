@@ -1,0 +1,27 @@
+# Most progression location categories enabled.
+name: Player
+game: The Wind Waker
+The Wind Waker:
+  progression_dungeons: true
+  progression_tingle_chests: true
+  progression_dungeon_secrets: true
+  progression_puzzle_secret_caves: true
+  progression_combat_secret_caves: true
+  progression_savage_labyrinth: true
+  progression_great_fairies: true
+  progression_short_sidequests: true
+  progression_long_sidequests: true
+  progression_spoils_trading: true
+  progression_minigames: true
+  progression_battlesquid: true
+  progression_free_gifts: true
+  progression_mail: true
+  progression_platforms_rafts: true
+  progression_submarines: true
+  progression_eye_reef_chests: true
+  progression_big_octos_gunboats: true
+  progression_triforce_charts: true
+  progression_treasure_charts: true
+  progression_expensive_purchases: true
+  progression_island_puzzles: true
+  progression_misc: true
