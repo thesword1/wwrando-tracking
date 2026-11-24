@@ -36,12 +36,12 @@ escape_json() {
 
 fail() {
   tail_text=$(tail -n 20 "$LOG" 2>/dev/null | escape_json)
-  { printf '{"ok":false,"step":%s,"error":"%s"}' "$STEP" "$1: $tail_text" | post done; } || true
+  { printf '{"ok":false,"step":%s,"error":"%s"}' "$STEP" "$1: $tail_text" | post "done"; } || true
   exit 1
 }
 
 finish() {
-  { printf '{"ok":true,"step":%s,"hash":"%s"}' "$STEP" "$HASH" | post done; } || true
+  { printf '{"ok":true,"step":%s,"hash":"%s"}' "$STEP" "$HASH" | post "done"; } || true
   exit 0
 }
 
@@ -68,6 +68,7 @@ if command -v python >/dev/null 2>&1 && python -c 'import PIL' >>"$LOG" 2>&1; th
   PACKAGES="$PACKAGES python-pillow"
 fi
 if [ -n "$PACKAGES" ]; then
+  # shellcheck disable=SC2086 # word splitting of the package list is intended
   pkg install -y $PACKAGES >>"$LOG" 2>&1 || fail "pkg install failed"
 fi
 
