@@ -49,7 +49,7 @@ mkdir -p "$WW" "$RELEASES" "$WORK" 2>"$LOG" || fail "mkdir failed"
 
 # Idempotency: when this exact bundle is already installed and its venv imports work, skip everything.
 if [ -f "$WW/installed.sha256" ] && [ "$(cat "$WW/installed.sha256" 2>/dev/null)" = "$HASH" ] && \
-   [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c 'import ruamel.yaml, appdirs, certifi, tqdm, PIL, numpy' >>"$LOG" 2>&1; then
+   [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c 'import ruamel.yaml, appdirs, certifi, tqdm, PIL, numpy, pyfastyaz0yay0' >>"$LOG" 2>&1; then
   progress "SKIP up-to-date"
   finish
 fi
@@ -66,6 +66,9 @@ if command -v python >/dev/null 2>&1 && python -c 'import numpy' >>"$LOG" 2>&1; 
 fi
 if command -v python >/dev/null 2>&1 && python -c 'import PIL' >>"$LOG" 2>&1; then :; else
   PACKAGES="$PACKAGES python-pillow"
+fi
+if command -v cc >/dev/null 2>&1 || command -v clang >/dev/null 2>&1; then :; else
+  PACKAGES="$PACKAGES clang"
 fi
 if [ -n "$PACKAGES" ]; then
   # shellcheck disable=SC2086 # word splitting of the package list is intended
@@ -90,6 +93,24 @@ if [ ! -x "$VENV/bin/python" ]; then
   python -m venv --system-site-packages "$VENV" >>"$LOG" 2>&1 || fail "venv failed"
 fi
 "$VENV/bin/pip" install --quiet "ruamel.yaml~=0.19.1" "appdirs==1.4.4" "certifi==2026.2.25" "tqdm>=4.67.1" >>"$LOG" 2>&1 || fail "pip install failed"
+
+# PyFastYaz0Yay0 is required to save the randomized ISO (randomizer.py checks for it). Build it
+# from the GitHub archive tarball (no git needed). GCC 15+ defaults to C23, which breaks gclib's
+# C speedups, so pin gnu17. PyFastBTI/PyFastTextureUtils are optional: warn and continue.
+CFLAGS="-std=gnu17 -fgnu89-inline" "$VENV/bin/pip" install --quiet \
+  "https://github.com/LagoLunatic/PyFastYaz0Yay0/archive/2adb8a8c00d98f98f245e0304094a0610203a82e.tar.gz" \
+  >>"$LOG" 2>&1 || fail "native build failed"
+
+for NATIVE_URL in \
+  "https://github.com/LagoLunatic/PyFastBTI/archive/13b24b028b62d199740044f15085f70878ea80a4.tar.gz" \
+  "https://github.com/LagoLunatic/PyFastTextureUtils/archive/ec40de927daa6b59485e34ea01b8bab1ecd1a31a.tar.gz"
+do
+  if CFLAGS="-std=gnu17 -fgnu89-inline" "$VENV/bin/pip" install --quiet "$NATIVE_URL" >>"$LOG" 2>&1; then
+    :
+  else
+    echo "WARN: optional native speedup build failed: $NATIVE_URL" >>"$LOG"
+  fi
+done
 
 # 5. Atomically point "current" at the new release and record the installed hash.
 step "Finishing install"
