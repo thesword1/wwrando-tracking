@@ -34,7 +34,8 @@ object BridgeRoutes {
     private val OUTPUT_NAME = Regex("^[A-Za-z0-9._ -]{1,128}$")
     private const val COPY_BUFFER = 64 * 1024
 
-    fun isValidOutputName(name: String): Boolean = OUTPUT_NAME.matches(name)
+    fun isValidOutputName(name: String): Boolean =
+        OUTPUT_NAME.matches(name) && name.trim('.', ' ').isNotEmpty()
 
     /** Decodes a URL-encoded query value (run.sh encodes filenames with spaces, etc.). */
     fun urlDecode(value: String): String = URLDecoder.decode(value, Charsets.UTF_8.name())
