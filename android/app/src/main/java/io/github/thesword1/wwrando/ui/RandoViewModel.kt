@@ -137,6 +137,8 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startRealRun(seed: String, tracker: Boolean) {
+        // Clear the previous run's result/error immediately so it never lingers on screen.
+        RunState.set(RunStateValue.Running(0, 0, "Starting"))
         val intent = Intent(getApplication(), RandoRunService::class.java)
             .putExtra(RandoRunService.EXTRA_SEED, seed.ifBlank { "" })
             .putExtra(RandoRunService.EXTRA_TRACKER, tracker)

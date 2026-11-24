@@ -30,6 +30,9 @@ PERMALINK=""
 SEED_HASH=""
 SUBFOLDER=""
 
+# Each run starts with a fresh log so a failure can never report a previous run's stale tail.
+: > "$LOG"
+
 post() {
   curl -fsS --data-binary @- "$BASE/$1?t=$TOKEN" >/dev/null 2>&1 || true
 }
@@ -48,6 +51,22 @@ fail() {
   "$PY" -c 'import json,sys
 d = {"ok": False, "step": sys.argv[1], "error": sys.argv[2] + ": " + sys.argv[3]}
 print(json.dumps(d))' "$step_name" "$message" "$tail_text" | post "done" || true
+  exit 1
+}
+
+# The randomizer step posts its own error JSON to stdout under --no-done, so prefer that error
+# field over the log tail (which is now fresh anyway) and only fall back to the tail when it is absent.
+fail_run() {
+  run_error=$(json_field error)
+  if [ -n "$run_error" ]; then
+    run_message="$run_error"
+  else
+    run_tail=$(tail -n 20 "$LOG" 2>/dev/null || true)
+    run_message="randomizer failed: $run_tail"
+  fi
+  "$PY" -c 'import json,sys
+d = {"ok": False, "step": "run", "error": sys.argv[1]}
+print(json.dumps(d))' "$run_message" | post "done" || true
   exit 1
 }
 
@@ -94,9 +113,16 @@ is_cached() {
 
 json_field() {
   printf '%s' "$RESULT_JSON" | "$PY" -c 'import json,sys
-lines = sys.stdin.read().strip().splitlines()
-d = json.loads(lines[-1])
-print(d.get(sys.argv[1], "") or "")' "$1"
+raw = sys.stdin.read().strip()
+if not raw:
+    print("")
+else:
+    lines = raw.splitlines()
+    try:
+        d = json.loads(lines[-1])
+    except Exception:
+        d = {}
+    print(d.get(sys.argv[1], "") or "")' "$1" 2>/dev/null || true
 }
 
 trap 'rm -f "$ISO_PART"; rm -rf "$OUT_DIR"' EXIT TERM INT HUP
@@ -105,7 +131,7 @@ if [ ! -x "$PY" ]; then
   fail "venv" "python venv missing, run setup first"
 fi
 
-mkdir -p "$INPUT_DIR" "$OUT_BASE" 2>>"$LOG" || fail "space" "mkdir failed"
+mkdir -p "$INPUT_DIR" "$OUT_BASE" "$OUT_DIR" 2>>"$LOG" || fail "space" "mkdir failed"
 
 # 1. Free space: the ISO (when not already cached) plus 1.6 GB for the randomized output and venv.
 cached=0
@@ -147,7 +173,7 @@ fi
 if [ "$TRACKER" = "1" ]; then
   set -- "$@" --tracker
 fi
-RESULT_JSON=$("$@" 2>>"$LOG") || fail "run" "randomizer failed"
+RESULT_JSON=$("$@" 2>>"$LOG") || fail_run
 
 SEED_NAME=$(json_field seed)
 PERMALINK=$(json_field permalink)
