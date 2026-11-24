@@ -27,11 +27,14 @@ jobs:
             platform: linux-x64
             exe: wwrando-tracking
             archive_ext: tar.gz
+            # GCC 15 defaults to C23 (where bool is a keyword), which breaks gclib's C speedups.
+            cflags: -std=gnu17
           - name: Windows
             os: windows-latest
             platform: windows-x64
             exe: wwrando-tracking.exe
             archive_ext: zip
+            cflags: ""
     runs-on: ${{ matrix.os }}
 
     defaults:
@@ -54,6 +57,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxcb-cursor0 libxcb-xinerama0 libegl1 libxkbcommon0
       - name: Install dependencies
+        env:
+          CFLAGS: ${{ matrix.cflags }}
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements_full.txt

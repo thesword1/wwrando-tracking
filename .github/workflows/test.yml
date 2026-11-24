@@ -20,6 +20,8 @@ jobs:
 
     env:
       QT_QPA_PLATFORM: offscreen
+      # GCC 15 defaults to C23 (where bool is a keyword), which breaks gclib's pyfastyaz0yay0 C speedup.
+      CFLAGS: -std=gnu17
 
     defaults:
       run:
