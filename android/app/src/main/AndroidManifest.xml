@@ -5,6 +5,9 @@
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <!-- Randomization progress notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Loopback only: the app serves the bundled source tree to Termux over a token-guarded
+         127.0.0.1 socket and receives progress back. No off-device network access is made. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
         <package android:name="com.termux" />

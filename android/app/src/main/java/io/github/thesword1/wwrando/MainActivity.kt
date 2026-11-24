@@ -1,87 +1,72 @@
 package io.github.thesword1.wwrando
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import io.github.thesword1.wwrando.data.RandoBridge
-import io.github.thesword1.wwrando.data.RandoCommandRunner
-import io.github.thesword1.wwrando.data.RandoScriptInstallResult
-import io.github.thesword1.wwrando.data.RandoScriptInstaller
-import kotlinx.coroutines.launch
+import io.github.thesword1.wwrando.ui.HomeScreen
+import io.github.thesword1.wwrando.ui.RandoViewModel
 
 /**
- * Skeleton screen for the standalone WW Randomizer app: proves the Termux round-trip by installing a
- * trivial Python shim into Termux and running it back through RUN_COMMAND. The real randomize flow
- * replaces this once first-run setup and the CLI driver land.
+ * Thin host for the home screen: it only checks Termux health, drives the RUN_COMMAND permission
+ * request, and hands all setup/run state to [RandoViewModel].
  */
 class MainActivity : ComponentActivity() {
+    private val viewModel: RandoViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val prefs = getSharedPreferences("rando", MODE_PRIVATE)
+
         setContent {
             MaterialTheme {
-                var status by remember { mutableStateOf("Ready.") }
-                var running by remember { mutableStateOf(false) }
-                val scope = rememberCoroutineScope()
+                var permissionDenials by remember { mutableIntStateOf(prefs.getInt("run_command_denials", 0)) }
+                var granted by remember { mutableStateOf(RandoBridge.hasRunCommandPermission(this)) }
+                var termuxStatus by remember { mutableStateOf(RandoBridge.status(this)) }
 
-                Column(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text("WW Randomizer (skeleton)", style = MaterialTheme.typography.headlineSmall)
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        enabled = !running,
-                        onClick = {
-                            scope.launch {
-                                running = true
-                                status = runHello()
-                                running = false
-                            }
-                        },
-                    ) { Text(if (running) "Running..." else "Run hello in Termux") }
-                    Spacer(Modifier.height(16.dp))
-                    Text(status)
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission(),
+                ) { isGranted ->
+                    granted = isGranted
+                    permissionDenials = if (isGranted) 0 else permissionDenials + 1
+                    prefs.edit().putInt("run_command_denials", permissionDenials).apply()
+                    termuxStatus = RandoBridge.status(this)
                 }
+
+                LaunchedEffect(Unit) {
+                    if (termuxStatus.installed && !granted && permissionDenials < 2) {
+                        permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND)
+                    }
+                }
+
+                HomeScreen(
+                    termuxStatus = termuxStatus,
+                    permissionDenials = permissionDenials,
+                    viewModel = viewModel,
+                    onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
+                    onOpenAppSettings = {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:$packageName"),
+                            ),
+                        )
+                    },
+                )
             }
         }
-    }
-
-    private suspend fun runHello(): String {
-        if (!RandoBridge.isTermuxInstalled(this)) return "Termux is not installed."
-        if (!RandoBridge.hasRunCommandPermission(this)) {
-            return "RUN_COMMAND permission not granted to WW Randomizer."
-        }
-
-        val installer = RandoScriptInstaller(this)
-        val hello = RandoScriptInstaller.bundledHello(this)
-        val prefs = getSharedPreferences("rando", MODE_PRIVATE)
-        when (val installed = installer.ensureInstalled(hello, prefs.getString("installed_hash", null))) {
-            is RandoScriptInstallResult.Failed -> return installed.message
-            is RandoScriptInstallResult.Installed ->
-                prefs.edit().putString("installed_hash", installed.hash).apply()
-            RandoScriptInstallResult.AlreadyCurrent -> Unit
-        }
-
-        val result = RandoCommandRunner.run(this, RandoBridge.PYTHON, arrayOf(RandoBridge.HELLO))
-            ?: return "Command timed out."
-        return if (result.ok) result.stdout.trim() else "Failed (exit ${result.exitCode}): ${result.stderr.takeLast(300)}"
     }
 }

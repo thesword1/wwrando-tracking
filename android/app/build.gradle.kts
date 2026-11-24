@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -60,8 +62,8 @@ android {
 // This repo's own Python randomizer sources (plus the gclib submodule) are the single source of truth:
 // they are copied into generated APK assets at build time, at the exact commit this build is on. No
 // fetch-at-tag and no network fetch: the tree is read straight from the working directory. Qt/GUI-only
-// code is not bundled, and a committed hello shim under python/hello.py keeps assembleDebug working even
-// without the surrounding checkout.
+// code is not bundled, and assembleDebug still works without the surrounding checkout (the copy task
+// just copies whatever is present).
 val copyRandomizerPython by tasks.registering(Sync::class) {
     val repoRoot = rootProject.layout.projectDirectory.dir("..")
     into(project.layout.buildDirectory.dir("generated/assets/wwrando"))
@@ -93,8 +95,34 @@ val copyRandomizerPython by tasks.registering(Sync::class) {
     }
 }
 
-tasks.named("preBuild") {
+// First-run setup streams the tree to Termux over the app's loopback bridge, so the copied tree is
+// packed into one gzip archive plus a SHA-256 of that archive (installed-version marker).
+val bundleRandomizerTree by tasks.registering(org.gradle.api.tasks.bundling.Tar::class) {
     dependsOn(copyRandomizerPython)
+    from(project.layout.buildDirectory.dir("generated/assets/wwrando"))
+    include("**")
+    compression = org.gradle.api.tasks.bundling.Compression.GZIP
+    archiveFileName.set("wwrando.tar.gz")
+    destinationDirectory.set(project.layout.buildDirectory.dir("generated/assets"))
+}
+
+val writeTreeHash by tasks.registering {
+    dependsOn(bundleRandomizerTree)
+    val archive = bundleRandomizerTree.flatMap { it.archiveFile }
+    val shaFile = project.layout.buildDirectory.file("generated/assets/wwrando.sha256")
+    inputs.file(archive)
+    outputs.file(shaFile)
+    doLast {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(archive.get().asFile.readBytes())
+        shaFile.get().asFile.writeText(
+            digest.joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') },
+        )
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(copyRandomizerPython, writeTreeHash)
 }
 
 kotlin {
