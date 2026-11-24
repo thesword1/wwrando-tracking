@@ -76,3 +76,28 @@ app needs none beyond its SAF grants. Update §4 of the plan doc to match.
   notification, files land in subfolder), second run (`SKIP iso-cached`), cancel mid-randomize
   (no partial files either side), cancel mid-upload, app backgrounded during a run, notification
   permission denied.
+
+# PLAN — gclib: Py 3.14 issubclass on generic aliases (device bug from roadmap #3)
+
+## Problem
+Real run on Termux Py 3.14 fails while reading a BFN font:
+`gclib/bunfoe.py:429 read_value: elif issubclass(field_type, MappedBool)` ->
+`TypeError: issubclass() arg 1 must be a class` (call chain rarc.get_file -> bfn.read -> jchunk.read -> bunfoe.read -> read_field -> read_value).
+Cause: Python 3.14 makes `issubclass(list[int], X)` raise TypeError (3.12 returned False). BUNFOE fields typed as
+`list[...]`/other GenericAlias reach bare `issubclass(field_type, ...)` calls. CI 3.14 only ran tests that never parse game files.
+
+## Fix (in the gclib fork thesword1/gclib, branch py314-compat, then bump the submodule here)
+- Add one helper in gclib/bunfoe.py, e.g. `_issubclass(t, cls) = isinstance(t, type) and issubclass(t, cls)`,
+  and use it for every `issubclass(<field type>, ...)` in bunfoe.py (get_byte_size, read_value, write_value,
+  bitfield paths, etc.) and any other gclib module doing the same on annotation-derived types (grep `issubclass(`).
+- Keep 3.12 behaviour identical. No other gclib changes.
+- Regression test (gclib repo or this repo's test suite, whichever runs in CI on 3.14): a small @bunfoe class with a
+  `list[u16]`/`FixedStr`-style field plus a MappedBool/Enum field, read from bytes and written back, must pass on 3.12 and 3.14.
+- Better: also run a gclib-level parse of a real BFN/RARC from the test ISO locally on 3.14
+  (`python3.14` exists; ISO path in PROJECT_PLAN.md, never commit or copy it); report the result, don't add it to CI.
+
+## Acceptance criteria
+- gclib fork py314-compat has the fix commit pushed; submodule pointer in this repo updated to it.
+- scripts/test-quiet.sh passes; CI green on 3.12 and 3.14 including the new test.
+- A full local randomize of the test ISO under python3.14 (with imagequant stubbed as android_run.py does) completes,
+  or the next 3.14 failure is reported precisely (file:line, exception).
