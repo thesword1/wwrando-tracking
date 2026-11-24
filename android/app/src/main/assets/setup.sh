@@ -71,15 +71,17 @@ if [ -n "$PACKAGES" ]; then
   pkg install -y $PACKAGES >>"$LOG" 2>&1 || fail "pkg install failed"
 fi
 
-# 2. Fetch the same-commit source archive straight from the app's loopback bridge.
+# 2. Fetch the same-commit source archive straight from the app's loopback bridge, then verify it.
 step "Downloading randomizer"
 curl -fsS "$BASE/tree?t=$TOKEN" -o "$DEST.tar.gz" >>"$LOG" 2>&1 || fail "download failed"
+[ "$(sha256sum "$DEST.tar.gz" | awk '{print $1}')" = "$HASH" ] || fail "archive hash mismatch"
 
 # 3. Extract into a hash-named release directory so old releases stay until cleanup.
 step "Extracting randomizer"
 rm -rf "$DEST"
 mkdir -p "$DEST"
 tar -xzf "$DEST.tar.gz" -C "$DEST" >>"$LOG" 2>&1 || fail "extract failed"
+rm -f "$DEST.tar.gz"
 
 # 4. Venv with system site-packages (Termux numpy/pillow) plus the pure-Python pins.
 step "Creating Python environment"
@@ -90,8 +92,9 @@ fi
 
 # 5. Atomically point "current" at the new release and record the installed hash.
 step "Finishing install"
+rm -f "$WW/current.new"
 ln -s "$DEST" "$WW/current.new"
-mv -f "$WW/current.new" "$WW/current"
+mv -fT "$WW/current.new" "$WW/current"
 printf '%s' "$HASH" > "$WW/installed.sha256"
 
 finish

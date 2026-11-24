@@ -29,14 +29,14 @@ def make_imagequant_stub():
   from PIL import Image
 
   def quantize_pil_image(image, dithering_level=1.0, max_colors=256, min_quality=0, max_quality=100):
-    try:
-      rgb = image if image.mode == "RGB" else image.convert("RGB")
-      if max_colors >= 256:
-        return rgb
-      return rgb.quantize(colors=max_colors, method=Image.Quantize.MEDIANCUT)
-    except Exception:
-      # The real imagequant handles alpha; our fallback is best-effort, so never crash on it.
-      return image
+    # Quantize the RGBA image to <= max_colors palette entries. Pillow keeps fully transparent
+    # pixels transparent; alpha fringing is the known "worse alpha" tradeoff of this fallback.
+    dither = Image.Dither.FLOYDSTEINBERG if dithering_level > 0 else Image.Dither.NONE
+    return image.convert("RGBA").quantize(
+      colors=max_colors,
+      method=Image.Quantize.FASTOCTREE,
+      dither=dither,
+    )
 
   stub = types.ModuleType("imagequant")
   stub.quantize_pil_image = quantize_pil_image

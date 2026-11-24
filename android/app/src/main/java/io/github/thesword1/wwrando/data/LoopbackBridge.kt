@@ -9,10 +9,15 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.security.MessageDigest
 import java.security.SecureRandom
 import kotlin.concurrent.thread
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+
+/** Signals a request that exceeds the line/header limits and should be answered with 400. */
+private class BadRequestException : Exception()
 
 /**
  * Loopback HTTP server that hands Termux the bundled source archive and receives progress/status
@@ -56,28 +61,37 @@ class LoopbackBridge(private val treeBytes: ByteArray) : Closeable {
     }
 
     private fun handle(socket: Socket) {
+        socket.soTimeout = SOCKET_TIMEOUT_MS
         val input = BufferedInputStream(socket.getInputStream())
         val output = BufferedOutputStream(socket.getOutputStream())
+        try {
+            handleRequest(input, output)
+        } catch (_: BadRequestException) {
+            writeStatus(output, 400, "Bad Request")
+        } catch (_: SocketTimeoutException) {
+            // Idle or slow client: drop the connection.
+        }
+    }
 
+    private fun handleRequest(input: InputStream, output: OutputStream) {
         val requestLine = readLine(input) ?: return
         val parts = requestLine.split(" ")
-        if (parts.size < 3) {
-            writeStatus(output, 400, "Bad Request")
-            return
-        }
+        if (parts.size < 3) throw BadRequestException()
         val method = parts[0]
         val target = parts[1]
 
         val headers = HashMap<String, String>()
+        var headerCount = 0
         while (true) {
             val line = readLine(input) ?: break
             if (line.isEmpty()) break
+            if (++headerCount > MAX_HEADERS) throw BadRequestException()
             val colon = line.indexOf(':')
             if (colon > 0) headers[line.substring(0, colon).trim().lowercase()] = line.substring(colon + 1).trim()
         }
 
-        val queryToken = tokenFromTarget(target)
-        if ((queryToken ?: headers["x-ww-token"]) != token) {
+        val supplied = tokenFromTarget(target) ?: headers["x-ww-token"]
+        if (supplied == null || !MessageDigest.isEqual(supplied.toByteArray(), token.toByteArray())) {
             writeStatus(output, 403, "Forbidden")
             return
         }
@@ -88,17 +102,23 @@ class LoopbackBridge(private val treeBytes: ByteArray) : Closeable {
         }
 
         val path = target.substringBefore('?')
-        val body = readBody(input, headers["content-length"]?.toIntOrNull())
+        val contentLength = headers["content-length"]?.toIntOrNull()
+        if (method == "POST" && contentLength != null && contentLength > MAX_BODY_BYTES) {
+            writeStatus(output, 413, "Payload Too Large")
+            return
+        }
+
+        val body = readBody(input, contentLength)
         when {
             method == "GET" && path == "/tree" -> writeTree(output)
             method == "POST" && path == "/progress" -> {
-                body?.decodeToString()?.lineSequence()?.forEach { line ->
+                body.decodeToString().lineSequence().forEach { line ->
                     ProgressLineParser.parseLine(line)?.let { _events.tryEmit(it) }
                 }
                 writeStatus(output, 200, "OK")
             }
             method == "POST" && path == "/done" -> {
-                _events.tryEmit(ProgressLineParser.parseDone(body?.decodeToString().orEmpty()))
+                _events.tryEmit(ProgressLineParser.parseDone(body.decodeToString()))
                 writeStatus(output, 200, "OK")
             }
             else -> writeStatus(output, 404, "Not Found")
@@ -126,18 +146,27 @@ class LoopbackBridge(private val treeBytes: ByteArray) : Closeable {
     }
 
     companion object {
+        private const val SOCKET_TIMEOUT_MS = 15_000
+        private const val MAX_LINE_BYTES = 8 * 1024
+        private const val MAX_HEADERS = 64
+        private const val MAX_BODY_BYTES = 1024 * 1024
+
         private fun readLine(input: InputStream): String? {
             val bytes = StringBuilder()
+            var count = 0
             while (true) {
                 val b = input.read()
                 if (b == -1) return if (bytes.isEmpty()) null else bytes.toString()
                 if (b == '\n'.code) break
-                if (b != '\r'.code) bytes.append(b.toChar())
+                if (b != '\r'.code) {
+                    bytes.append(b.toChar())
+                    if (++count > MAX_LINE_BYTES) throw BadRequestException()
+                }
             }
             return bytes.toString()
         }
 
-        private fun readBody(input: InputStream, contentLength: Int?): ByteArray? {
+        private fun readBody(input: InputStream, contentLength: Int?): ByteArray {
             if (contentLength == null || contentLength <= 0) return ByteArray(0)
             val buffer = ByteArray(contentLength)
             var read = 0

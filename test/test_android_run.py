@@ -81,6 +81,31 @@ print("STUB_OK")
     assert "STUB_OK" in proc.stdout
 
 
+def test_imagequant_stub_quantizes_and_keeps_transparent_pixels():
+    import android_run
+    from PIL import Image
+
+    image = Image.new("RGBA", (64, 64))
+    px = image.load()
+    transparent = set()
+    for y in range(64):
+        for x in range(64):
+            if (x + y) % 7 == 0:
+                px[x, y] = (0, 0, 0, 0)
+                transparent.add((x, y))
+            else:
+                px[x, y] = (x * 4 % 256, y * 4 % 256, (x + y) * 3 % 256, 255)
+
+    stub = android_run.make_imagequant_stub()
+    for max_colors in (16, 256):
+        out = stub.quantize_pil_image(image, max_colors=max_colors).convert("RGBA")
+        colors = out.getcolors(64 * 64)
+        assert colors is not None
+        assert len(colors) <= max_colors
+        out_px = out.load()
+        assert all(out_px[x, y][3] == 0 for x, y in transparent)
+
+
 def test_dry_run_reports_monotonic_progress_and_done_ok():
     server = _start_stub()
     outdir = tempfile.mkdtemp(prefix="wwrando-android-run-")

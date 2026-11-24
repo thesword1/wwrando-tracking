@@ -1,6 +1,7 @@
 package io.github.thesword1.wwrando.data
 
 import java.net.HttpURLConnection
+import java.net.Socket
 import java.net.URL
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.delay
@@ -100,6 +101,40 @@ class LoopbackBridgeTest {
     }
 
     @Test
+    fun `rejects oversized request line`() {
+        LoopbackBridge(treeBytes).use { bridge ->
+            bridge.start()
+            val longPath = "x".repeat(9 * 1024)
+            val response = rawRequest(bridge.port, "GET /$longPath HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            assertTrue(response.startsWith("HTTP/1.1 400"))
+        }
+    }
+
+    @Test
+    fun `rejects too many headers`() {
+        LoopbackBridge(treeBytes).use { bridge ->
+            bridge.start()
+            val request = buildString {
+                append("GET /tree?t=${bridge.token} HTTP/1.1\r\n")
+                repeat(65) { append("X-H$it: v\r\n") }
+                append("\r\n")
+            }
+            val response = rawRequest(bridge.port, request)
+            assertTrue(response.startsWith("HTTP/1.1 400"))
+        }
+    }
+
+    @Test
+    fun `rejects oversized body`() {
+        LoopbackBridge(treeBytes).use { bridge ->
+            bridge.start()
+            val request = "POST /progress?t=${bridge.token} HTTP/1.1\r\nContent-Length: 2000000\r\n\r\n"
+            val response = rawRequest(bridge.port, request)
+            assertTrue(response.startsWith("HTTP/1.1 413"))
+        }
+    }
+
+    @Test
     fun `parser handles malformed lines`() {
         assertNull(ProgressLineParser.parseLine(""))
         assertNull(ProgressLineParser.parseLine("   "))
@@ -126,4 +161,12 @@ class LoopbackBridgeTest {
         conn.disconnect()
         return code to bytes
     }
+
+    private fun rawRequest(port: Int, request: String): String =
+        Socket("127.0.0.1", port).use { socket ->
+            socket.soTimeout = 5_000
+            socket.getOutputStream().write(request.toByteArray())
+            socket.getOutputStream().flush()
+            socket.getInputStream().bufferedReader().use { it.readText() }
+        }
 }

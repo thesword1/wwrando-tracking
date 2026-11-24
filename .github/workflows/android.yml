@@ -19,6 +19,9 @@ jobs:
 
       - uses: gradle/actions/wrapper-validation@v4
 
+      - name: Lint setup.sh
+        run: shellcheck android/app/src/main/assets/setup.sh
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
