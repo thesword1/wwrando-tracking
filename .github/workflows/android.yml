@@ -51,6 +51,17 @@ jobs:
           GM_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.CI_DEBUG_KEYSTORE_PASSWORD }}
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
 
+      - name: Check bundled tree asset
+        # The app reads assets/wwrando.tgz and compares it to assets/wwrando.sha256; AAPT silently
+        # gunzips and renames *.gz assets, so check the packaged bytes, not the build output.
+        working-directory: android
+        run: |
+          apk=$(ls app/build/outputs/apk/debug/*.apk)
+          want=$(unzip -p "$apk" assets/wwrando.sha256)
+          got=$(unzip -p "$apk" assets/wwrando.tgz | sha256sum | cut -d' ' -f1)
+          test -n "$want" && test "$want" = "$got"
+          ! unzip -l "$apk" | grep -q ' assets/wwrando/'
+
       - name: Remove keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/wwr-debug.p12"

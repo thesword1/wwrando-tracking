@@ -66,7 +66,7 @@ android {
 // just copies whatever is present).
 val copyRandomizerPython by tasks.registering(Sync::class) {
     val repoRoot = rootProject.layout.projectDirectory.dir("..")
-    into(project.layout.buildDirectory.dir("generated/assets/wwrando"))
+    into(project.layout.buildDirectory.dir("generated/wwrando-tree"))
     from(repoRoot) {
         include("**/*.py")
         include("data/**")
@@ -96,13 +96,13 @@ val copyRandomizerPython by tasks.registering(Sync::class) {
 }
 
 // First-run setup streams the tree to Termux over the app's loopback bridge, so the copied tree is
-// packed into one gzip archive plus a SHA-256 of that archive (installed-version marker).
+// packed into one gzip archive (.tgz: AAPT gunzips and renames *.gz assets) plus a SHA-256 of that archive (installed-version marker).
 val bundleRandomizerTree by tasks.registering(org.gradle.api.tasks.bundling.Tar::class) {
     dependsOn(copyRandomizerPython)
-    from(project.layout.buildDirectory.dir("generated/assets/wwrando"))
+    from(project.layout.buildDirectory.dir("generated/wwrando-tree"))
     include("**")
     compression = org.gradle.api.tasks.bundling.Compression.GZIP
-    archiveFileName.set("wwrando.tar.gz")
+    archiveFileName.set("wwrando.tgz")
     destinationDirectory.set(project.layout.buildDirectory.dir("generated/assets"))
 }
 

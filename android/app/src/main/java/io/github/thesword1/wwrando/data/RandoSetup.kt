@@ -38,7 +38,7 @@ class RandoSetup(
 
     /** Runs setup.sh in Termux; returns the final /done event (synthetic on timeout or Termux failure). */
     suspend fun runSetup(onEvent: (ProgressEvent) -> Unit): ProgressEvent.Done = withContext(Dispatchers.IO) {
-        val archive = readAssetBytes("wwrando.tar.gz")
+        val archive = readAssetBytes("wwrando.tgz")
         val script = readAssetText("setup.sh")
         val hash = bundledHash()
         val localBridge = LoopbackBridge(archive)
@@ -83,7 +83,7 @@ class RandoSetup(
         if (!isSetupCurrent()) {
             return@withContext ProgressEvent.Done(false, """{"ok":false,"error":"run setup first"}""")
         }
-        val archive = readAssetBytes("wwrando.tar.gz")
+        val archive = readAssetBytes("wwrando.tgz")
         val localBridge = LoopbackBridge(archive)
         bridge = localBridge
         localBridge.start()
