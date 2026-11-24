@@ -37,4 +37,12 @@ if IS_RUNNING_FROM_SOURCE:
       # Detached head, commit hash directly in the HEAD file
       version_suffix = "_" + head_file_contents[:7]
   
+  # Bundled source trees without .git (the Android app) ship the build commit in build_commit.txt.
+  build_commit_file = os.path.join(RANDO_ROOT_PATH, "build_commit.txt")
+  if version_suffix == "_NOGIT" and os.path.isfile(build_commit_file):
+    with open(build_commit_file, "r") as f:
+      build_commit = f.read().strip()
+    if re.search(r"^[0-9a-f]{40}$", build_commit):
+      version_suffix = "_" + build_commit[:7]
+
   VERSION += version_suffix

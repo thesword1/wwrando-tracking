@@ -61,6 +61,8 @@ jobs:
           got=$(unzip -p "$apk" assets/wwrando.tgz | sha256sum | cut -d' ' -f1)
           test -n "$want" && test "$want" = "$got"
           ! unzip -l "$apk" | grep -q ' assets/wwrando/'
+          # version.py reads build_commit.txt when there is no .git (seed hashes must match desktop).
+          test "$(unzip -p "$apk" assets/wwrando.tgz | tar -xzO build_commit.txt)" = "$(git rev-parse HEAD)"
 
       - name: Remove keystore
         if: always()

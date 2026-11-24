@@ -97,9 +97,25 @@ val copyRandomizerPython by tasks.registering(Sync::class) {
 
 // First-run setup streams the tree to Termux over the app's loopback bridge, so the copied tree is
 // packed into one gzip archive (.tgz: AAPT gunzips and renames *.gz assets) plus a SHA-256 of that archive (installed-version marker).
+// The bundled tree has no .git, so version.py would report "_NOGIT" and seed hashes/permalinks would
+// not match a desktop build of the same commit. Ship the commit in build_commit.txt instead.
+val buildCommit = providers.exec {
+    workingDir = rootProject.layout.projectDirectory.dir("..").asFile
+    commandLine("git", "rev-parse", "HEAD")
+}.standardOutput.asText.map { it.trim() }
+
+val writeBuildCommit by tasks.registering {
+    val commit = buildCommit
+    val outFile = project.layout.buildDirectory.file("generated/build-commit/build_commit.txt")
+    inputs.property("commit", commit)
+    outputs.file(outFile)
+    doLast { outFile.get().asFile.writeText(commit.get() + "\n") }
+}
+
 val bundleRandomizerTree by tasks.registering(org.gradle.api.tasks.bundling.Tar::class) {
-    dependsOn(copyRandomizerPython)
+    dependsOn(copyRandomizerPython, writeBuildCommit)
     from(project.layout.buildDirectory.dir("generated/wwrando-tree"))
+    from(project.layout.buildDirectory.dir("generated/build-commit"))
     include("**")
     compression = org.gradle.api.tasks.bundling.Compression.GZIP
     archiveFileName.set("wwrando.tgz")
