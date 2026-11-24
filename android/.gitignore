@@ -1,0 +1,16 @@
+# Machine-specific Gradle/Android config (never committed; SDK paths are local).
+local.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Gradle / Android build outputs.
+.gradle/
+build/
+captures/
+.idea/
+*.iml
+.externalNativeBuild/
+.cxx/
+.kotlin/

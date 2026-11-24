@@ -2,6 +2,7 @@ name: Release
 
 # Builds the Linux and Windows releases (a PyInstaller one-file executable in a .tar.gz / .zip) and, for a pushed v* tag,
 # attaches both to a GitHub Release for that tag. Started by hand, it only uploads the archives as workflow artifacts.
+# NOTE: a signed Android release asset is not produced here yet; android.yml builds and uploads the debug APK for now.
 on:
   push:
     tags: [ 'v*' ]

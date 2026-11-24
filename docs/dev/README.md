@@ -11,6 +11,7 @@ behind it, [`PROJECT_PLAN.md`](../../PROJECT_PLAN.md).
 | [memory-map.md](memory-map.md) | Verified NTSC-U addresses the tracker uses: save layout and the free reserve area, inventory, item get path, sea chart menu input and drawing |
 | [tracker-runtime.md](tracker-runtime.md) | The in-game tracker: patch-time tables, C runtime layout, hooks, sea chart UI, save data, detection, logic evaluation, sizes and tests |
 | [release.md](release.md) | Building the Linux executable with PyInstaller and the tag-triggered release workflow |
+| [android-app-plan.md](../android-app-plan.md) | Standalone Android app (`io.github.thesword1.wwrando`): Termux backend, Gradle layout, CI and milestones |
 
 ## Where things are
 

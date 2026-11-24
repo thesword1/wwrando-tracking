@@ -1,0 +1,60 @@
+name: Android
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: gradle/actions/wrapper-validation@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: android
+
+      # Stable debug signing so consecutive CI builds install over each other. The keystore lives in a
+      # GitHub secret; when it is absent (e.g. fork PRs or Dependabot), AGP falls back to its own
+      # default debug key and the build still succeeds.
+      - name: Decode stable debug keystore (if the secret is available)
+        env:
+          KEYSTORE_B64: ${{ secrets.CI_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/wwr-debug.p12"
+            echo "GM_DEBUG_KEYSTORE=$RUNNER_TEMP/wwr-debug.p12" >> "$GITHUB_ENV"
+          else
+            echo "No keystore secret (e.g. fork PR): using the default debug key."
+          fi
+
+      - name: Build and test
+        working-directory: android
+        env:
+          GM_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.CI_DEBUG_KEYSTORE_PASSWORD }}
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
+
+      - name: Remove keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/wwr-debug.p12"
+
+      - name: Upload WW Randomizer debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wwrando-android-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
