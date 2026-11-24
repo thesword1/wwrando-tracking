@@ -55,3 +55,38 @@ ISO picking (SAF), foreground service and Dolphin launch are NOT in this PR (nex
 - No source file over 400 lines; MainActivity stays a thin host.
 - PR body lists the device-test steps for the main session (setup from clean Termux, re-run =
   SKIP, dry run with seed, cancel mid-run, permission denied path).
+
+# PLAN — Python 3.14 compat via gclib fork (roadmap #2 follow-up)
+
+Device test: Termux ships only Python 3.14; gclib (submodule, pinned d932252) breaks on 3.13+.
+Fork: github.com/thesword1/gclib (exists). Keep the fix minimal and upstreamable; 3.12 behaviour unchanged.
+
+## gclib changes (branch `py314-compat` from d932252, in the fork)
+1. `gclib/bunfoe.py:72` `@dataclasses._recursive_repr` (removed in 3.13) -> `@reprlib.recursive_repr()`.
+2. `gclib/bunfoe.py:134` `cls.__dict__.get('__annotations__', {})` silently returns `{}` on 3.14
+   (PEP 649/749), which would drop every BUNFOE field. Use `inspect.get_annotations(cls)` (own
+   annotations only, 3.10+).
+3. `gclib/jpa.py:28-34` and `gclib/j3d.py:40-46`: `CHUNK_TYPES` is built from `__annotations__`
+   inside the class body (NameError on 3.14). Build it right after the class instead, from
+   `inspect.get_annotations(<Class>)`, same dict contents. `type(self).__annotations__`
+   (jpa.py:116, j3d.py:119) works on 3.14; switch to `inspect.get_annotations(type(self))` for
+   consistency.
+4. Grep the whole fork for any other `__annotations__` / `dataclasses._` private use and fix alike
+   (`dataclasses._process_class` is fine: same signature on 3.12 and 3.14).
+Commit with the noreply identity, push branch `py314-compat` to the fork (remote url
+https://github.com/thesword1/gclib.git); do not open an upstream PR.
+
+## wwrando changes (this branch)
+- `.gitmodules`: gclib url -> https://github.com/thesword1/gclib.git; bump the submodule to the
+  `py314-compat` commit (`git submodule sync`).
+- `.github/workflows/test.yml`: run the pytest job on a matrix of Python 3.12 and 3.14.
+- `test/test_android_run.py`: no change needed unless 3.14 exposes something.
+
+## Acceptance criteria
+- `scripts/test-quiet.sh` passes on 3.12 (repo .venv).
+- Same suite passes on 3.14: a uv venv `-p 3.14` with requirements.txt minus Qt (or all of it if it
+  installs), `pytest test -m "not saving" -q`. Report both counts.
+- `android_run.py --port 9 --token x --dry --seed test --output-folder <tmp>` exits 0 on 3.14 with
+  imagequant NOT installed.
+- Dry-run spoiler log for `--seed test` is byte-identical between 3.12 and 3.14 (proves no silent
+  field loss).
