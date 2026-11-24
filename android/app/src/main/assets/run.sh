@@ -47,14 +47,14 @@ fail() {
   tail_text=$(tail -n 20 "$LOG" 2>/dev/null || true)
   "$PY" -c 'import json,sys
 d = {"ok": False, "step": sys.argv[1], "error": sys.argv[2] + ": " + sys.argv[3]}
-print(json.dumps(d))' "$step_name" "$message" "$tail_text" | post done || true
+print(json.dumps(d))' "$step_name" "$message" "$tail_text" | post "done" || true
   exit 1
 }
 
 finish() {
   "$PY" -c 'import json,sys
 d = {"ok": True, "step": sys.argv[1], "seed": sys.argv[2], "permalink": sys.argv[3], "seed_hash": sys.argv[4], "output_folder": sys.argv[5]}
-print(json.dumps(d))' "$STEP" "$SEED_NAME" "$PERMALINK" "$SEED_HASH" "$SUBFOLDER" | post done || true
+print(json.dumps(d))' "$STEP" "$SEED_NAME" "$PERMALINK" "$SEED_HASH" "$SUBFOLDER" | post "done" || true
   exit 0
 }
 
