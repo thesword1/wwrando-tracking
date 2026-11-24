@@ -101,3 +101,27 @@ Cause: Python 3.14 makes `issubclass(list[int], X)` raise TypeError (3.12 return
 - scripts/test-quiet.sh passes; CI green on 3.12 and 3.14 including the new test.
 - A full local randomize of the test ISO under python3.14 (with imagequant stubbed as android_run.py does) completes,
   or the next 3.14 failure is reported precisely (file:line, exception).
+
+# PLAN — Android real run: output dir + error reporting (device findings after #50)
+
+Device test on master 99cb17f (Y700, Termux Py 3.14): setup incl. native PyFastYaz0Yay0 build OK; a manual
+`android_run.py --no-done` run with an existing output dir succeeds (~40 s, ISO + 2 logs). The app run fails:
+
+1. **Output dir never created.** run.sh sets `OUT_DIR="$OUT_BASE/run_$$"` but only mkdirs `$INPUT_DIR $OUT_BASE`;
+   gcm.py open(output_iso, "wb") -> FileNotFoundError. Fix: `mkdir -p "$OUT_DIR"` (fail "space" on error) before randomizing.
+2. **Real error hidden, stale error shown.** With `--no-done`, android_run.py prints `{"ok":false,"error":<traceback>}` to
+   stdout and exits 1; run.sh's `fail "run"` then shows `tail run.log`, which is appended across runs and holds an old error.
+   Fix: (a) truncate run.log at the start of each run (`: > "$LOG"`); (b) on randomizer failure, use the `error`
+   field of RESULT_JSON (via json_field) as the message when present, else the log tail.
+3. **App keeps the previous run's error** on screen while a new run is in progress / after it. Clear error/result
+   state when a run starts.
+4. **UI nits:** the "WW Randomizer" title overlaps the status bar (apply status-bar/system-bar insets to the top bar);
+   the run status line, error text and the Randomize button are not in the uiautomator dump (check they are plain
+   Text/Button nodes with text, not merged/cleared semantics), so device tests can read them.
+
+## Acceptance criteria
+- shellcheck-clean run.sh; scripts/test-quiet.sh passes; Android unit tests + assembleDebug pass; CI green.
+- Unit/JVM test or a shell-level test for item 2 if feasible (e.g. a fake python printing an error JSON and exiting 1
+  -> the done message carries that error, not old log text).
+- PR body lists device tests: real run succeeds and uploads to the SAF folder; forced failure shows the new error;
+  second run shows no stale error; title clears the status bar.
