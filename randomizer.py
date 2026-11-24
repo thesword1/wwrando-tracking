@@ -100,6 +100,12 @@ class PermalinkWrongCommitError(Exception): pass
 
 T = TypeVar('T')
 
+
+def _is_type_subclass(option_type, base_type) -> bool:
+  # Python 3.14's issubclass() raises TypeError for non-class types such as list[str],
+  # whereas older versions simply returned False.
+  return isinstance(option_type, type) and issubclass(option_type, base_type)
+
 @dataclass(frozen=True)
 class Plando:
   seed: str
@@ -631,16 +637,16 @@ class WWRandomizer:
         # So just put a 0 bit as a placeholder.
         value = False
       
-      if issubclass(option.type, bool):
+      if _is_type_subclass(option.type, bool):
         bitswriter.write(int(value), 1)
-      elif issubclass(option.type, StrEnum):
+      elif _is_type_subclass(option.type, StrEnum):
         enum_values = [val for val in option.type]
         index_of_value = enum_values.index(value)
         maximum_index = len(enum_values) - 1
         max_bit_length = maximum_index.bit_length()
         assert 0 <= index_of_value <= maximum_index < (1 << max_bit_length)
         bitswriter.write(index_of_value, max_bit_length)
-      elif issubclass(option.type, int):
+      elif _is_type_subclass(option.type, int):
         assert option.minimum is not None
         assert option.maximum is not None
         max_bit_length = (option.maximum - option.minimum).bit_length()
@@ -705,10 +711,10 @@ class WWRandomizer:
       if not option.permalink:
         continue
       
-      if issubclass(option.type, bool):
+      if _is_type_subclass(option.type, bool):
         boolean_value = bool(bitsreader.read(1))
         options[option.name] = boolean_value
-      elif issubclass(option.type, StrEnum):
+      elif _is_type_subclass(option.type, StrEnum):
         enum_values = [val for val in option.type]
         maximum_index = len(enum_values) - 1
         max_bit_length = maximum_index.bit_length()
@@ -716,7 +722,7 @@ class WWRandomizer:
         assert 0 <= index_of_value <= maximum_index < (1 << max_bit_length)
         enum_value = enum_values[index_of_value]
         options[option.name] = enum_value
-      elif issubclass(option.type, int):
+      elif _is_type_subclass(option.type, int):
         assert option.minimum is not None
         assert option.maximum is not None
         max_bit_length = (option.maximum - option.minimum).bit_length()

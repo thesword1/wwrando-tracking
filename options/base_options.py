@@ -1,6 +1,11 @@
-from dataclasses import fields, MISSING, Field, _recursive_repr, _FIELDS, _FIELD, asdict
+from dataclasses import fields, MISSING, Field, _FIELDS, _FIELD, asdict
+import inspect
+import reprlib
 from typing import Any, Type, Optional
 import typing
+
+# dataclasses.Field gained a required `doc` argument in Python 3.13.
+_FIELD_INIT_ACCEPTS_DOC = "doc" in inspect.signature(Field.__init__).parameters
 
 class Option(Field):
   type: Type
@@ -15,8 +20,10 @@ class Option(Field):
                description: str, choice_descriptions: dict[Any, str],
                minimum: Optional[int], maximum: Optional[int], choices: Optional[list],
                permalink: bool, hidden: bool, unbeatable: bool):
-    super().__init__(default, default_factory, init=True, repr=True,
-                     hash=None, compare=True, metadata=None, kw_only=True)
+    field_init_kwargs = dict(init=True, repr=True, hash=None, compare=True, metadata=None, kw_only=True)
+    if _FIELD_INIT_ACCEPTS_DOC:
+      field_init_kwargs["doc"] = None
+    super().__init__(default, default_factory, **field_init_kwargs)
     self.description = description
     self.choice_descriptions = choice_descriptions
     self.minimum = minimum
@@ -26,7 +33,7 @@ class Option(Field):
     self.hidden = hidden
     self.unbeatable = unbeatable
   
-  @_recursive_repr
+  @reprlib.recursive_repr()
   def __repr__(self):
       return ('Option('
               f'name={self.name!r},'
