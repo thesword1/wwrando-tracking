@@ -16,3 +16,5 @@ profileresults*.png
 .coverage
 .env
 /asm/tracker/build
+
+.claude/test.log
