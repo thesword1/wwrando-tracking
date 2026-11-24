@@ -8,6 +8,9 @@
     <!-- Loopback only: the app serves the bundled source tree to Termux over a token-guarded
          127.0.0.1 socket and receives progress back. No off-device network access is made. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The real run keeps the bridge and the Termux job alive in a dataSync foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <queries>
         <package android:name="com.termux" />
@@ -30,5 +33,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".service.RandoRunService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

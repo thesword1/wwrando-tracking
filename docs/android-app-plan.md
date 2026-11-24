@@ -58,20 +58,23 @@ Minimum API the bundled shim uses (no new GUI code):
 
 ## 4. Android I/O
 
-- Input ISO (~1.4 GB): pick once via SAF `ACTION_OPEN_DOCUMENT`, persist the URI. SAF gives no
-  filesystem path Termux can open, so on first randomize the app streams the URI into a shared
-  working file (`Download/wwrando/input.iso`) both the app and Termux (with `termux-setup-storage`)
-  can read; the randomizer's MD5 check confirms the copy is intact.
-- Output: SAF `ACTION_OPEN_DOCUMENT_TREE`, default under a Dolphin-readable `ROMS/GC/Randomizer`
-  directory on the SD card (`/storage/XXXX-XXXX/ROMS/GC/Randomizer`). Termux writes the ISO to that
-  real path (`--output-folder`); the app holds the same tree grant to build content:// links for
-  Dolphin (plain `file://` paths fail there, so "Play" sends a granted `content://` URI).
-- Space: input (1.4 GB) + output ISO (1.4 GB) free; check before starting. `gclib/gcm.py` reads and
-  exports file-by-file (unchanged bytes streamed), so peak RAM is the largest game file (tens of MB)
-  plus Termux Python, not the whole ISO.
-- Long-running work: the app's own foreground service holds a notification with progress, issues the
-  Termux RUN_COMMAND, and polls a small `progress.json` the shim writes into shared storage to update
-  the notification while randomization runs.
+- Input ISO (~1.4 GB): pick once via SAF `ACTION_OPEN_DOCUMENT` (`*/*`; GameCube ISOs have no
+  reliable MIME type) and persist the URI. The app pre-verifies the MD5 in-app and, on the first
+  real run, streams the ISO to Termux over the token-guarded loopback bridge (`GET /iso`); Termux
+  caches it under `~/wwrando/input/clean.iso` with a sidecar `.md5` so later runs skip the copy.
+  No shared storage and no `termux-setup-storage` are used.
+- Output: SAF `ACTION_OPEN_DOCUMENT_TREE`, persisted like the ISO grant. Termux writes the ISO/logs
+  to its private `~/wwrando/out/<job>` and uploads each file back over the bridge
+  (`POST /output?name=...&dir=...`); the app creates one subfolder
+  `<seed-hash-or-seed>_<yyyyMMdd-HHmmss>` in the picked tree per run. The same tree grant later
+  builds content:// links for Dolphin (plain `file://` paths fail there, so "Play" sends a granted
+  `content://` URI).
+- Space: input (1.4 GB) + output ISO (1.4 GB) free; run.sh checks `df -k ~` before starting.
+  `gclib/gcm.py` reads and exports file-by-file (unchanged bytes streamed), so peak RAM is the
+  largest game file (tens of MB) plus Termux Python, not the whole ISO.
+- Long-running work: the app's own `dataSync` foreground service holds a notification with progress,
+  owns the bridge and the Termux RUN_COMMAND job, and updates the notification from the bridge's
+  STEP/PROGRESS events while randomization runs.
 
 ## 5. UI scope v1
 

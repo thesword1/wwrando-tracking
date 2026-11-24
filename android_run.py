@@ -141,11 +141,19 @@ def run(args):
       output_name = rando.get_output_name()
       result["output_name"] = output_name
       result["output_path"] = os.path.join(rando.randomized_output_folder, output_name + ".iso")
-    _post_json(port, token, "done", result)
+    _finish(args, result)
     return 0
   except Exception:
-    _post_json(port, token, "done", {"ok": False, "error": traceback.format_exc()[-4000:]})
+    _finish(args, {"ok": False, "error": traceback.format_exc()[-4000:]})
     return 1
+
+
+def _finish(args, result):
+  """Report the final status. Under --no-done run.sh owns /done, so the JSON goes to stdout instead."""
+  if getattr(args, "no_done", False):
+    print(json.dumps(result))
+  else:
+    _post_json(args.port, args.token, "done", result)
 
 
 def make_argparser():
@@ -155,6 +163,11 @@ def make_argparser():
   parser = wwrando_argparser()
   parser.add_argument("--port", type=int, required=True, help="Loopback bridge port.")
   parser.add_argument("--token", required=True, help="Loopback bridge token.")
+  parser.add_argument(
+    "--no-done",
+    action="store_true",
+    help="Print the final result JSON to stdout instead of POSTing /done (run.sh owns /done).",
+  )
   return parser
 
 

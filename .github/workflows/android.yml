@@ -19,8 +19,10 @@ jobs:
 
       - uses: gradle/actions/wrapper-validation@v4
 
-      - name: Lint setup.sh
-        run: shellcheck android/app/src/main/assets/setup.sh
+      - name: Lint Termux scripts
+        run: |
+          shellcheck android/app/src/main/assets/setup.sh
+          shellcheck android/app/src/main/assets/run.sh
 
       - uses: actions/setup-java@v4
         with:

@@ -25,7 +25,11 @@ private class BadRequestException : Exception()
  * every request (?t=... or X-Ww-Token). Only reachable from on-device processes (see the INTERNET
  * permission note in the manifest).
  */
-class LoopbackBridge(private val treeBytes: ByteArray) : Closeable {
+class LoopbackBridge(
+    private val treeBytes: ByteArray,
+    private val isoSource: IsoSource? = null,
+    private val outputSink: RunOutputSink? = null,
+) : Closeable {
 
     private val serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     val port: Int get() = serverSocket.localPort
@@ -102,27 +106,80 @@ class LoopbackBridge(private val treeBytes: ByteArray) : Closeable {
         }
 
         val path = target.substringBefore('?')
-        val contentLength = headers["content-length"]?.toIntOrNull()
-        if (method == "POST" && contentLength != null && contentLength > MAX_BODY_BYTES) {
-            writeStatus(output, 413, "Payload Too Large")
-            return
-        }
-
-        val body = readBody(input, contentLength)
+        val contentLength = headers["content-length"]?.toLongOrNull()
         when {
             method == "GET" && path == "/tree" -> writeTree(output)
-            method == "POST" && path == "/progress" -> {
-                body.decodeToString().lineSequence().forEach { line ->
-                    ProgressLineParser.parseLine(line)?.let { _events.tryEmit(it) }
-                }
-                writeStatus(output, 200, "OK")
-            }
-            method == "POST" && path == "/done" -> {
-                _events.tryEmit(ProgressLineParser.parseDone(body.decodeToString()))
-                writeStatus(output, 200, "OK")
-            }
+            method == "GET" && path == "/iso" -> writeIso(output)
+            method == "POST" && path == "/output" -> handleOutput(input, output, target, contentLength)
+            method == "POST" && path == "/progress" -> handleProgress(input, output, contentLength)
+            method == "POST" && path == "/done" -> handleDone(input, output, contentLength)
             else -> writeStatus(output, 404, "Not Found")
         }
+    }
+
+    private fun writeIso(output: OutputStream) {
+        val source = isoSource
+        if (source == null) {
+            writeStatus(output, 404, "Not Found")
+            return
+        }
+        val header = "HTTP/1.1 200 OK\r\n" +
+            "Content-Type: application/octet-stream\r\n" +
+            "Content-Length: ${source.size}\r\n" +
+            "Connection: close\r\n\r\n"
+        output.write(header.toByteArray())
+        output.flush()
+        BridgeRoutes.writeIso(source, output)
+    }
+
+    private fun handleOutput(input: InputStream, output: OutputStream, target: String, contentLength: Long?) {
+        val sink = outputSink
+        if (sink == null) {
+            writeStatus(output, 404, "Not Found")
+            return
+        }
+        val name = queryParam(target, "name")?.let { BridgeRoutes.urlDecode(it) }
+        val subfolder = queryParam(target, "dir")?.let { BridgeRoutes.urlDecode(it) }
+        if (name == null || subfolder == null) {
+            writeStatus(output, 400, "Bad Request")
+            return
+        }
+        if (!BridgeRoutes.isValidOutputName(name) || !BridgeRoutes.isValidOutputName(subfolder)) {
+            writeStatus(output, 403, "Forbidden")
+            return
+        }
+        if (contentLength == null) {
+            writeStatus(output, 411, "Length Required")
+            return
+        }
+        val code = BridgeRoutes.writeOutput(input, contentLength, subfolder, name, sink)
+        writeStatus(output, code, if (code == 200) "OK" else "Internal Server Error")
+    }
+
+    private fun handleProgress(input: InputStream, output: OutputStream, contentLength: Long?) {
+        val body = readLimitedBody(input, output, contentLength) ?: return
+        body.decodeToString().lineSequence().forEach { line ->
+            ProgressLineParser.parseLine(line)?.let { _events.tryEmit(it) }
+        }
+        writeStatus(output, 200, "OK")
+    }
+
+    private fun handleDone(input: InputStream, output: OutputStream, contentLength: Long?) {
+        val body = readLimitedBody(input, output, contentLength) ?: return
+        _events.tryEmit(ProgressLineParser.parseDone(body.decodeToString()))
+        writeStatus(output, 200, "OK")
+    }
+
+    /**
+     * Reads a small body for /progress and /done, enforcing [MAX_BODY_BYTES]. On an oversized body it
+     * writes the 413 response and returns null. The caller already handled the 100-continue exchange.
+     */
+    private fun readLimitedBody(input: InputStream, output: OutputStream, contentLength: Long?): ByteArray? {
+        if (contentLength != null && contentLength > MAX_BODY_BYTES) {
+            writeStatus(output, 413, "Payload Too Large")
+            return null
+        }
+        return readBody(input, contentLength?.toInt())
     }
 
     private fun writeTree(output: OutputStream) {
@@ -178,10 +235,12 @@ class LoopbackBridge(private val treeBytes: ByteArray) : Closeable {
             return buffer.copyOf(read)
         }
 
-        private fun tokenFromTarget(target: String): String? {
+        private fun tokenFromTarget(target: String): String? = queryParam(target, "t")
+
+        private fun queryParam(target: String, key: String): String? {
             val query = target.substringAfter('?', "")
             if (query.isEmpty()) return null
-            return query.split('&').firstOrNull { it.startsWith("t=") }?.removePrefix("t=")
+            return query.split('&').firstOrNull { it.startsWith("$key=") }?.removePrefix("$key=")
         }
 
         private fun randomHex(length: Int): String {

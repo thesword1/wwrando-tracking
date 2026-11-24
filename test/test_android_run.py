@@ -142,3 +142,38 @@ def test_dry_run_reports_monotonic_progress_and_done_ok():
     assert done.get("seed") == "test"
     assert done.get("permalink")
     assert done.get("dry_run") is True
+
+
+def test_no_done_prints_result_json_to_stdout_instead_of_posting():
+    server = _start_stub()
+    outdir = tempfile.mkdtemp(prefix="wwrando-android-run-")
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SHIM),
+                "--port", str(server.server_address[1]),
+                "--token", "a" * 32,
+                "--dry",
+                "--no-done",
+                "--seed", "test",
+                "--output-folder", outdir,
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        assert proc.returncode == 0, proc.stderr
+    finally:
+        server.shutdown()
+
+    # The bridge must still get PROGRESS lines, but run.sh owns /done now.
+    assert [l for l in _StubHandler.progress_lines if l.startswith("PROGRESS ")], "no PROGRESS lines"
+    assert not _StubHandler.done_bodies, "shim posted /done despite --no-done"
+
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert result.get("ok") is True
+    assert result.get("seed") == "test"
+    assert result.get("dry_run") is True
+

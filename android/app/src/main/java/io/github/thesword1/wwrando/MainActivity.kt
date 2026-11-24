@@ -1,6 +1,8 @@
 package io.github.thesword1.wwrando
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -16,13 +18,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.ui.HomeScreen
 import io.github.thesword1.wwrando.ui.RandoViewModel
 
 /**
- * Thin host for the home screen: it only checks Termux health, drives the RUN_COMMAND permission
- * request, and hands all setup/run state to [RandoViewModel].
+ * Thin host for the home screen: it checks Termux health, drives the RUN_COMMAND and notification
+ * permission requests, and hands all setup/run state to [RandoViewModel].
  */
 class MainActivity : ComponentActivity() {
     private val viewModel: RandoViewModel by viewModels()
@@ -46,10 +49,19 @@ class MainActivity : ComponentActivity() {
                     termuxStatus = RandoBridge.status(this)
                 }
 
+                val notificationLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission(),
+                ) { _ -> }
+
                 LaunchedEffect(Unit) {
                     if (termuxStatus.installed && !granted && permissionDenials < 2) {
                         permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND)
                     }
+                    // Ask before the first run; denial must not block the run (the service still works).
+                    val canNotify = ContextCompat.checkSelfPermission(
+                        this@MainActivity, Manifest.permission.POST_NOTIFICATIONS,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!canNotify) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
 
                 HomeScreen(
