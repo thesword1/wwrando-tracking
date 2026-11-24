@@ -8,7 +8,13 @@ cd "$(dirname "$0")/.." || exit 1
 LOG=".claude/test.log"
 mkdir -p .claude
 
-pytest test -m "not saving" -q > "$LOG" 2>&1
+# Same env as CI (.github/workflows/test.yml); a local .env still wins via pytest-dotenv.
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
+export WW_RANDO_OUTPUT_DIR="${WW_RANDO_OUTPUT_DIR:-$PWD/wwrando-output}"
+mkdir -p "$WW_RANDO_OUTPUT_DIR"
+PYTEST=pytest
+[ -x .venv/bin/pytest ] && PYTEST=.venv/bin/pytest
+"$PYTEST" test -m "not saving" -q > "$LOG" 2>&1
 status=$?
 
 passed=$(grep -Eo '[0-9]+ passed' "$LOG" | grep -Eo '[0-9]+' | head -n 1)

@@ -18,3 +18,4 @@ profileresults*.png
 /asm/tracker/build
 
 .claude/test.log
+/wwrando-output

@@ -20,7 +20,7 @@ instructions; nothing here overrides an explicit instruction from the user.
 - End every commit message with `Co-Authored-By: Claude Code <noreply@anthropic.com>`.
 - End every PR description with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - Trunk-based: short-lived `feature/`, `fix/`, `docs/`, `ci/`, `chore/` or `tooling/` branches, one
-  squash-merged PR per change, and a `CHANGELOG.md` entry per feature.
+  PR per change, merged only by exact-SHA fast-forward by a human (never squash, never `gh pr merge`), and a `CHANGELOG.md` entry per feature.
 
 ## Tests
 
