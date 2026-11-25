@@ -104,8 +104,10 @@ class AndroidRunOutputSink(
 
     private fun ensureFolder(subfolder: String): Uri {
         folderUri?.let { if (folderName == subfolder) return it }
+        // createDocument needs a document URI; a bare tree URI fails with "Invalid URI".
+        val root = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
         val created = DocumentsContract.createDocument(
-            resolver, treeUri, DocumentsContract.Document.MIME_TYPE_DIR, subfolder,
+            resolver, root, DocumentsContract.Document.MIME_TYPE_DIR, subfolder,
         ) ?: throw IOException("cannot create output subfolder")
         folderUri = created
         folderName = subfolder
