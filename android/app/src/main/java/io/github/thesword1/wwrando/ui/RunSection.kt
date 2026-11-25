@@ -56,9 +56,9 @@ fun RunSection(viewModel: RandoViewModel) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+                    // Only READ/WRITE are valid here; adding FLAG_GRANT_PERSISTABLE_URI_PERMISSION throws
+                    // IllegalArgumentException and the grant silently dies with the process.
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
             }
             viewModel.onOutputFolderPicked(uri)

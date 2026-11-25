@@ -77,7 +77,10 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         prefs.loadIso()?.let { pick ->
             iso = IsoUiState(pick.name, pick.size, if (pick.verified) IsoStatus.Verified else IsoStatus.None, 0)
         }
-        outputFolder = prefs.loadOutputTree()
+        // A saved tree only counts while Android still holds a persisted write grant for it.
+        outputFolder = prefs.loadOutputTree()?.takeIf { tree ->
+            application.contentResolver.persistedUriPermissions.any { it.uri == tree && it.isWritePermission }
+        }
     }
 
     fun runSetup() {
