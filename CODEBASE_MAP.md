@@ -28,8 +28,8 @@ Developer docs index: `docs/dev/README.md`.
   `data/StartingItemsLogic.kt` (item picker counts + health label), `data/SelfCheckLogic.kt` (startup
   self-check aggregation), `data/SeedNameGenerator.kt` (desktop seed-name mirror);
   `ui/AppScaffold.kt` (navigation rail) hosts `ui/HomeScreen.kt`, `ui/LogicScreen.kt`,
-  `ui/TweaksScreen.kt`, `ui/StartingItemsScreen.kt`, `ui/CustomizeScreen.kt` (Advanced is a placeholder
-  until 6c); shared widgets in `ui/OptionWidgets.kt`. Setup decision: `data/SetupLogic.kt` (commit-based install check).
+  `ui/TweaksScreen.kt`, `ui/StartingItemsScreen.kt`, `ui/CustomizeScreen.kt`, `ui/AdvancedScreen.kt`;
+  shared widgets in `ui/OptionWidgets.kt`. Setup decision: `data/SetupLogic.kt` (commit-based install check).
   History: `data/HistoryStore.kt` (`filesDir/history.jsonl`, capped at 100), `ui/HistoryScreen.kt` +
   `ui/HistoryViewModel.kt`.
 - Customize (6b): `data/ModelStore.kt` (`filesDir/models/<name>.zip`, SAF import/delete, zip reads),
@@ -43,6 +43,11 @@ Developer docs index: `docs/dev/README.md`.
   `android_run.py --sync-models` before each run; setup.sh symlinks `~/wwrando/models` into each release.
   Kotlin colour fixtures: `android/tools/gen_color_fixtures.py` (one-shot) ->
   `android/app/src/test/resources/color_fixtures.json`.
+- Advanced (6c): `data/Permalink.kt` (the 5b `^[A-Za-z0-9+/=]{4,2000}$` regex), `data/AdvancedLogic.kt`
+  (pure decoded-settings -> stored diff + JSON-line parsing), `data/PermalinkRunner.kt` (Termux venv
+  python + `android_run.py --encode-permalink`/`--decode-permalink` via `RandoCommandRunner.run(stdin=…)`);
+  `ui/AdvancedViewModel.kt` + `ui/AdvancedScreen.kt` (Permalink generate/copy with stale-hide, Paste +
+  confirm dialog, About card). Python modes live in `android_run.py` and share `load_options()` with the run path.
 - `test/` — pytest suite; `test/fixtures/aptww/` `.aptww` fixtures; `test/tracker_c_host.py` builds the
   tracker C runtime for host unit tests; `test_android_*` cover the shim, run.sh, and schema generator.
 - `tools/` — `devkitppc/` (assembler container), `dolphin/` (Dolphin automation harness),
