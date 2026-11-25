@@ -14,6 +14,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.thesword1.wwrando.data.CustomizeLogic
 import io.github.thesword1.wwrando.data.CustomizeStore
+import io.github.thesword1.wwrando.data.ColorPresetStore
 import io.github.thesword1.wwrando.data.ModelMetadata
 import io.github.thesword1.wwrando.data.ModelStore
 import kotlin.random.Random
@@ -27,6 +28,7 @@ import kotlinx.coroutines.withContext
 class CustomizeViewModel(application: Application) : AndroidViewModel(application) {
     private val store = CustomizeStore(application)
     private val models = ModelStore.from(application)
+    private val colorPresets = ColorPresetStore(application)
 
     var state by mutableStateOf(store.state())
         private set
@@ -58,7 +60,18 @@ class CustomizeViewModel(application: Application) : AndroidViewModel(applicatio
 
     val defaultColors: Map<String, List<Int>> get() { version; return CustomizeLogic.defaultColors(state, metadata) }
 
-    val presetNames: List<String> get() { version; return CustomizeLogic.presetNames(state, metadata) }
+    /** User presets stored for the current model + hero/casual prefix. */
+    val userPresets: Map<String, Map<String, List<Int>>> get() {
+        version
+        return colorPresets.presets(state.playerModel, CustomizeLogic.isCasual(state, metadata))
+    }
+
+    val presetNames: List<String> get() {
+        version
+        return CustomizeLogic.presetNames(state, metadata, userPresets.keys)
+    }
+
+    val isUserPresetSelected: Boolean get() { version; return state.presetSelection in userPresets }
 
     val isRandomModel: Boolean get() = state.playerModel == "Random" || state.playerModel == "Random (exclude Link)"
 
@@ -69,14 +82,16 @@ class CustomizeViewModel(application: Application) : AndroidViewModel(applicatio
         var next = state.copy(playerModel = name)
         val meta = models.metadata(name)
         if (meta.disableCasualClothes) next = next.copy(casualClothes = false)
-        next = next.copy(colorPreset = CustomizeLogic.presetAfterSwitch(next.colorPreset, CustomizeLogic.colorPresets(next, meta)))
+        val preset = CustomizeLogic.presetAfterSwitch(next.colorPreset, CustomizeLogic.colorPresets(next, meta))
+        next = next.copy(colorPreset = preset, presetSelection = preset)
         commitState(next)
     }
 
     fun toggleCasual(casual: Boolean) {
         var next = state.copy(casualClothes = casual)
         val meta = models.metadata(next.playerModel)
-        next = next.copy(colorPreset = CustomizeLogic.presetAfterSwitch(next.colorPreset, CustomizeLogic.colorPresets(next, meta)))
+        val preset = CustomizeLogic.presetAfterSwitch(next.colorPreset, CustomizeLogic.colorPresets(next, meta))
+        next = next.copy(colorPreset = preset, presetSelection = preset)
         commitState(next)
     }
 
@@ -84,7 +99,9 @@ class CustomizeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun toggleItems(enabled: Boolean) = commitState(state.copy(disableItems = enabled))
 
-    fun selectPreset(name: String) = commitState(state.copy(colorPreset = name))
+    fun selectPreset(name: String) {
+        commitState(CustomizeLogic.selectPreset(state, name, metadata, userPresets))
+    }
 
     fun setColor(colorName: String, color: List<Int>) {
         val defaults = defaultColors
@@ -108,6 +125,10 @@ class CustomizeViewModel(application: Application) : AndroidViewModel(applicatio
         commitState(CustomizeLogic.resetOne(state, metadata, defaultColors, colorName))
     }
 
+    fun resetAllColors() {
+        commitState(CustomizeLogic.resetAllColors(state))
+    }
+
     fun importModel(uri: Uri) {
         error = null
         val input = getApplication<Application>().contentResolver.openInputStream(uri)
@@ -129,56 +150,35 @@ class CustomizeViewModel(application: Application) : AndroidViewModel(applicatio
         if (state.playerModel == name) {
             var next = state.copy(playerModel = CustomizeLogic.DEFAULT_MODEL)
             val meta = models.metadata(CustomizeLogic.DEFAULT_MODEL)
-            next = next.copy(colorPreset = CustomizeLogic.presetAfterSwitch(next.colorPreset, CustomizeLogic.colorPresets(next, meta)))
+            val preset = CustomizeLogic.presetAfterSwitch(next.colorPreset, CustomizeLogic.colorPresets(next, meta))
+            next = next.copy(colorPreset = preset, presetSelection = preset)
             commitState(next)
         }
     }
 
-    fun saveColorPreset(uri: Uri) {
-        error = null
-        val text = CustomizeLogic.encodeColorPreset(
-            CustomizeLogic.ColorPreset(state.playerModel, state.customColors, state.casualClothes),
-        )
-        val ok = runCatching {
-            getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use { out ->
-                out.write(text.toByteArray(Charsets.UTF_8))
-            } != null
-        }.getOrDefault(false)
-        if (!ok) error = "Cannot write the preset file."
+    /** Save the current colours as a user preset; returns an error message, or null when saved. */
+    fun saveUserPreset(name: String): String? {
+        val casual = CustomizeLogic.isCasual(state, metadata)
+        val validation = CustomizeLogic.validateUserPresetName(name, metadata, casual)
+        if (validation != null) return validation
+        val trimmed = name.trim()
+        val defaults = defaultColors
+        val colors = defaults.keys.associateWith { CustomizeLogic.getColor(state, metadata, defaults, it) }
+        colorPresets.save(state.playerModel, casual, trimmed, colors)
+        val next = CustomizeLogic.selectPreset(state, trimmed, metadata, colorPresets.presets(state.playerModel, casual))
+        commitState(next)
+        return null
     }
 
-    fun loadColorPreset(uri: Uri) {
-        error = null
-        val text = runCatching {
-            getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                ?.toString(Charsets.UTF_8)
-        }.getOrNull() ?: run { error = "Cannot read the preset file."; return }
-
-        val preset = CustomizeLogic.decodeColorPreset(text) ?: run { error = "Invalid color preset."; return }
-        if (preset.modelName != CustomizeLogic.DEFAULT_MODEL && preset.modelName !in installed) {
-            error = "The color preset is for model '${preset.modelName}', which is not installed."
-            return
+    fun deleteUserPreset(name: String) {
+        val casual = CustomizeLogic.isCasual(state, metadata)
+        colorPresets.delete(state.playerModel, casual, name)
+        if (state.presetSelection == name) {
+            commitState(state.copy(colorPreset = CustomizeLogic.DEFAULT_PRESET, presetSelection = CustomizeLogic.DEFAULT_PRESET))
+        } else {
+            version++
+            schedulePreview()
         }
-
-        var next = state.copy(playerModel = preset.modelName, casualClothes = preset.isCasual)
-        val meta = models.metadata(preset.modelName)
-        if (meta.disableCasualClothes) next = next.copy(casualClothes = false)
-        val defaults = CustomizeLogic.defaultColors(next, meta)
-        val custom = LinkedHashMap<String, List<Int>>()
-        var foundAny = false
-        for ((colorName, default) in defaults) {
-            if (preset.colors.containsKey(colorName)) {
-                custom[colorName] = preset.colors.getValue(colorName)
-                foundAny = true
-            } else {
-                custom[colorName] = default
-            }
-        }
-        if (!foundAny) {
-            error = "The preset didn't contain any colors that are valid for this model."
-            return
-        }
-        commitState(next.copy(customColors = custom, colorPreset = CustomizeLogic.CUSTOM_PRESET))
     }
 
     fun clearError() {

@@ -17,15 +17,18 @@ class CustomizeStore(context: Context) {
     fun state(): CustomizeLogic.State {
         if (!file.isFile) return CustomizeLogic.State()
         val json = runCatching { JSONObject(file.readText(Charsets.UTF_8)) }.getOrNull() ?: return CustomizeLogic.State()
+        val colorPreset = json.optString("custom_color_preset").takeIf { it.isNotEmpty() }
+            ?: CustomizeLogic.DEFAULT_PRESET
         return CustomizeLogic.State(
             playerModel = json.optString("custom_player_model").takeIf { it.isNotEmpty() }
                 ?: CustomizeLogic.DEFAULT_MODEL,
             casualClothes = json.optBoolean("player_in_casual_clothes", false),
             disableVoice = json.optBoolean("disable_custom_player_voice", false),
             disableItems = json.optBoolean("disable_custom_player_items", false),
-            colorPreset = json.optString("custom_color_preset").takeIf { it.isNotEmpty() }
-                ?: CustomizeLogic.DEFAULT_PRESET,
+            colorPreset = colorPreset,
             customColors = readColors(json.optJSONObject("custom_colors")),
+            presetSelection = json.optString("color_preset_selection").takeIf { it.isNotEmpty() }
+                ?: colorPreset,
         )
     }
 
@@ -37,6 +40,7 @@ class CustomizeStore(context: Context) {
             .put("disable_custom_player_items", state.disableItems)
             .put("custom_color_preset", state.colorPreset)
             .put("custom_colors", colorsJson(state.customColors))
+            .put("color_preset_selection", state.presetSelection)
         file.parentFile?.mkdirs()
         file.writeText(json.toString(), Charsets.UTF_8)
     }

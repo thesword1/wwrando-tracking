@@ -60,12 +60,7 @@ fun CustomizeScreen(viewModel: CustomizeViewModel) {
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.importModel(it) }
     }
-    val savePresetLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        uri?.let { viewModel.saveColorPreset(it) }
-    }
-    val loadPresetLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { viewModel.loadColorPreset(it) }
-    }
+    var showSavePresetDialog by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -123,15 +118,16 @@ fun CustomizeScreen(viewModel: CustomizeViewModel) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Color preset", style = MaterialTheme.typography.titleMedium)
-                Dropdown(selected = state.colorPreset, options = presets, enabled = true, onSelect = viewModel::selectPreset)
+                Dropdown(selected = state.presetSelection, options = presets, enabled = true, onSelect = viewModel::selectPreset)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = { savePresetLauncher.launch("color-preset.txt") },
+                        onClick = { showSavePresetDialog = true },
                         enabled = !viewModel.isRandomModel,
-                    ) { Text("Save colors") }
-                    OutlinedButton(onClick = { loadPresetLauncher.launch(arrayOf("text/plain", "application/octet-stream")) }) {
-                        Text("Load colors")
-                    }
+                    ) { Text("Save as preset") }
+                    OutlinedButton(
+                        onClick = { viewModel.deleteUserPreset(state.presetSelection) },
+                        enabled = viewModel.isUserPresetSelected,
+                    ) { Text("Delete preset") }
                 }
             }
         }
@@ -169,6 +165,14 @@ fun CustomizeScreen(viewModel: CustomizeViewModel) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
+
+    if (showSavePresetDialog) {
+        SaveUserPresetDialog(
+            existingNames = viewModel.userPresets.keys,
+            onSave = viewModel::saveUserPreset,
+            onDismiss = { showSavePresetDialog = false },
+        )
     }
 
     viewModel.error?.let { error ->
@@ -229,6 +233,7 @@ private fun ColorsCard(defaults: Map<String, List<Int>>, viewModel: CustomizeVie
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Colors", style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(onClick = viewModel::resetAllColors) { Text("Reset to default colors") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { viewModel.randomizeAll(false) }) { Text("Randomize colors (orderly)") }
                 OutlinedButton(onClick = { viewModel.randomizeAll(true) }) { Text("Randomize colors (chaotic)") }
@@ -244,6 +249,63 @@ private fun ColorsCard(defaults: Map<String, List<Int>>, viewModel: CustomizeVie
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SaveUserPresetDialog(
+    existingNames: Set<String>,
+    onSave: (String) -> String?,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var confirmName by remember { mutableStateOf<String?>(null) }
+
+    fun submit(value: String) {
+        val trimmed = value.trim()
+        if (trimmed in existingNames) {
+            confirmName = trimmed
+            return
+        }
+        val result = onSave(trimmed)
+        if (result != null) error = result else onDismiss()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save as preset") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; error = null },
+                    label = { Text("Preset name") },
+                    singleLine = true,
+                )
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { submit(name) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+
+    confirmName?.let { existing ->
+        AlertDialog(
+            onDismissRequest = { confirmName = null },
+            title = { Text("Overwrite preset?") },
+            text = { Text("A preset named \"$existing\" already exists. Overwrite it?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmName = null
+                    val result = onSave(existing)
+                    if (result != null) error = result else onDismiss()
+                }) { Text("Overwrite") }
+            },
+            dismissButton = { TextButton(onClick = { confirmName = null }) { Text("Cancel") } },
+        )
     }
 }
 

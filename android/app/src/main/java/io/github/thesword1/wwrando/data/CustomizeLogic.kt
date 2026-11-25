@@ -20,6 +20,8 @@ object CustomizeLogic {
         val disableItems: Boolean = false,
         val colorPreset: String = DEFAULT_PRESET,
         val customColors: Map<String, List<Int>> = emptyMap(),
+        /** UI-only dropdown value; may be a user preset name while [colorPreset] is "Custom". */
+        val presetSelection: String = DEFAULT_PRESET,
     )
 
     fun isCasual(state: State, metadata: ModelMetadata): Boolean =
@@ -67,16 +69,59 @@ object CustomizeLogic {
             }
             preset = CUSTOM_PRESET
         }
-        return state.copy(customColors = custom, colorPreset = preset)
+        return state.copy(customColors = custom, colorPreset = preset, presetSelection = CUSTOM_PRESET)
     }
 
     /** update_color_presets_list: keep the old preset if the new model also has it, else Default. */
     fun presetAfterSwitch(previous: String, presets: Map<String, Map<String, List<Int>>>): String =
         if (previous in presets) previous else DEFAULT_PRESET
 
-    fun presetNames(state: State, metadata: ModelMetadata): List<String> =
+    fun presetNames(
+        state: State,
+        metadata: ModelMetadata,
+        userPresetNames: Set<String> = emptySet(),
+    ): List<String> =
         listOf(DEFAULT_PRESET, CUSTOM_PRESET) +
-            colorPresets(state, metadata).keys.filter { it !in RESERVED_PRESET_NAMES }
+            colorPresets(state, metadata).keys.filter { it !in RESERVED_PRESET_NAMES } +
+            userPresetNames.sorted().filter { it !in RESERVED_PRESET_NAMES }
+
+    /** Mirror of reset_color_selectors_to_model_default_colors: defaults + preset -> Default. */
+    fun resetAllColors(state: State): State =
+        state.copy(colorPreset = DEFAULT_PRESET, presetSelection = DEFAULT_PRESET, customColors = emptyMap())
+
+    /**
+     * Select a preset from the dropdown. Model presets keep their name in `colorPreset`; a user
+     * preset becomes `custom_color_preset="Custom"` with its stored colours, while `presetSelection`
+     * keeps the user preset name for the UI. Unknown names leave the state untouched.
+     */
+    fun selectPreset(
+        state: State,
+        name: String,
+        metadata: ModelMetadata,
+        userPresets: Map<String, Map<String, List<Int>>>,
+    ): State {
+        val modelPresets = colorPresets(state, metadata)
+        return when {
+            name == DEFAULT_PRESET -> state.copy(colorPreset = DEFAULT_PRESET, presetSelection = DEFAULT_PRESET)
+            name == CUSTOM_PRESET -> state.copy(colorPreset = CUSTOM_PRESET, presetSelection = CUSTOM_PRESET)
+            name in modelPresets -> state.copy(colorPreset = name, presetSelection = name)
+            name in userPresets -> state.copy(
+                colorPreset = CUSTOM_PRESET,
+                presetSelection = name,
+                customColors = userPresets.getValue(name),
+            )
+            else -> state
+        }
+    }
+
+    /** Reserved/model preset names are refused; returns a user-facing error message, or null when OK. */
+    fun validateUserPresetName(name: String, metadata: ModelMetadata, casual: Boolean): String? {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return "Enter a preset name."
+        if (trimmed in RESERVED_PRESET_NAMES) return "\"$trimmed\" is reserved."
+        if (trimmed in metadata.colorPresets(casual)) return "\"$trimmed\" is already a model preset."
+        return null
+    }
 
     /** get_random_h_and_v_shifts_for_custom_color, with the very-unsaturated value clamp. */
     fun randomHVShift(defaultColor: List<Int>, random: Random): Pair<Int, Int> {
@@ -145,64 +190,5 @@ object CustomizeLogic {
         } else {
             state
         }
-    }
-
-    data class ColorPreset(
-        val modelName: String,
-        val colors: Map<String, List<Int>>,
-        val isCasual: Boolean,
-    )
-
-    /** Encode a color preset in the desktop YAML format (model_name / colors / is_casual). */
-    fun encodeColorPreset(preset: ColorPreset): String = buildString {
-        append("model_name: ").append(preset.modelName).append('\n')
-        append("colors:\n")
-        for ((name, color) in preset.colors) {
-            append("  ").append(name).append(": 0x")
-            append(color[0].toString(16).uppercase().padStart(2, '0'))
-            append(color[1].toString(16).uppercase().padStart(2, '0'))
-            append(color[2].toString(16).uppercase().padStart(2, '0'))
-            append('\n')
-        }
-        append("is_casual: ").append(if (preset.isCasual) "true" else "false").append('\n')
-    }
-
-    /** Decode the desktop color preset format; returns null when it cannot be parsed. */
-    fun decodeColorPreset(text: String): ColorPreset? {
-        var modelName: String? = null
-        var isCasual = false
-        val colors = LinkedHashMap<String, List<Int>>()
-        var inColors = false
-        for (rawLine in text.lineSequence()) {
-            val line = rawLine.trimEnd()
-            if (line.isBlank() || line.trimStart().startsWith("#")) continue
-            val trimmed = line.trimStart()
-            if (trimmed.startsWith("-")) continue // YAML list item (not used in this format)
-            val indent = line.length - line.trimStart().length
-            if (inColors && indent > 0) {
-                val colon = trimmed.indexOf(':')
-                if (colon <= 0) continue
-                val name = trimmed.substring(0, colon).trim().removeSurrounding("\"", "'")
-                val value = trimmed.substring(colon + 1).trim().removeSurrounding("\"", "'")
-                if (name.isEmpty()) continue
-                colors[name] = try {
-                    ModelMetadata.parseHexColor(value).toList()
-                } catch (e: InvalidColorException) {
-                    return null
-                }
-                continue
-            }
-            val colon = trimmed.indexOf(':')
-            if (colon <= 0) continue
-            val key = trimmed.substring(0, colon).trim()
-            val value = trimmed.substring(colon + 1).trim().removeSurrounding("\"", "'")
-            when (key) {
-                "model_name" -> modelName = value
-                "is_casual" -> isCasual = value.lowercase() in setOf("true", "yes", "on")
-                "colors" -> inColors = true
-            }
-        }
-        val name = modelName ?: return null
-        return ColorPreset(name, colors, isCasual)
     }
 }

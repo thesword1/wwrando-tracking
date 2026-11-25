@@ -36,7 +36,8 @@ Developer docs index: `docs/dev/README.md`.
   `data/ModelZip.kt` (pure import plan/validation), `data/ModelMetadata.kt` (SnakeYAML metadata parse,
   old-format/tab fixes, `link/` asset for Link), `data/ColorLogic.kt` (pure ports of gclib
   `color_exchange`/`hsv_shift_color`), `data/CustomizeLogic.kt` (pure get_color/set_color/preset/randomize
-  mirror), `data/CustomizeStore.kt` (`customize.json`, kept out of presets, merged into the run diff);
+  mirror + reset/select/validate), `data/CustomizeStore.kt` (`customize.json`, kept out of presets, merged
+  into the run diff), `data/ColorPresetStore.kt` (user colour presets in `color_presets.json`, UI-only);
   `ui/CustomizeViewModel.kt` + `ui/CustomizeScreen.kt` + `ui/PreviewRenderer.kt` (debounced preview).
   Bridge also serves `GET /models` and `GET /models/<name>.zip`; run.sh syncs them via
   `android_run.py --sync-models` before each run; setup.sh symlinks `~/wwrando/models` into each release.

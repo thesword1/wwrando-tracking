@@ -77,20 +77,56 @@ class CustomizeLogicTest {
     }
 
     @Test
-    fun `color preset round trips`() {
-        val preset = CustomizeLogic.ColorPreset("Foo", mapOf("Hair" to listOf(255, 0, 0), "Eyes" to listOf(0, 255, 0)), true)
-        val decoded = CustomizeLogic.decodeColorPreset(CustomizeLogic.encodeColorPreset(preset))
-        assertEquals(preset, decoded)
+    fun `reset all colors clears custom colors and selects default`() {
+        val state = CustomizeLogic.State(
+            colorPreset = CustomizeLogic.CUSTOM_PRESET,
+            customColors = mapOf("Hair" to listOf(1, 2, 3)),
+            presetSelection = "My preset",
+        )
+        val next = CustomizeLogic.resetAllColors(state)
+        assertEquals(CustomizeLogic.DEFAULT_PRESET, next.colorPreset)
+        assertEquals(CustomizeLogic.DEFAULT_PRESET, next.presetSelection)
+        assertTrue(next.customColors.isEmpty())
     }
 
     @Test
-    fun `decode desktop color preset format`() {
-        val text = "model_name: Link\ncolors:\n  Hair: 0xFF0000\n  Eyes: 0x00FF00\nis_casual: false\n"
-        val preset = CustomizeLogic.decodeColorPreset(text)
-        assertEquals("Link", preset?.modelName)
-        assertEquals(false, preset?.isCasual)
-        assertEquals(listOf(255, 0, 0), preset?.colors?.get("Hair"))
-        assertEquals(listOf(0, 255, 0), preset?.colors?.get("Eyes"))
+    fun `selecting a user preset becomes Custom with the selection keeping its name`() {
+        val state = CustomizeLogic.State()
+        val userPresets = mapOf("My look" to mapOf("Hair" to listOf(9, 9, 9), "Tunic" to listOf(8, 8, 8)))
+        val next = CustomizeLogic.selectPreset(state, "My look", metadata, userPresets)
+        assertEquals(CustomizeLogic.CUSTOM_PRESET, next.colorPreset)
+        assertEquals("My look", next.presetSelection)
+        assertEquals(listOf(9, 9, 9), next.customColors["Hair"])
+    }
+
+    @Test
+    fun `selecting a model preset keeps the name in both fields`() {
+        val state = CustomizeLogic.State()
+        val next = CustomizeLogic.selectPreset(state, "Dark Link", metadata, emptyMap())
+        assertEquals("Dark Link", next.colorPreset)
+        assertEquals("Dark Link", next.presetSelection)
+    }
+
+    @Test
+    fun `user preset names refuse reserved and model preset names`() {
+        assertTrue(CustomizeLogic.validateUserPresetName("Default", metadata, false) != null)
+        assertTrue(CustomizeLogic.validateUserPresetName("Dark Link", metadata, false) != null)
+        assertTrue(CustomizeLogic.validateUserPresetName("   ", metadata, false) != null)
+        assertEquals(null, CustomizeLogic.validateUserPresetName("My look", metadata, false))
+    }
+
+    @Test
+    fun `preset names append user presets after model presets`() {
+        val meta = ModelMetadata.parse(
+            "hero_custom_colors:\n  Hair: 0xFF0000\n" +
+                "hero_color_presets:\n  Good: {Hair: 0x0000FF}\n",
+        )
+        val names = CustomizeLogic.presetNames(
+            CustomizeLogic.State(),
+            meta,
+            setOf("Zebra", "Apple"),
+        )
+        assertEquals(listOf("Default", "Custom", "Good", "Apple", "Zebra"), names)
     }
 
     @Test
