@@ -17,6 +17,7 @@ import io.github.thesword1.wwrando.MainActivity
 import io.github.thesword1.wwrando.data.IsoSource
 import io.github.thesword1.wwrando.data.IsoVerify
 import io.github.thesword1.wwrando.data.LoopbackBridge
+import io.github.thesword1.wwrando.data.OutputsLogic
 import io.github.thesword1.wwrando.data.ProgressEvent
 import io.github.thesword1.wwrando.data.RandoCommandRunner
 import io.github.thesword1.wwrando.data.RandoBridge
@@ -105,6 +106,22 @@ class AndroidRunOutputSink(
     }
 
     override fun close() = Unit
+
+    override fun writeMeta(json: String) {
+        val folder = folderUri ?: return
+        val docUri = DocumentsContract.createDocument(
+            resolver, folder, "application/octet-stream", OutputsLogic.META_FILE_NAME,
+        ) ?: return
+        val stream = resolver.openOutputStream(docUri, "w") ?: run {
+            runCatching { DocumentsContract.deleteDocument(resolver, docUri) }
+            return
+        }
+        runCatching {
+            stream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+        }.onFailure {
+            runCatching { DocumentsContract.deleteDocument(resolver, docUri) }
+        }
+    }
 
     private fun ensureFolder(subfolder: String): Uri {
         folderUri?.let { if (folderName == subfolder) return it }
@@ -221,7 +238,7 @@ class RandoRunService : Service() {
                 )
                 else -> ProgressEvent.Done(false, """{"ok":false,"error":"no final status from run"}""")
             }
-            finishRun(final)
+            finishRun(final, tracker)
         } finally {
             collector.cancel()
             closeBridge()
@@ -229,7 +246,7 @@ class RandoRunService : Service() {
         }
     }
 
-    private fun finishRun(done: ProgressEvent.Done) {
+    private fun finishRun(done: ProgressEvent.Done, tracker: Boolean) {
         if (cancelled) {
             RunState.set(RunStateValue.Cancelled)
             stopSelf()
@@ -241,6 +258,7 @@ class RandoRunService : Service() {
             val seedHash = json.optString("seed_hash", "")
             val permalink = json.optString("permalink", "")
             val outputFolder = json.optString("output_folder", "")
+            writeRunMeta(seed, seedHash, permalink, tracker)
             RunState.set(RunStateValue.Done(seed, seedHash, permalink, outputFolder))
             notify("Done: $seedHash")
         } else {
@@ -249,6 +267,20 @@ class RandoRunService : Service() {
             notify("Randomizer failed")
         }
         stopSelf()
+    }
+
+    /** Persists run metadata into the output subfolder; a failure is logged, never fails the run. */
+    private fun writeRunMeta(seed: String, seedHash: String, permalink: String, tracker: Boolean) {
+        val currentSink = sink ?: return
+        val appCommit = runCatching { readAssetText("build_commit.txt").trim() }.getOrDefault("")
+        val meta = JSONObject()
+            .put("seed", seed)
+            .put("seed_hash", seedHash)
+            .put("permalink", permalink)
+            .put("tracker", tracker)
+            .put("created", OutputsLogic.nowLocalIso())
+            .put("app_commit", appCommit)
+        runCatching { currentSink.writeMeta(meta.toString()) }
     }
 
     private fun onProgress(done: Int, max: Int, description: String) {

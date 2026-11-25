@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.ui.HomeScreen
+import io.github.thesword1.wwrando.ui.OutputsViewModel
 import io.github.thesword1.wwrando.ui.RandoViewModel
 
 /**
@@ -29,6 +30,7 @@ import io.github.thesword1.wwrando.ui.RandoViewModel
  */
 class MainActivity : ComponentActivity() {
     private val viewModel: RandoViewModel by viewModels()
+    private val outputsViewModel: OutputsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +70,7 @@ class MainActivity : ComponentActivity() {
                     termuxStatus = termuxStatus,
                     permissionDenials = permissionDenials,
                     viewModel = viewModel,
+                    outputsViewModel = outputsViewModel,
                     onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
                     onOpenAppSettings = {
                         startActivity(

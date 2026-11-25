@@ -14,6 +14,8 @@
 
     <queries>
         <package android:name="com.termux" />
+        <package android:name="org.dolphinemu.dolphinemu" />
+        <package android:name="org.dolphinemu.mmjr" />
     </queries>
 
     <application

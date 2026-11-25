@@ -55,6 +55,8 @@ android {
     sourceSets {
         getByName("main") {
             assets.srcDir(project.layout.buildDirectory.dir("generated/assets"))
+            // The run service reads the same commit as an asset to stamp wwrando-run.json.
+            assets.srcDir(project.layout.buildDirectory.dir("generated/build-commit"))
         }
     }
 }

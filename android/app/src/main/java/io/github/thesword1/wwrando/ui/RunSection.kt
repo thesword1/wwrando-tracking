@@ -153,6 +153,11 @@ private fun RealRunCard(
                 Switch(checked = tracker, onCheckedChange = onTrackerChange, enabled = state !is RunStateValue.Running)
             }
 
+            // The Randomize button stays above the result/status text so it never moves when the
+            // run transitions between idle / running / done states.
+            val enabled = isoVerified && outputPicked && state !is RunStateValue.Running
+            Button(onClick = onRun, enabled = enabled) { Text("Randomize") }
+
             when (state) {
                 is RunStateValue.Running -> {
                     if (state.max > 0) {
@@ -174,8 +179,6 @@ private fun RealRunCard(
                 RunStateValue.Idle -> Unit
             }
 
-            val enabled = isoVerified && outputPicked && state !is RunStateValue.Running
-            Button(onClick = onRun, enabled = enabled) { Text("Randomize") }
             when {
                 !isoVerified -> Text("Pick and verify a clean ISO first.", style = MaterialTheme.typography.bodySmall)
                 !outputPicked -> Text("Pick an output folder first.", style = MaterialTheme.typography.bodySmall)

@@ -24,6 +24,9 @@ interface RunOutputSink : Closeable {
 
     /** Called on cancel: removes the in-progress document and this run's subfolder. */
     fun abort()
+
+    /** Writes a small metadata JSON into the run's subfolder; failures are ignored by callers. */
+    fun writeMeta(json: String) {}
 }
 
 /**

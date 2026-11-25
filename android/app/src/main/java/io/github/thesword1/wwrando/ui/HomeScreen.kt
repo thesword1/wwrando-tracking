@@ -27,6 +27,7 @@ fun HomeScreen(
     termuxStatus: TermuxStatus,
     permissionDenials: Int,
     viewModel: RandoViewModel,
+    outputsViewModel: OutputsViewModel,
     onRequestPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
 ) {
@@ -46,6 +47,8 @@ fun HomeScreen(
         SetupCard(setup = viewModel.setup, installed = viewModel.setupInstalled, onRun = viewModel::runSetup)
 
         RunSection(viewModel = viewModel)
+
+        OutputsSection(viewModel = viewModel, outputsViewModel = outputsViewModel)
     }
 }
 
