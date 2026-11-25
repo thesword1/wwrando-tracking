@@ -1,0 +1,754 @@
+{
+ "options": [
+  {
+   "name": "progression_dungeons",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": true,
+   "description": "This controls whether dungeons can contain progress items.\nIf this is not checked, dungeons will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_tingle_chests",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "Tingle Chests that are hidden in dungeons and must be bombed to make them appear. (2 in DRC, 1 each in FW, TotG, ET, and WT).\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_dungeon_secrets",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "DRC, FW, TotG, ET, and WT each have 2-3 secret items within them (11 in total). This controls whether they can be progress items.\nThe items are fairly well-hidden (they aren't in chests), so don't select this option unless you're prepared to search each dungeon high and low!",
+   "permalink": true
+  },
+  {
+   "name": "progression_puzzle_secret_caves",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": true,
+   "description": "This controls whether puzzle-focused secret caves can contain progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_combat_secret_caves",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether combat-focused secret caves (besides Savage Labyrinth) can contain progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_savage_labyrinth",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether the Savage Labyrinth can contain progress items.\nIf this is not checked, it will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_great_fairies",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": true,
+   "description": "This controls whether the items given by Great Fairies can be progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_short_sidequests",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether sidequests that can be completed quickly can reward progress items.\nIf this is not checked, they will still be randomized, but will only reward optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_long_sidequests",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether long sidequests (e.g. Lenzo's assistant, withered trees, goron trading) can reward progress items.\nIf this is not checked, they will still be randomized, but will only reward optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_spoils_trading",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether the items you get by trading in spoils to NPCs can be progress items.\nIf this is not checked, they will still be randomized, but will only reward optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_minigames",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether most minigames can reward progress items (auctions, mail sorting, barrel shooting, bird-man contest).\nIf this is not checked, minigames will still be randomized, but will only reward optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_battlesquid",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether the Windfall battleship minigame can reward progress items.\nIf this is not checked, it will still be randomized, but will only reward optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_free_gifts",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": true,
+   "description": "This controls whether gifts freely given by NPCs can be progress items (Tott, Salvage Corp, imprisoned Tingle).\nIf this is not checked, they will still be randomized, but will only be optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_mail",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether mail can contain progress items.\nIf this is not checked, mail will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_platforms_rafts",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether lookout platforms and rafts can contain progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_submarines",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether submarines can contain progress items.\nIf this is not checked, submarines will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_eye_reef_chests",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether the chests that appear after clearing out the eye reefs can contain progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_big_octos_gunboats",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether the items dropped by Big Octos and Gunboats can contain progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_triforce_charts",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether the sunken treasure chests marked on Triforce Charts can contain progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_treasure_charts",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether the sunken treasure chests marked on Treasure Charts can contain progress items.\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_expensive_purchases",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": true,
+   "description": "This controls whether items that cost a lot of rupees can be progress items (Rock Spire shop, auctions, Tingle's letter, trading quest).\nIf this is not checked, they will still be randomized, but will only be optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_island_puzzles",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": false,
+   "description": "This controls whether various island puzzles can contain progress items (e.g. chests hidden in unusual places).\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "progression_misc",
+   "group": "Progress locations",
+   "type": "bool",
+   "default": true,
+   "description": "Miscellaneous locations that don't fit into any of the above categories (outdoors chests, wind shrine, Cyclos, etc).\nIf this is not checked, they will still be randomized, but will only contain optional items you don't need to beat the game.",
+   "permalink": true
+  },
+  {
+   "name": "randomize_mapcompass",
+   "group": "Modes",
+   "type": "enum",
+   "default": "Own Dungeon",
+   "description": "Controls how dungeon maps and compasses are randomized.",
+   "choices": [
+    "Start With",
+    "Vanilla",
+    "Own Dungeon",
+    "Any Dungeon",
+    "Local",
+    "Key-Lunacy"
+   ],
+   "choice_descriptions": [
+    "Start With Maps & Compasses: You will start the game with the dungeon maps and compasses for all dungeons.",
+    "Vanilla Maps & Compasses: Dungeon maps and compasses will be kept in their vanilla location (non-randomized).",
+    "Own Dungeon Maps & Compasses: Dungeon maps and compasses will be randomized locally within their own dungeon.",
+    "Any Dungeon Maps & Compasses: Dungeon maps and compasses will be randomized locally within any dungeon.",
+    "Local Maps & Compasses: Dungeon maps and compasses will be randomized locally anywhere. (Without Archipelago, this is the same as Key-Lunacy.)",
+    "Key-Lunacy: Dungeon maps and compasses can be found anywhere, without restriction."
+   ],
+   "permalink": true
+  },
+  {
+   "name": "randomize_smallkeys",
+   "group": "Modes",
+   "type": "enum",
+   "default": "Own Dungeon",
+   "description": "Controls how small keys are randomized.",
+   "choices": [
+    "Start With",
+    "Vanilla",
+    "Own Dungeon",
+    "Any Dungeon",
+    "Local",
+    "Key-Lunacy"
+   ],
+   "choice_descriptions": [
+    "Start With Small Keys: You will start the game with the small keys for all dungeons.",
+    "Vanilla Small Keys: Small keys will be kept in their vanilla location (non-randomized).",
+    "Own Dungeon Small Keys: Small keys will be randomized locally within their own dungeon.",
+    "Any Dungeon Small Keys: Small keys will be randomized locally within any dungeon.",
+    "Local Small Keys: Small keys will be randomized locally anywhere. (Without Archipelago, this is the same as Key-Lunacy.)",
+    "Key-Lunacy: Small keys can be found in any progression location, if dungeons are randomized."
+   ],
+   "permalink": true
+  },
+  {
+   "name": "randomize_bigkeys",
+   "group": "Modes",
+   "type": "enum",
+   "default": "Own Dungeon",
+   "description": "Controls how big keys are randomized.",
+   "choices": [
+    "Start With",
+    "Vanilla",
+    "Own Dungeon",
+    "Any Dungeon",
+    "Local",
+    "Key-Lunacy"
+   ],
+   "choice_descriptions": [
+    "Start With Big Keys: You will start the game with the big keys for all dungeons.",
+    "Vanilla Big Keys: Big keys will be kept in their vanilla location (non-randomized).",
+    "Own Dungeon Big Keys: Big keys will be randomized locally within their own dungeon.",
+    "Any Dungeon Big Keys: Big keys will be randomized locally within any dungeon.",
+    "Local Big Keys: Big keys will be randomized locally anywhere. (Without Archipelago, this is the same as Key-Lunacy.)",
+    "Key-Lunacy: Big keys can be found in any progression location, if dungeons are randomized."
+   ],
+   "permalink": true
+  },
+  {
+   "name": "sword_mode",
+   "group": "Modes",
+   "type": "enum",
+   "default": "Start with Hero's Sword",
+   "description": "Controls whether you start with the Hero's Sword, the Hero's Sword is randomized, or if there are no swords in the entire game.\nSwordless and No Starting Sword are challenge modes. (For Swordless, Phantom Ganon at FF is vulnerable to Skull Hammer.)",
+   "choices": [
+    "Start with Hero's Sword",
+    "No Starting Sword",
+    "Swords Optional",
+    "Swordless"
+   ],
+   "choice_descriptions": [
+    "Start with Hero's Sword: You will start the game with the basic Hero's Sword already in your inventory (the default).",
+    "No Starting Sword: You will start the game with no sword, and have to find it somewhere in the world like other randomized items.",
+    "You will start the game with no sword, but they'll still be randomized.\nHowever, they are not necessary to beat the game as the Hyrule Barrier will be gone, Phantom Ganon in FF is vulnerable to Skull Hammer, and the logic not expect you to have a sword.",
+    "Swordless: You will start the game with no sword, and won't be able to find it anywhere. You have to beat the entire game using other items as weapons instead of the sword.\n(Note that Phantom Ganon in FF becomes vulnerable to Skull Hammer in this mode.)"
+   ],
+   "permalink": true
+  },
+  {
+   "name": "required_bosses",
+   "group": "Modes",
+   "type": "bool",
+   "default": false,
+   "description": "In this mode, you will not be allowed to beat the game until certain randomly-chosen bosses are defeated. Nothing in dungeons for other bosses will ever be required.\nYou can see which islands have the required bosses on them by opening the sea chart and checking which islands have blue quest markers.",
+   "permalink": true
+  },
+  {
+   "name": "num_required_bosses",
+   "group": "Modes",
+   "type": "int",
+   "default": 4,
+   "description": "Select the number of randomly-chosen bosses that are required in Required Bosses Mode.\nThe door to Puppet Ganon will not unlock until you've defeated all of these bosses. Nothing in dungeons for other bosses will ever be required.",
+   "minimum": 1,
+   "maximum": 6,
+   "permalink": true
+  },
+  {
+   "name": "included_dungeons",
+   "group": "Modes",
+   "type": "multi",
+   "default": [],
+   "description": "Dungeons whose bosses are always required in Required Bosses Mode.",
+   "choices": [
+    "Dragon Roost Cavern",
+    "Forbidden Woods",
+    "Tower of the Gods",
+    "Forsaken Fortress",
+    "Earth Temple",
+    "Wind Temple"
+   ],
+   "permalink": true
+  },
+  {
+   "name": "excluded_dungeons",
+   "group": "Modes",
+   "type": "multi",
+   "default": [],
+   "description": "Dungeons whose bosses are never required in Required Bosses Mode.",
+   "choices": [
+    "Dragon Roost Cavern",
+    "Forbidden Woods",
+    "Tower of the Gods",
+    "Forsaken Fortress",
+    "Earth Temple",
+    "Wind Temple"
+   ],
+   "permalink": true
+  },
+  {
+   "name": "chest_type_matches_contents",
+   "group": "Modes",
+   "type": "bool",
+   "default": false,
+   "description": "Changes the chest type to reflect its contents. A metal chest has a progress item, a wooden chest has a non-progress item or a consumable, and a green chest has a potentially required dungeon key.",
+   "permalink": true
+  },
+  {
+   "name": "trap_chests",
+   "group": "Modes",
+   "type": "bool",
+   "default": false,
+   "description": "Allows the randomizer to place several trapped chests across the game that do not give you items.\nPerfect for spicing up any run!",
+   "permalink": true
+  },
+  {
+   "name": "hero_mode",
+   "group": "Difficulty",
+   "type": "bool",
+   "default": false,
+   "description": "In Hero Mode, you take four times more damage than normal and heart refills will not drop.",
+   "permalink": true
+  },
+  {
+   "name": "logic_obscurity",
+   "group": "Difficulty",
+   "type": "enum",
+   "default": "None",
+   "description": "Obscure tricks are ways of obtaining items that are not obvious and may involve thinking outside the box.\nThis option controls the maximum difficulty of obscure tricks the randomizer will require you to do to beat the game.",
+   "choices": [
+    "None",
+    "Normal",
+    "Hard",
+    "Very Hard"
+   ],
+   "choice_descriptions": [
+    "",
+    "",
+    "",
+    ""
+   ],
+   "permalink": true
+  },
+  {
+   "name": "logic_precision",
+   "group": "Difficulty",
+   "type": "enum",
+   "default": "None",
+   "description": "Precise tricks are ways of obtaining items that involve difficult inputs such as accurate aiming or perfect timing.\nThis option controls the maximum difficulty of precise tricks the randomizer will require you to do to beat the game.",
+   "choices": [
+    "None",
+    "Normal",
+    "Hard",
+    "Very Hard"
+   ],
+   "choice_descriptions": [
+    "",
+    "",
+    "",
+    ""
+   ],
+   "permalink": true
+  },
+  {
+   "name": "enable_tuner_logic",
+   "group": "Difficulty",
+   "type": "bool",
+   "default": false,
+   "description": "If enabled, the randomizer can logically expect the Tingle Tuner for Tingle Chests.\nThe randomizer behavior of logically expecting Bombs/bomb flowers to spawn in Tingle Chests remains unchanged.\nArchipelago doesn't write this option into .aptww files, so for Archipelago seeds set it to match your world's settings yourself. (For those seeds it only affects the in-game tracker's logic.)",
+   "permalink": true
+  },
+  {
+   "name": "randomize_dungeon_entrances",
+   "group": "Entrance randomizer",
+   "type": "bool",
+   "default": false,
+   "description": "Shuffles around which dungeon entrances take you into which dungeons.\n(No effect on Forsaken Fortress or Ganon's Tower.)",
+   "permalink": true
+  },
+  {
+   "name": "randomize_secret_cave_entrances",
+   "group": "Entrance randomizer",
+   "type": "bool",
+   "default": false,
+   "description": "Shuffles around which secret cave entrances take you into which secret caves.",
+   "permalink": true
+  },
+  {
+   "name": "randomize_miniboss_entrances",
+   "group": "Entrance randomizer",
+   "type": "bool",
+   "default": false,
+   "description": "Allows dungeon miniboss doors to act as entrances to be randomized.\nIf this option is enabled with random dungeon entrances, dungeons may nest within each other, forming chains of connected dungeons.",
+   "permalink": true
+  },
+  {
+   "name": "randomize_boss_entrances",
+   "group": "Entrance randomizer",
+   "type": "bool",
+   "default": false,
+   "description": "Allows dungeon boss doors to act as entrances to be randomized.\nIf this option is enabled with random dungeon entrances, dungeons may nest within each other, forming chains of connected dungeons.",
+   "permalink": true
+  },
+  {
+   "name": "randomize_secret_cave_inner_entrances",
+   "group": "Entrance randomizer",
+   "type": "bool",
+   "default": false,
+   "description": "Allows the pit in Ice Ring Isle's secret cave and the rear exit out of Cliff Plateau Isles' secret cave to act as entrances to be randomized.\nOnly available when both Puzzle Secret Caves and Combat Secret Caves are progress locations.",
+   "permalink": true
+  },
+  {
+   "name": "randomize_fairy_fountain_entrances",
+   "group": "Entrance randomizer",
+   "type": "bool",
+   "default": false,
+   "description": "Allows the pits that lead down into Fairy Fountains to act as entrances to be randomized.",
+   "permalink": true
+  },
+  {
+   "name": "mix_entrances",
+   "group": "Entrance randomizer",
+   "type": "enum",
+   "default": "Separate Dungeons From Caves & Fountains",
+   "description": "Controls whether dungeons should be separated from other randomized entrances, or if all types of randomized entrances can lead into each other.",
+   "choices": [
+    "Separate Dungeons From Caves & Fountains",
+    "Mix Dungeons & Caves & Fountains"
+   ],
+   "choice_descriptions": [
+    "Dungeon entrances will only be randomized to lead into other dungeons.",
+    "Dungeon entrances may be randomized to lead into areas that are not dungeons too."
+   ],
+   "permalink": true
+  },
+  {
+   "name": "randomize_enemy_palettes",
+   "group": "Other randomizers",
+   "type": "bool",
+   "default": false,
+   "description": "Gives all the enemies in the game random colors.",
+   "permalink": true
+  },
+  {
+   "name": "randomize_starting_island",
+   "group": "Other randomizers",
+   "type": "bool",
+   "default": false,
+   "description": "Randomizes which island you start the game on.",
+   "permalink": true
+  },
+  {
+   "name": "randomize_charts",
+   "group": "Other randomizers",
+   "type": "bool",
+   "default": false,
+   "description": "Randomizes which sector is drawn on each Triforce/Treasure Chart.",
+   "permalink": true
+  },
+  {
+   "name": "hoho_hints",
+   "group": "Hints",
+   "type": "bool",
+   "default": true,
+   "description": "Places hints on Old Man Ho Ho. Old Man Ho Ho appears at 10 different islands in the game. Talk to Old Man Ho Ho to get hints.",
+   "permalink": true
+  },
+  {
+   "name": "fishmen_hints",
+   "group": "Hints",
+   "type": "bool",
+   "default": true,
+   "description": "Places hints on the fishmen. There is one fishman at each of the 49 islands of the Great Sea. Each fishman must be fed an All-Purpose Bait before he will give a hint.",
+   "permalink": true
+  },
+  {
+   "name": "korl_hints",
+   "group": "Hints",
+   "type": "bool",
+   "default": false,
+   "description": "Places hints on the King of Red Lions. Talk to the King of Red Lions to get hints.",
+   "permalink": true
+  },
+  {
+   "name": "num_item_hints",
+   "group": "Hints",
+   "type": "int",
+   "default": 15,
+   "description": "The number of item hints that will be placed. Item hints tell you which area contains a particular progress item in this seed.\nIf multiple hint placement options are selected, the hint count will be split evenly among the placement options.",
+   "minimum": 0,
+   "maximum": 15,
+   "permalink": true
+  },
+  {
+   "name": "num_location_hints",
+   "group": "Hints",
+   "type": "int",
+   "default": 5,
+   "description": "The number of location hints that will be placed. Location hints tell you what item is at a specific location in this seed.\nIf multiple hint placement options are selected, the hint count will be split evenly among the placement options.",
+   "minimum": 0,
+   "maximum": 15,
+   "permalink": true
+  },
+  {
+   "name": "num_barren_hints",
+   "group": "Hints",
+   "type": "int",
+   "default": 0,
+   "description": "The number of barren hints that will be placed. Barren hints tell you that an area does not contain any required items in this seed.\nIf multiple hint placement options are selected, the hint count will be split evenly among the placement options.",
+   "minimum": 0,
+   "maximum": 15,
+   "permalink": true
+  },
+  {
+   "name": "num_path_hints",
+   "group": "Hints",
+   "type": "int",
+   "default": 0,
+   "description": "The number of path hints that will be placed. Path hints tell you that an area contains an item that is required to reach a particular goal in this seed.\nIf multiple hint placement options are selected, the hint count will be split evenly among the placement options.",
+   "minimum": 0,
+   "maximum": 15,
+   "permalink": true
+  },
+  {
+   "name": "cryptic_hints",
+   "group": "Hints",
+   "type": "bool",
+   "default": true,
+   "description": "When this option is selected, all hints will be phrased cryptically instead of telling you the names of locations and items directly.",
+   "permalink": true
+  },
+  {
+   "name": "prioritize_remote_hints",
+   "group": "Hints",
+   "type": "bool",
+   "default": false,
+   "description": "When this option is selected, certain locations that are out of the way and time-consuming to complete will take precedence over normal location hints.",
+   "permalink": true
+  },
+  {
+   "name": "hint_importance",
+   "group": "Hints",
+   "type": "bool",
+   "default": false,
+   "description": "When this option is selected, item and location hints will also indicate if the hinted item is required, possibly required, or not required.\nOnly progress items will have these additions; non-progress items are trivially not required.",
+   "permalink": true
+  },
+  {
+   "name": "swift_sail",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": true,
+   "description": "Sailing speed is doubled and the direction of the wind is always at your back as long as the sail is out.",
+   "permalink": true
+  },
+  {
+   "name": "instant_text_boxes",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": true,
+   "description": "Text appears instantly.\nAlso, the B button is changed to instantly skip through text as long as you hold it down.",
+   "permalink": true
+  },
+  {
+   "name": "reveal_full_sea_chart",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": true,
+   "description": "Start the game with the sea chart fully drawn out.",
+   "permalink": true
+  },
+  {
+   "name": "add_shortcut_warps_between_dungeons",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": false,
+   "description": "Adds new warp pots that act as shortcuts connecting dungeons to each other directly. (DRC, FW, TotG, and separately FF, ET, WT.)\nEach pot must be unlocked before it can be used, so you cannot use them to access dungeons you wouldn't already have access to.",
+   "permalink": true
+  },
+  {
+   "name": "skip_rematch_bosses",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": true,
+   "description": "Removes the door in Ganon's Tower that only unlocks when you defeat the rematch versions of Gohma, Kalle Demos, Jalhalla, and Molgera.",
+   "permalink": true
+  },
+  {
+   "name": "invert_camera_x_axis",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": false,
+   "description": "Inverts the horizontal axis of camera movement.",
+   "permalink": false
+  },
+  {
+   "name": "invert_sea_compass_x_axis",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": false,
+   "description": "Inverts the east-west direction of the compass that shows while at sea.",
+   "permalink": false
+  },
+  {
+   "name": "remove_title_and_ending_videos",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": true,
+   "description": "Removes the two prerendered videos that play if you wait on the title screen and after you beat the game. (This cuts the ISO's filesize in half.)\nIf you keep these videos in, they won't reflect your custom player model or colors.",
+   "permalink": false
+  },
+  {
+   "name": "remove_music",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": false,
+   "description": "Mutes all ingame music.",
+   "permalink": true
+  },
+  {
+   "name": "switch_targeting_mode",
+   "group": "Tweaks",
+   "type": "bool",
+   "default": false,
+   "description": "Changes the default L-targeting mode when starting a new save file from 'Hold' to 'Switch'.",
+   "permalink": false
+  },
+  {
+   "name": "num_starting_triforce_shards",
+   "group": "Starting items",
+   "type": "int",
+   "default": 0,
+   "description": "Change the number of Triforce Shards you start the game with.\nThe higher you set this, the fewer you will need to find placed randomly to beat the game.",
+   "minimum": 0,
+   "maximum": 8,
+   "permalink": true
+  },
+  {
+   "name": "starting_pohs",
+   "group": "Starting items",
+   "type": "int",
+   "default": 0,
+   "description": "Amount of extra pieces of heart that you start with.",
+   "minimum": 0,
+   "maximum": 44,
+   "permalink": true
+  },
+  {
+   "name": "starting_hcs",
+   "group": "Starting items",
+   "type": "int",
+   "default": 3,
+   "description": "Amount of extra heart containers that you start with.",
+   "minimum": 1,
+   "maximum": 9,
+   "permalink": true
+  },
+  {
+   "name": "num_extra_starting_items",
+   "group": "Starting items",
+   "type": "int",
+   "default": 0,
+   "description": "Amount of extra random progression items that you start with.\nGuaranteed to unlock at least one additional location at the start.",
+   "minimum": 0,
+   "maximum": 3,
+   "permalink": true
+  },
+  {
+   "name": "player_in_casual_clothes",
+   "group": "Cosmetic",
+   "type": "bool",
+   "default": false,
+   "description": "Enable this if you want to wear your casual clothes instead of the Hero's Clothes.",
+   "permalink": false
+  },
+  {
+   "name": "disable_custom_player_voice",
+   "group": "Cosmetic",
+   "type": "bool",
+   "default": false,
+   "description": "If the chosen custom model comes with custom voice files, you can check this option to turn them off and use Link's normal voice instead.",
+   "permalink": false
+  },
+  {
+   "name": "disable_custom_player_items",
+   "group": "Cosmetic",
+   "type": "bool",
+   "default": false,
+   "description": "If the chosen custom model comes with custom item models, you can check this option to turn them off and use Link's normal item models instead.",
+   "permalink": false
+  },
+  {
+   "name": "in_game_tracker",
+   "group": "In-game tracker",
+   "type": "bool",
+   "default": true,
+   "description": "Adds a tracker to the sea chart that shows which locations you have checked and which are in logic, how many are left on each island and in each dungeon, where entrances you have gone through lead, and where the treasure charts you own point to.\nIt never shows what items are at locations. It works for both offline and Archipelago seeds and doesn't change item placement.",
+   "permalink": false
+  },
+  {
+   "name": "do_not_generate_spoiler_log",
+   "group": "Meta",
+   "type": "bool",
+   "default": false,
+   "description": "Prevents the randomizer from generating a text file listing out the locations of all items in this seed. (Also changes where items are placed in this seed.)\nGenerating a spoiler log is highly recommended even if you don't intend to use it, just in case you get completely stuck.",
+   "permalink": true
+  },
+  {
+   "name": "dry_run",
+   "group": "Meta",
+   "type": "bool",
+   "default": false,
+   "description": "If this option is selected, no playable ISO will be generated, but the log files will still be created.\nThis can be useful if you want to generate a spoiler log on a computer where you do not have a vanilla Wind Waker ISO.",
+   "permalink": false
+  }
+ ],
+ "skipped": [
+  "randomize_enemies",
+  "randomized_gear",
+  "starting_gear",
+  "custom_player_model",
+  "custom_color_preset",
+  "custom_colors"
+ ]
+}

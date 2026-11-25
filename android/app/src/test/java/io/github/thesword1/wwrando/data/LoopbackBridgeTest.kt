@@ -79,6 +79,26 @@ class LoopbackBridgeTest {
     }
 
     @Test
+    fun `serves settings json from the provider`() {
+        val body = """{"progression_tingle_chests":true}""".toByteArray()
+        LoopbackBridge(treeBytes, settingsProvider = { body }).use { bridge ->
+            bridge.start()
+            val (code, received) = request(bridge.port, "GET", "/settings?t=${bridge.token}", token = null)
+            assertEquals(200, code)
+            assertArrayEquals(body, received)
+        }
+    }
+
+    @Test
+    fun `settings route is 404 without a provider`() {
+        LoopbackBridge(treeBytes).use { bridge ->
+            bridge.start()
+            val (code, _) = request(bridge.port, "GET", "/settings?t=${bridge.token}", token = null)
+            assertEquals(404, code)
+        }
+    }
+
+    @Test
     fun `output rejects bad name`() {
         val sink = FakeOutputSink()
         LoopbackBridge(treeBytes, outputSink = sink).use { bridge ->

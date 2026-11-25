@@ -7,6 +7,8 @@ Developer docs index: `docs/dev/README.md`.
 ## Layout
 
 - `wwrando.py` — CLI entry point (`--noui`, `--aptww`, `--clean-iso`, `--output-folder`, `--tracker`).
+- `android_run.py` — headless Termux shim driving `WWRandomizer` over the loopback bridge.
+- `android_options_schema.py` — generates `android/app/src/main/assets/options_schema.json` (committed); `--check` fails on a stale file.
 - `randomizer.py`, `tweaks.py`, `aptww.py` — randomizer core, game patching, `.aptww` (Archipelago) loader.
 - `options/`, `logic/`, `randomizers/` — option definitions, logic files, offline item fill.
 - `wwr_ui/` — Qt GUI; `offline_options.py` builds offline widgets; `inventory.py` is pure data imported
@@ -18,8 +20,11 @@ Developer docs index: `docs/dev/README.md`.
 - `gclib/` — git submodule (LagoLunatic/gclib); optional C speedups have pure-Python fallbacks.
 - `android/` — standalone Gradle project (Kotlin/Compose, `io.github.thesword1.wwrando`); debug APK built
   from same-commit Python sources; Termux bridge under `android/app/src/main/java/.../data/`.
+  Settings screen data: `data/OptionsSchema.kt` (org.json parse of the schema asset), `data/SettingsLogic.kt`
+  (pure diff/merge/validation), `data/SettingsStore.kt` (`filesDir/settings/` current.json + presets);
+  `ui/SettingsScreen.kt` + `ui/SettingsViewModel.kt` render the generated settings UI.
 - `test/` — pytest suite; `test/fixtures/aptww/` `.aptww` fixtures; `test/tracker_c_host.py` builds the
-  tracker C runtime for host unit tests.
+  tracker C runtime for host unit tests; `test_android_*` cover the shim, run.sh, and schema generator.
 - `tools/` — `devkitppc/` (assembler container), `dolphin/` (Dolphin automation harness),
   `aptww_fixtures/`, `parity/` (Archipelago parity helpers).
 - `data/`, `seedgen/`, `wwlib/`, `models/`, `assets/`, `keys/` — game data, seed generation, libs,

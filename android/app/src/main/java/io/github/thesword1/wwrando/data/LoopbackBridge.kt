@@ -29,6 +29,7 @@ class LoopbackBridge(
     private val treeBytes: ByteArray,
     private val isoSource: IsoSource? = null,
     private val outputSink: RunOutputSink? = null,
+    private val settingsProvider: (() -> ByteArray)? = null,
 ) : Closeable {
 
     private val serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
@@ -109,6 +110,7 @@ class LoopbackBridge(
         val contentLength = headers["content-length"]?.toLongOrNull()
         when {
             method == "GET" && path == "/tree" -> writeTree(output)
+            method == "GET" && path == "/settings" -> writeSettings(output)
             method == "GET" && path == "/iso" -> writeIso(output)
             method == "POST" && path == "/output" -> handleOutput(input, output, target, contentLength)
             method == "POST" && path == "/progress" -> handleProgress(input, output, contentLength)
@@ -117,8 +119,22 @@ class LoopbackBridge(
         }
     }
 
-    private fun writeIso(output: OutputStream) {
-        val source = isoSource
+    private fun writeSettings(output: OutputStream) {
+        val body = settingsProvider?.invoke()
+        if (body == null) {
+            writeStatus(output, 404, "Not Found")
+            return
+        }
+        val header = "HTTP/1.1 200 OK\r\n" +
+            "Content-Type: application/json; charset=utf-8\r\n" +
+            "Content-Length: ${body.size}\r\n" +
+            "Connection: close\r\n\r\n"
+        output.write(header.toByteArray())
+        output.write(body)
+        output.flush()
+    }
+
+    private fun writeIso(output: OutputStream) {        val source = isoSource
         if (source == null) {
             writeStatus(output, 404, "Not Found")
             return

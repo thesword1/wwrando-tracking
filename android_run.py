@@ -12,13 +12,16 @@ gclib/gclib/texture_utils.py imports it unconditionally. A Pillow-quantize stub 
 ``quantize_pil_image`` signature is registered before gclib is imported (no gclib changes).
 """
 
+import inspect
 import json
 import os
 import sys
 import time
 import traceback
 import types
+import typing
 import urllib.request
+from enum import StrEnum
 
 # Match wwrando.py: put the bundled gclib submodule on sys.path before any randomizer import.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "gclib"))
@@ -46,6 +49,70 @@ def make_imagequant_stub():
 def install_imagequant_stub():
   if "imagequant" not in sys.modules:
     sys.modules["imagequant"] = make_imagequant_stub()
+
+
+class SettingsError(ValueError):
+  """A value from --settings-json could not be applied to an option."""
+
+
+def _is_enum_type(tp):
+  return inspect.isclass(tp) and issubclass(tp, StrEnum)
+
+
+def _convert_settings_value(field, value):
+  """Validate/convert one JSON settings value. Returns None when the field is not editable."""
+  name = field.name
+  tp = field.type
+  origin = typing.get_origin(tp)
+  args = typing.get_args(tp)
+
+  if tp is bool:
+    if not isinstance(value, bool):
+      raise SettingsError("bad value for %s: expected true or false" % name)
+    return value
+  if _is_enum_type(tp):
+    if not isinstance(value, str) or value not in [member.value for member in tp]:
+      raise SettingsError("bad value for %s: unknown choice %r" % (name, value))
+    return tp(value)
+  if tp is int:
+    if isinstance(value, bool) or not isinstance(value, int):
+      raise SettingsError("bad value for %s: expected an integer" % name)
+    if field.minimum is not None and value < field.minimum:
+      raise SettingsError("bad value for %s: %d below minimum %d" % (name, value, field.minimum))
+    if field.maximum is not None and value > field.maximum:
+      raise SettingsError("bad value for %s: %d above maximum %d" % (name, value, field.maximum))
+    return value
+  if origin is list and args == (str,):
+    if field.choices is None:
+      return None
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+      raise SettingsError("bad value for %s: expected a list of strings" % name)
+    unknown = [item for item in value if item not in field.choices]
+    if unknown:
+      raise SettingsError("bad value for %s: unknown choices %r" % (name, unknown))
+    return value
+  return None
+
+
+def apply_settings_json(options, path):
+  """Apply a {name: value} settings diff on top of the current options. Unknown names are ignored."""
+  if not path:
+    return
+  with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+  if not isinstance(data, dict):
+    raise SettingsError("settings JSON must be an object")
+  by_name = options.by_name()
+  for name, value in data.items():
+    if value is None:
+      continue
+    field = by_name.get(name)
+    if field is None:
+      continue
+    converted = _convert_settings_value(field, value)
+    if converted is None:
+      continue
+    options[name] = converted
 
 
 def _post(port, token, path, body):
@@ -85,6 +152,9 @@ def build_randomizer_kwargs(args):
       continue
     options[option_name] = option_value
 
+  # App-supplied settings override settings.txt (and are in turn overridden by --permalink below).
+  apply_settings_json(options, getattr(args, "settings_json", None))
+
   seed = settings.get("seed")
   if args.permalink:
     seed, options = WWRandomizer.decode_permalink(args.permalink, options)
@@ -113,7 +183,12 @@ def run(args):
 
   port = args.port
   token = args.token
-  rando = WWRandomizer(**build_randomizer_kwargs(args))
+  try:
+    kwargs = build_randomizer_kwargs(args)
+  except SettingsError as e:
+    _finish(args, {"ok": False, "step": "settings", "error": str(e)})
+    return 1
+  rando = WWRandomizer(**kwargs)
   max_progress = max(1, rando.get_max_progress_length())
 
   last_post = 0.0
@@ -163,6 +238,10 @@ def make_argparser():
   parser = wwrando_argparser()
   parser.add_argument("--port", type=int, required=True, help="Loopback bridge port.")
   parser.add_argument("--token", required=True, help="Loopback bridge token.")
+  parser.add_argument(
+    "--settings-json", type=str, metavar="PATH",
+    help="Apply a {name: value} settings diff on top of settings.txt (permalink still wins).",
+  )
   parser.add_argument(
     "--no-done",
     action="store_true",

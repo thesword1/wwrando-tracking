@@ -21,6 +21,8 @@ ISO_MD5_FILE="$INPUT_DIR/clean.iso.md5"
 ISO_PART="$INPUT_DIR/clean.iso.part"
 OUT_BASE="$WW/out"
 OUT_DIR="$OUT_BASE/run_$$"
+RUN_DIR="$WW/run"
+SETTINGS_FILE="$RUN_DIR/settings.json"
 LOG="$WW/run.log"
 PY="$WW/venv/bin/python"
 STEP=0
@@ -41,7 +43,7 @@ progress() { printf '%s\n' "$1" | post progress; }
 
 step() {
   STEP=$((STEP + 1))
-  progress "STEP $STEP/4 $1"
+  progress "STEP $STEP/5 $1"
 }
 
 fail() {
@@ -131,7 +133,7 @@ if [ ! -x "$PY" ]; then
   fail "venv" "python venv missing, run setup first"
 fi
 
-mkdir -p "$INPUT_DIR" "$OUT_BASE" "$OUT_DIR" 2>>"$LOG" || fail "space" "mkdir failed"
+mkdir -p "$INPUT_DIR" "$OUT_BASE" "$OUT_DIR" "$RUN_DIR" 2>>"$LOG" || fail "space" "mkdir failed"
 
 # 1. Free space: the ISO (when not already cached) plus 1.6 GB for the randomized output and venv.
 cached=0
@@ -161,10 +163,14 @@ else
   printf '%s' "$ISO_MD5" > "$ISO_MD5_FILE" || fail "iso" "md5 write failed"
 fi
 
+# 1b. Fetch the app's current settings diff (GET /settings) so the device run matches the settings screen.
+step "Settings"
+curl -fsS "$BASE/settings?t=$TOKEN" -o "$SETTINGS_FILE" >>"$LOG" 2>&1 || fail "settings" "settings fetch failed"
+
 # 2. Randomize without /done: android_run.py --no-done prints the result JSON to stdout instead.
 step "Randomizing"
 set -- "$PY" "$WW/current/android_run.py" --clean-iso "$ISO_CACHE" --output-folder "$OUT_DIR" \
-  --port "$PORT" --token "$TOKEN" --no-done
+  --port "$PORT" --token "$TOKEN" --no-done --settings-json "$SETTINGS_FILE"
 if [ -n "$SEED" ]; then
   set -- "$@" --seed "$SEED"
 else
@@ -188,7 +194,7 @@ step "Uploading"
 for file in "$OUT_DIR"/*; do
   [ -f "$file" ] || continue
   name=$(sanitize "$(basename "$file")")
-  progress "STEP 3/4 Upload $name"
+  progress "STEP 4/5 Upload $name"
   encoded_name=$(urlencode "$name")
   encoded_dir=$(urlencode "$SUBFOLDER")
   curl -fsS --data-binary @"$file" "$BASE/output?t=$TOKEN&name=$encoded_name&dir=$encoded_dir" \

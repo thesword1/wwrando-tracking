@@ -177,3 +177,86 @@ def test_no_done_prints_result_json_to_stdout_instead_of_posting():
     assert result.get("seed") == "test"
     assert result.get("dry_run") is True
 
+
+def _args(**overrides):
+    import argparse
+
+    values = dict(
+        port=1,
+        token="a" * 32,
+        no_done=True,
+        seed=None,
+        permalink=None,
+        autoseed=False,
+        clean_iso=None,
+        output_folder=None,
+        settings_json=None,
+        dry=True,
+    )
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+def test_settings_json_changes_an_option():
+    import android_run
+    from options.wwrando_options import SwordMode
+
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as f:
+        json.dump({"progression_tingle_chests": True, "sword_mode": "Swordless"}, f)
+        f.flush()
+        kwargs = android_run.build_randomizer_kwargs(_args(settings_json=f.name, seed="test"))
+
+    assert kwargs["options"].progression_tingle_chests is True
+    assert kwargs["options"].sword_mode == SwordMode.SWORDLESS
+
+
+def test_permalink_still_wins_over_settings_json():
+    import android_run
+    from options.wwrando_options import Options, SwordMode
+    from randomizer import WWRandomizer
+
+    base = Options()
+    base.progression_tingle_chests = False
+    base.sword_mode = SwordMode.START_WITH_SWORD
+    permalink = WWRandomizer.encode_permalink("testseed", base)
+
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as f:
+        json.dump({"progression_tingle_chests": True, "sword_mode": "Swordless"}, f)
+        f.flush()
+        kwargs = android_run.build_randomizer_kwargs(
+            _args(permalink=permalink, settings_json=f.name),
+        )
+
+    assert kwargs["options"].progression_tingle_chests is False
+    assert kwargs["options"].sword_mode == SwordMode.START_WITH_SWORD
+
+
+def test_bad_enum_value_fails_with_step_settings():
+    outdir = tempfile.mkdtemp(prefix="wwrando-android-run-")
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as f:
+        json.dump({"sword_mode": "Not A Real Mode"}, f)
+        f.flush()
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SHIM),
+                "--port", "1",
+                "--token", "a" * 32,
+                "--dry",
+                "--no-done",
+                "--seed", "test",
+                "--output-folder", outdir,
+                "--settings-json", f.name,
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+
+    assert proc.returncode == 1, proc.stderr
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert result.get("ok") is False
+    assert result.get("step") == "settings"
+    assert "sword_mode" in result.get("error", "")
+

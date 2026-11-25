@@ -23,6 +23,8 @@ import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.ui.HomeScreen
 import io.github.thesword1.wwrando.ui.OutputsViewModel
 import io.github.thesword1.wwrando.ui.RandoViewModel
+import io.github.thesword1.wwrando.ui.SettingsScreen
+import io.github.thesword1.wwrando.ui.SettingsViewModel
 
 /**
  * Thin host for the home screen: it checks Termux health, drives the RUN_COMMAND and notification
@@ -31,6 +33,7 @@ import io.github.thesword1.wwrando.ui.RandoViewModel
 class MainActivity : ComponentActivity() {
     private val viewModel: RandoViewModel by viewModels()
     private val outputsViewModel: OutputsViewModel by viewModels()
+    private val settingsViewModel: SettingsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,21 +69,28 @@ class MainActivity : ComponentActivity() {
                     if (!canNotify) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
 
-                HomeScreen(
-                    termuxStatus = termuxStatus,
-                    permissionDenials = permissionDenials,
-                    viewModel = viewModel,
-                    outputsViewModel = outputsViewModel,
-                    onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
-                    onOpenAppSettings = {
-                        startActivity(
-                            Intent(
-                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.parse("package:$packageName"),
-                            ),
-                        )
-                    },
-                )
+                var showSettings by remember { mutableStateOf(false) }
+                if (showSettings) {
+                    SettingsScreen(viewModel = settingsViewModel, onBack = { showSettings = false })
+                } else {
+                    HomeScreen(
+                        termuxStatus = termuxStatus,
+                        permissionDenials = permissionDenials,
+                        viewModel = viewModel,
+                        outputsViewModel = outputsViewModel,
+                        settingsViewModel = settingsViewModel,
+                        onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
+                        onOpenAppSettings = {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:$packageName"),
+                                ),
+                            )
+                        },
+                        onEditSettings = { showSettings = true },
+                    )
+                }
             }
         }
     }

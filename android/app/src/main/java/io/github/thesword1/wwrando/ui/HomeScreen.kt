@@ -28,8 +28,10 @@ fun HomeScreen(
     permissionDenials: Int,
     viewModel: RandoViewModel,
     outputsViewModel: OutputsViewModel,
+    settingsViewModel: SettingsViewModel,
     onRequestPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onEditSettings: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -45,6 +47,8 @@ fun HomeScreen(
         )
 
         SetupCard(setup = viewModel.setup, installed = viewModel.setupInstalled, onRun = viewModel::runSetup)
+
+        SettingsCard(viewModel = settingsViewModel, onEditSettings = onEditSettings)
 
         RunSection(viewModel = viewModel)
 
@@ -103,6 +107,25 @@ private fun SetupCard(setup: SetupUiState, installed: Boolean, onRun: () -> Unit
                 Text(setup.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
             Button(onClick = onRun, enabled = !setup.running) { Text(if (installed) "Re-run setup" else "Run setup") }
+        }
+    }
+}
+
+@Composable
+private fun SettingsCard(viewModel: SettingsViewModel, onEditSettings: () -> Unit) {
+    viewModel.version // Re-read the plain getters whenever the store changes.
+    val preset = viewModel.activePresetName
+    val modified = viewModel.isModified
+    val changes = viewModel.changesCount
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Settings", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Preset: $preset${if (modified) " (modified)" else ""} · $changes ${if (changes == 1) "change" else "changes"}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(onClick = onEditSettings) { Text("Edit settings") }
         }
     }
 }

@@ -23,6 +23,7 @@ import io.github.thesword1.wwrando.data.RandoCommandRunner
 import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.data.RandoPrefs
 import io.github.thesword1.wwrando.data.RunOutputSink
+import io.github.thesword1.wwrando.data.SettingsStore
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -194,10 +195,12 @@ class RandoRunService : Service() {
 
         val treeBytes = readAssetBytes("wwrando.tgz")
         val localSink = AndroidRunOutputSink(contentResolver, outTree)
+        val settingsStore = SettingsStore(this)
         val localBridge = LoopbackBridge(
             treeBytes,
             isoSource = AndroidIsoSource(contentResolver, iso.uri, iso.size),
             outputSink = localSink,
+            settingsProvider = { settingsStore.currentDiffJsonBytes() },
         )
         bridge = localBridge
         sink = localSink

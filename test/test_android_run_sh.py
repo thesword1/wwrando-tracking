@@ -47,6 +47,12 @@ while [ $# -gt 0 ]; do
   shift
 done
 case "$url" in
+  */settings*)
+    if [ "${{FAIL_SETTINGS:-0}}" = "1" ]; then
+      exit 22
+    fi
+    printf '%s' "${{SETTINGS_JSON:-{{"progression_tingle_chests":true}}}}" > "$out" 2>/dev/null
+    ;;
   */iso*)
     head -c {ISO_SIZE} /dev/zero > "$out" 2>/dev/null
     ;;
@@ -83,11 +89,13 @@ exit 0
     return home, bin_dir
 
 
-def _run_run_sh(home: Path, bin_dir: Path, capture: Path) -> subprocess.CompletedProcess:
+def _run_run_sh(home: Path, bin_dir: Path, capture: Path, extra_env: dict | None = None) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["HOME"] = str(home)
     env["PATH"] = str(bin_dir) + os.pathsep + env["PATH"]
     env["CAPTURE_DONE"] = str(capture)
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         ["sh", str(RUN_SH), "12345", "t" * 32, str(ISO_SIZE), ISO_MD5, "", "1"],
         cwd=REPO_ROOT,
@@ -129,3 +137,43 @@ def test_failure_without_error_json_does_not_report_stale_log(tmp_path):
     body = capture.read_text(encoding="utf-8")
     assert "OLD_ERROR_MARKER" not in body, body
     assert '"step": "run"' in body, body
+
+
+def _write_capturing_fake_run(home: Path) -> None:
+    (home / "wwrando" / "current" / "android_run.py").write_text(
+        'import json, os, sys\n'
+        'with open(os.environ["CAPTURE_ARGS"], "w") as f:\n'
+        '    f.write(" ".join(sys.argv[1:]) + "\\n")\n'
+        'print(json.dumps({"ok": True, "seed": "t", "permalink": "", "seed_hash": "h"}))\n',
+        encoding="utf-8",
+    )
+
+
+def test_settings_route_fetched_and_settings_json_passed(tmp_path):
+    home, bin_dir = _write_fake_home(tmp_path)
+    _write_capturing_fake_run(home)
+    capture = tmp_path / "done.json"
+    args_file = tmp_path / "args.txt"
+
+    proc = _run_run_sh(home, bin_dir, capture, extra_env={"CAPTURE_ARGS": str(args_file)})
+
+    assert proc.returncode == 0, proc.stderr
+    settings_file = home / "wwrando" / "run" / "settings.json"
+    assert settings_file.exists(), "run.sh did not fetch /settings"
+    assert "progression_tingle_chests" in settings_file.read_text(encoding="utf-8")
+    args = args_file.read_text(encoding="utf-8")
+    assert "--settings-json" in args, args
+    assert str(settings_file) in args, args
+
+
+def test_settings_fetch_failure_fails_with_step_settings(tmp_path):
+    home, bin_dir = _write_fake_home(tmp_path)
+    _write_capturing_fake_run(home)
+    capture = tmp_path / "done.json"
+
+    proc = _run_run_sh(home, bin_dir, capture, extra_env={"FAIL_SETTINGS": "1"})
+
+    assert proc.returncode == 1, proc.stderr
+    body = capture.read_text(encoding="utf-8")
+    assert '"step": "settings"' in body, body
+    assert "settings fetch failed" in body, body
