@@ -49,12 +49,25 @@ data class ChildEntry(
     val mimeType: String?,
 )
 
+/**
+ * Pure projection of a seed folder for ordering/selection. Carries a plain string id (the folder
+ * URI) instead of a Uri so the sort/delete rules stay unit-testable without a ContentResolver.
+ */
+data class OutputEntry(
+    val id: String,
+    val folderName: String,
+    val modified: Long,
+    val meta: RunMeta?,
+)
+
 /** Pure selection/formatting rules for the outputs list (unit-testable, no Android deps). */
 object OutputsLogic {
     const val META_FILE_NAME = "wwrando-run.json"
 
     private val CREATED_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
     private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+    private val FOLDER_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+    private val FOLDER_TIMESTAMP = Regex("""_(\d{8})-(\d{6})$""")
 
     fun isIso(name: String): Boolean = name.lowercase().endsWith(".iso")
     fun isLog(name: String): Boolean = name.lowercase().endsWith(".txt")
@@ -131,16 +144,43 @@ object OutputsLogic {
         return out.toString()
     }
 
-    /** Sort key: metadata creation time when parseable, otherwise the folder's last-modified time. */
-    fun newestFirstKey(meta: RunMeta?, modified: Long): Long = parseCreatedEpochMillis(meta?.created) ?: modified
+    /**
+     * Sort key: metadata creation time when parseable, else the folder's last-modified time (when
+     * non-zero), else the trailing `_yyyyMMdd-HHmmss` of the folder name.
+     */
+    fun sortKey(meta: RunMeta?, modified: Long, folderName: String): Long =
+        parseCreatedEpochMillis(meta?.created)
+            ?: modified.takeIf { it > 0 }
+            ?: parseFolderTimestampEpoch(folderName)
+            ?: Long.MIN_VALUE
 
-    fun sortNewestFirst(outputs: List<SeedOutput>): List<SeedOutput> =
-        outputs.sortedByDescending { newestFirstKey(it.meta, it.modified) }
+    fun sortOutputsNewestFirst(outputs: List<SeedOutput>): List<SeedOutput> =
+        outputs.sortedByDescending { sortKey(it.meta, it.modified, it.folderName) }
+
+    fun sortNewestFirst(entries: List<OutputEntry>): List<OutputEntry> =
+        entries.sortedByDescending { sortKey(it.meta, it.modified, it.folderName) }
+
+    /** The entries `deleteOlderThanNewest` would delete: everything after the newest [keep]. */
+    fun oldestToDelete(entries: List<OutputEntry>, keep: Int): List<OutputEntry> =
+        sortNewestFirst(entries).drop(keep)
+
+    fun toEntry(output: SeedOutput): OutputEntry =
+        OutputEntry(output.folderUri.toString(), output.folderName, output.modified, output.meta)
 
     fun parseCreatedEpochMillis(created: String?): Long? {
         if (created.isNullOrBlank()) return null
         return runCatching {
             LocalDateTime.parse(created, CREATED_FORMATTER)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }.getOrNull()
+    }
+
+    fun parseFolderTimestampEpoch(folderName: String): Long? {
+        val match = FOLDER_TIMESTAMP.find(folderName) ?: return null
+        return runCatching {
+            LocalDateTime.parse(match.groupValues[1] + "-" + match.groupValues[2], FOLDER_TIMESTAMP_FORMATTER)
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli()
@@ -185,9 +225,12 @@ class OutputsRepo(private val resolver: ContentResolver) {
     suspend fun deleteOlderThanNewest(treeUri: Uri, keep: Int = 1): Result<Int> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val sorted = OutputsLogic.sortNewestFirst(listInternal(treeUri))
+                val outputs = listInternal(treeUri)
+                val byId = outputs.associateBy { it.folderUri.toString() }
+                val toDelete = OutputsLogic.oldestToDelete(outputs.map(OutputsLogic::toEntry), keep)
                 var deleted = 0
-                for (output in sorted.drop(keep)) {
+                for (entry in toDelete) {
+                    val output = byId[entry.id] ?: continue
                     if (DocumentsContract.deleteDocument(resolver, output.folderUri)) deleted++
                 }
                 deleted
@@ -197,9 +240,10 @@ class OutputsRepo(private val resolver: ContentResolver) {
     private fun listInternal(treeUri: Uri): List<SeedOutput> {
         val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, treeDocId)
-        return queryChildren(childrenUri)
+        val outputs = queryChildren(childrenUri)
             .filter { it.mimeType == DocumentsContract.Document.MIME_TYPE_DIR }
             .mapNotNull { folder -> buildSeedOutput(treeUri, folder) }
+        return OutputsLogic.sortOutputsNewestFirst(outputs)
     }
 
     private fun buildSeedOutput(treeUri: Uri, folder: ChildRecord): SeedOutput? {

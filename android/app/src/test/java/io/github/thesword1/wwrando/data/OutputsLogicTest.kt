@@ -53,14 +53,37 @@ class OutputsLogicTest {
     }
 
     @Test
-    fun `sorts newest first by created then modified`() {
-        val older = RunMeta(created = "2026-11-24T09:00:00")
-        val newer = RunMeta(created = "2026-11-24T11:00:00")
-        assertTrue(OutputsLogic.newestFirstKey(newer, 0L) > OutputsLogic.newestFirstKey(older, 0L))
+    fun `sort key prefers created then modified then folder timestamp`() {
+        val created = OutputsLogic.parseCreatedEpochMillis("2026-11-24T20:07:10")!!
+        val modified = OutputsLogic.parseCreatedEpochMillis("2026-11-24T19:00:00")!!
+        val folderTs = OutputsLogic.parseFolderTimestampEpoch("hashA_20261124-185600")!!
 
-        // Blank or unparseable created falls back to the folder's last-modified time.
-        assertEquals(42L, OutputsLogic.newestFirstKey(RunMeta(created = ""), 42L))
-        assertEquals(42L, OutputsLogic.newestFirstKey(RunMeta(created = "not-a-date"), 42L))
+        assertEquals(created, OutputsLogic.sortKey(RunMeta(created = "2026-11-24T20:07:10"), 0L, "hashA_20261124-185600"))
+        assertEquals(modified, OutputsLogic.sortKey(null, modified, "hashA_20261124-185600"))
+        assertEquals(folderTs, OutputsLogic.sortKey(null, 0L, "hashA_20261124-185600"))
+        assertTrue(folderTs > 0L)
+        assertNull(OutputsLogic.parseFolderTimestampEpoch("no-timestamp"))
+    }
+
+    @Test
+    fun `sorts mixed meta and no-meta entries newest first`() {
+        val oldest = OutputEntry("oldest", "hashA_20261124-185600", modified = 0L, meta = null)
+        val middle = OutputEntry("middle", "hashB_20261124-185800", modified = 0L, meta = null)
+        val newestLegacy = OutputEntry("newestLegacy", "hashC_20261124-191800", modified = 0L, meta = null)
+        val newRun = OutputEntry("newRun", "hashD_20261124-200700", modified = 0L, meta = RunMeta(created = "2026-11-24T20:07:10"))
+
+        val sorted = OutputsLogic.sortNewestFirst(listOf(oldest, newRun, middle, newestLegacy))
+        assertEquals(listOf("newRun", "newestLegacy", "middle", "oldest"), sorted.map { it.id })
+    }
+
+    @Test
+    fun `oldest to delete keeps the newest folder`() {
+        val entries = listOf(
+            OutputEntry("oldest", "hashA_20261124-185600", 0L, null),
+            OutputEntry("newRun", "hashB_20261124-200700", 0L, RunMeta(created = "2026-11-24T20:07:10")),
+            OutputEntry("middle", "hashC_20261124-185800", 0L, null),
+        )
+        assertEquals(listOf("middle", "oldest"), OutputsLogic.oldestToDelete(entries, keep = 1).map { it.id })
     }
 
     @Test
