@@ -268,3 +268,16 @@ Python code (fixtures committed), color save/load round trip, customize not in p
 sync_models (install, skip same md5, replace, prune, zip slip rejected). scripts/test-quiet.sh green, CI APK.
 Acceptance (device): Link preview recolors live; import a model zip, pick it + a preset, run -> Dolphin shows
 the model; colors/model persist across app restart and are untouched by preset load.
+
+## 6b device-test decisions (2026-11-25)
+1. **Reset colors**: add a "Reset to default colors" button (mirror desktop
+   reset_color_selectors_to_model_default_colors): current model + hero/casual defaults, preset -> Default.
+2. **No .txt color files**: remove "Save colors…/Load colors…" (SAF .txt). Instead "Save as preset" asks for a
+   name and stores the current colors as a user color preset in the app (`filesDir/color_presets.json`, keyed by
+   model name -> hero|casual -> preset name -> {color: [r,g,b]}), shown in the Color preset dropdown after the
+   model's own presets; "Delete preset" for user presets only. Reserved/model preset names are refused; saving an
+   existing user preset name overwrites it after a confirm. Selecting a user preset sends
+   `custom_color_preset="Custom"` + its colors in `custom_colors` (the randomizer only knows model presets); the
+   dropdown keeps showing the user preset name (stored as a UI-only field in customize.json). Editing a color
+   switches to Custom as before. User presets are not part of Home presets. Kotlin tests: save/overwrite/delete,
+   reserved name refused, selection -> settings diff.
