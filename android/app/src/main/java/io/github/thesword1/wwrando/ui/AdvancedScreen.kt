@@ -49,6 +49,7 @@ fun AdvancedScreen(
     val diff = settingsViewModel.currentDiff()
     val seed = viewModel.seed
     val shownPermalink = if (advancedViewModel.isStale(diff, seed)) null else advancedViewModel.permalink
+    val about = remember { advancedViewModel.about() }
     var confirmLoad by remember { mutableStateOf(false) }
 
     Column(
@@ -74,7 +75,7 @@ fun AdvancedScreen(
             },
         )
 
-        AboutCard(context = context, info = advancedViewModel.about())
+        AboutCard(context = context, info = about)
     }
 
     if (confirmLoad) {
