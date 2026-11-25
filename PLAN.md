@@ -1,71 +1,87 @@
-# PLAN — Android: outputs list, log viewer, Play in Dolphin (roadmap #4)
+# PLAN — Android: settings, presets, permalink share, seed history (roadmap #5)
 
-Earlier specs (#2, #3, gclib Py 3.14, output-dir fixes) are done; see git history of this file.
+Earlier specs (#2–#4, gclib Py 3.14, output-dir fixes) are done; see git history of this file.
+Two PRs, one branch each: **5a** settings + presets (`feat/android-settings`), then **5b** permalink
+paste/share + seed history (`feat/android-history`). Implement only the phase you are asked for.
 
 ## Goal
 
-After a run, the app lists every generated seed in the picked SAF output tree, shows its spoiler /
-non-spoiler logs in-app, deletes old seeds, and launches the ISO in Dolphin through a granted
-`content://` URI. No change to the Python side or `run.sh` is needed.
+Today every device run uses default `Options()` plus seed/tracker. After #5 the user edits any
+randomizer option on a generated settings screen, saves/loads named presets, pastes or shares a
+permalink, and sees a history of past runs that survives deleting the output folders.
 
-## Design
+## 5a Design — options schema, settings screen, presets
 
-1. **Run metadata** (`service/RandoRunService.kt`, `finishRun`): on a successful, non-cancelled
-   run, write `wwrando-run.json` into the run's subfolder via the existing SAF sink (add a
-   `writeMeta(json: String)` to the sink, same folder as the uploads). Fields: `seed`, `seed_hash`,
-   `permalink`, `tracker` (bool), `created` (ISO-8601 local time), `app_commit` (the
-   `build_commit.txt` asset). A failure to write it is logged, never fails the run.
-2. **Outputs repository** (new `data/OutputsRepo.kt`, pure SAF, no DB):
-   - `list(treeUri): List<SeedOutput>` — query children of the tree root
-     (`DocumentsContract.buildChildDocumentsUriUsingTree`), keep directories, and per directory query
-     its children once. `SeedOutput(folderUri, folderName, isoUri?, isoSize, logs: List<LogFile>,
-     meta: RunMeta?, modified)`. ISO = first child ending `.iso` (case-insensitive); logs = `*.txt`
-     (label: "Spoiler log" if the name contains `- Spoiler Log`, "Non-spoiler log" if
-     `Non-Spoiler`, else the file name). `meta` parsed from `wwrando-run.json` if present; folders
-     without it (older runs) still list, using the folder name as the title. Folders with neither
-     an ISO nor logs are skipped. Sort newest first by `meta.created`, else folder `modified`.
-   - `readText(uri, maxBytes = 2 MiB): String` for the viewer (truncate with a note past the cap).
-   - `delete(folderUri)` (`DocumentsContract.deleteDocument` on the folder) and
-     `deleteOlderThanNewest(keep: Int = 1)`.
-   - All calls run on `Dispatchers.IO`; SAF exceptions become a `Result` failure, not a crash.
-3. **Dolphin launcher** (new `data/DolphinLauncher.kt`):
-   - Packages tried in order: `org.dolphinemu.dolphinemu`, `org.dolphinemu.mmjr`
-     (add both to `<queries>` in `AndroidManifest.xml`). `isInstalled()` via `PackageManager`.
-   - Launch: explicit `Intent(Intent.ACTION_MAIN)`, component
-     `<pkg>/org.dolphinemu.dolphinemu.ui.main.MainActivity`, extra `"AutoStartFile"` = the ISO
-     `content://` URI string, `setData(isoUri)` too, flags
-     `FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK`, plus
-     `ClipData.newRawUri("iso", isoUri)` so the grant applies.
-   - Fallback if no known package or `ActivityNotFoundException`: `ACTION_VIEW` on the URI
-     (`application/octet-stream`, read grant) via `Intent.createChooser`; if that also fails, return
-     an error string the UI shows ("Dolphin not found").
-4. **UI** (new `ui/OutputsSection.kt`, wired into `HomeScreen.kt` below the run section):
-   - Shown when an output folder is granted. Header "Generated seeds (N)" + Refresh. Auto-refresh
-     when `RunState` becomes `Done`.
-   - One card per seed: title = seed hash (or folder name), subtitle = seed + date + ISO size
-     (MB); buttons **Play**, **Logs**, **Copy permalink** (only if meta has one), **Delete**
-     (confirm dialog).
-   - **Delete old** in the header: confirm dialog "Delete all but the newest seed?".
-   - **Logs** opens a full-screen dialog: tabs per log file, monospace selectable text in a
-     scrollable column, loaded lazily via `readText`.
-   - Errors (SAF revoked, Dolphin missing) show as a one-line message in the section, no crash.
-   - Keep each new Kotlin file under ~250 lines; state lives in `RandoViewModel` or a small
-     `OutputsViewModel` if `RandoViewModel.kt` would pass ~300 lines.
-5. **Minor fix in the same PR** (`ui/RunSection.kt`): the Randomize button must not move when
-   result text appears (button above the result/status text, or a fixed result slot).
+1. **Schema generator** `android_options_schema.py` (repo root, next to `android_run.py`):
+   `python android_options_schema.py [--check]` writes `android/app/src/main/assets/options_schema.json`
+   (committed; `--check` exits 1 if the file is stale). One entry per `Options` field, file order:
+   `{name, group, type, default, description, choices?, choice_descriptions?, minimum?, maximum?, permalink}`.
+   - `type`: `bool`, `enum` (StrEnum; `choices` = enum values in order), `int` (min/max), `multi`
+     (`list[str]` with `choices`). Skip `hidden=True` fields and types outside these four
+     (e.g. free `str` like `custom_player_model`, `list[str]` without `choices`); list skipped names in
+     a top-level `"skipped"` array.
+   - `group`: the nearest preceding `#region <Name>` comment in `options/wwrando_options.py`
+     (map field lines via `inspect.getsourcelines(Options)`; fail loudly if a field has no region).
+   - `description`: strip HTML tags, `<br>` -> newline, unescape entities. Same for choice descriptions.
+   - Output: `json.dumps(..., indent=1, ensure_ascii=False)` + trailing newline, so `--check` is
+     byte-stable. Must run on 3.12 and 3.14 with only the repo's normal deps.
+2. **Run-time overrides**: `android_run.py --settings-json PATH` (new arg). In
+   `build_randomizer_kwargs`, apply after `settings.txt`, before `--permalink` (permalink wins). JSON is
+   `{name: value}`; unknown names ignored; enum values converted via the field's type; a bad value
+   (wrong type, out of range, unknown choice) raises -> reported as step `settings` failure with the
+   option name. Desktop `wwrando.py` unchanged.
+3. **Bridge**: new route `GET /settings?t=<token>` returns the current settings JSON (diff vs defaults,
+   UTF-8). `run.sh` fetches it after "Copying ISO" into `$WW/run/settings.json` (`curl -fsS`, failure ->
+   `fail "settings" ...`) and passes `--settings-json`. Keep `run.sh` shellcheck-clean.
+4. **App data** (`data/`):
+   - `OptionsSchema.kt`: parse the asset (org.json) into `OptionDef` sealed types; pure, unit-tested.
+   - `SettingsStore.kt`: files in `filesDir/settings/`: `current.json` (diff vs schema defaults, only
+     non-default values stored) and `presets/<name>.json` (same format). API: `current()`, `set(name,
+     value)`, `resetToDefaults()`, `listPresets()`, `savePreset(name)`, `loadPreset(name)`,
+     `deletePreset(name)`, `activePresetName()` + `isModified()` (current differs from the loaded preset).
+     Preset names: 1–40 chars `[A-Za-z0-9 _-]`, trimmed; built-in read-only "Default" (= empty diff).
+     Values not in the schema (stale after an update) are dropped on load. Pure diff/merge/validation
+     logic in a testable object without Android types.
+5. **UI** (`ui/`): `SettingsScreen.kt` + `SettingsViewModel.kt`. HomeScreen gets a settings card
+   ("Preset: <name>[ (modified)] · N changes", button "Edit settings") that opens a full-screen
+   settings view (simple state switch in MainActivity/HomeScreen, no navigation library). Screen: preset
+   row (dropdown Load, Save as…, Delete, Reset to defaults); one collapsible section per `group`;
+   `bool` -> Switch, `enum` -> dropdown, `int` -> stepper (−/+ within min..max), `multi` -> button
+   opening a checkbox dialog. Each row shows the label (name with `_` -> spaces, capitalised) and a
+   one-line description; tap the row text for the full description dialog. Changes save immediately.
+   Settings controls disabled while a run is active. Keep each new file under ~300 lines.
 
-## Tests
+## 5b Design — permalink paste/share, seed history
 
-- JVM unit tests (`android/app/src/test/`) for the pure parts: log labelling, ISO/log picking from a
-  child list, `RunMeta` JSON parse (missing/extra fields), sort order, and the Dolphin intent spec
-  (package, component, extra, flags) built by a pure function so it needs no device.
-- CI (`android.yml`) stays green: `assembleDebug` + unit tests (add the test task if missing).
+1. **Permalink in**: RunSection gets an optional "Permalink" field. Non-blank -> run passes it to
+   `run.sh` as a new trailing arg (`<permalink>`, may be empty) after validating
+   `^[A-Za-z0-9+/=]{4,2000}$` in Kotlin and again in `run.sh`; `run.sh` adds `--permalink`. The seed
+   field and settings card show "from permalink" and are ignored while it is set. Decode errors
+   (bad permalink, different commit) surface as the normal `randomize` failure text.
+2. **Share**: after a successful run and on each outputs-list entry with a permalink: "Share"
+   (`ACTION_SEND` text: `Permalink: …\nSeed hash: …\nBuild: <build_commit>`) and "Copy".
+3. **History**: `HistoryStore.kt`, `filesDir/history.jsonl`, one JSON object per finished run
+   (success or failure; cancel not recorded): `{time, ok, seed, seed_hash, permalink, preset,
+   modified, error, folder}`; capped at 100 (oldest dropped). Written by `RandoRunService` on done/fail.
+   `HistoryScreen` (opened from HomeScreen "History") lists newest first; per entry: "Use permalink"
+   (fills the permalink field and returns), "Share"; "Clear history" at the top (confirm dialog).
+
+## Tests (scripts/test-quiet.sh must stay green; CI also builds the APK)
+
+- 5a Python: `test/test_android_options_schema.py` — `--check` passes on the committed file; every
+  non-skipped field present with right type; groups match regions. `test/test_android_run.py` —
+  `--settings-json` changes an option (e.g. `progression_tingle_chests`), permalink still wins, bad
+  enum value fails with step `settings`. `test/test_android_run_sh.py` — `/settings` fetched and
+  `--settings-json` passed; fetch failure -> settings fail.
+- 5a Kotlin: `OptionsSchemaTest` (parse a small fixture + the real asset), `SettingsLogicTest`
+  (diff vs defaults, preset name validation, stale keys dropped, modified flag), bridge route test in
+  `LoopbackBridgeTest`.
+- 5b: permalink regex (Kotlin + run.sh test), `HistoryLogicTest` (cap 100, newest first, malformed
+  line skipped), run.sh test for `--permalink` passthrough.
 
 ## Acceptance criteria
 
-- `scripts/test-quiet.sh` and the Android CI workflow pass; no change under the Python tree.
-- A new run writes `wwrando-run.json`; the list shows it at the top after the run finishes.
-- Older seed folders without metadata still list (the device has 3 such folders).
-- Logs viewer shows the spoiler log text; Delete and Delete old remove folders after confirmation.
-- Play launches Dolphin with the ISO (device check by Opus; DeepSeek only builds).
-- Randomize button position is stable across idle / running / done states.
+- 5a: CI green (3.12 + 3.14, APK). On device: change e.g. Sword Mode + a hint count, run -> spoiler log
+  shows those settings; save preset, reset, load preset -> values restored; settings survive app restart.
+- 5b: paste a desktop permalink -> device seed hash matches desktop; Share opens the share sheet;
+  history lists runs incl. a failed one and survives deleting outputs; "Use permalink" re-runs same hash.
