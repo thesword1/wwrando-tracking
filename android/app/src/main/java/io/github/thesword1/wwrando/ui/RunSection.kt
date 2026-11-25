@@ -1,14 +1,10 @@
 package io.github.thesword1.wwrando.ui
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -16,61 +12,63 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.thesword1.wwrando.service.RunStateValue
 
 /**
- * Real-run section: SAF ISO picker with in-app MD5 verification, SAF output-folder picker, and the
- * Randomize/cancel controls that drive the foreground service. Runs always autoseed; the tracker
- * toggle lives in Settings and is passed in as [trackerEnabled]. Kept separate from HomeScreen.
+ * Real-run section: seed box + New seed, SAF ISO picker with in-app MD5 verification, SAF
+ * output-folder picker, and the Randomize/cancel controls. The picker launchers are owned by
+ * HomeScreen so the Self-Check card can trigger the same actions.
  */
 @Composable
-fun RunSection(viewModel: RandoViewModel, trackerEnabled: Boolean) {
+fun RunSection(
+    viewModel: RandoViewModel,
+    seed: String,
+    onSeedChanged: (String) -> Unit,
+    onNewSeed: () -> Unit,
+    onPickIso: () -> Unit,
+    onPickOutput: () -> Unit,
+) {
     val iso = viewModel.iso
     val outputFolder = viewModel.outputFolder
     val ready = viewModel.setupInstalled
     val runState by viewModel.runState.collectAsState()
-    val context = LocalContext.current
-
-    val isoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            val (name, size, modified) = queryIso(context, uri)
-            viewModel.onIsoPicked(uri, name, size, modified)
-        }
-    }
-    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    // Only READ/WRITE are valid here; adding FLAG_GRANT_PERSISTABLE_URI_PERMISSION throws
-                    // IllegalArgumentException and the grant silently dies with the process.
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-                )
-            }
-            viewModel.onOutputFolderPicked(uri)
-        }
-    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        IsoCard(state = iso, onPick = { isoPicker.launch(arrayOf("*/*")) })
-        OutputFolderCard(selected = outputFolder != null, onPick = { folderPicker.launch(null) })
+        SeedCard(seed = seed, onSeedChanged = onSeedChanged, onNewSeed = onNewSeed)
+        IsoCard(state = iso, onPick = onPickIso)
+        OutputFolderCard(selected = outputFolder != null, onPick = onPickOutput)
         RealRunCard(
             state = runState,
             isoVerified = iso.status == IsoStatus.Verified,
             outputPicked = outputFolder != null,
             ready = ready,
-            onRun = { viewModel.startRealRun(trackerEnabled) },
+            onRun = { viewModel.startRealRun(seed) },
             onCancel = viewModel::cancelRealRun,
         )
+    }
+}
+
+@Composable
+private fun SeedCard(seed: String, onSeedChanged: (String) -> Unit, onNewSeed: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Seed", style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(
+                value = seed,
+                onValueChange = onSeedChanged,
+                label = { Text("Seed name (blank = autoseed)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(onClick = onNewSeed) { Text("New seed") }
+        }
     }
 }
 
@@ -130,8 +128,6 @@ private fun RealRunCard(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Randomize", style = MaterialTheme.typography.titleMedium)
 
-            // The Randomize button stays above the result/status text so it never moves when the
-            // run transitions between idle / running / done states.
             val enabled = isoVerified && outputPicked && ready && state !is RunStateValue.Running
             Button(onClick = onRun, enabled = enabled) { Text("Randomize") }
 
@@ -164,7 +160,7 @@ private fun RealRunCard(
     }
 }
 
-private fun queryIso(context: Context, uri: Uri): Triple<String, Long, Long> {
+internal fun queryIso(context: Context, uri: Uri): Triple<String, Long, Long> {
     var name = "clean.iso"
     var size = 0L
     var modified = 0L

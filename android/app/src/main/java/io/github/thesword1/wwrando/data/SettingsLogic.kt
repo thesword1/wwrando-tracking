@@ -16,6 +16,7 @@ object SettingsLogic {
         is OptionDef.Enum -> option.default
         is OptionDef.IntOption -> option.default
         is OptionDef.Multi -> option.default
+        is OptionDef.ItemList -> option.default
     }
 
     fun defaults(schema: List<OptionDef>): Map<String, Any> = schema.associate { it.name to defaultOf(it) }
@@ -37,6 +38,10 @@ object SettingsLogic {
         is OptionDef.Enum -> value is String && value in option.choices
         is OptionDef.IntOption -> value is Int && value >= option.minimum && value <= option.maximum
         is OptionDef.Multi -> value is List<*> && value.all { it is String && it in option.choices }
+        is OptionDef.ItemList -> value is List<*> &&
+            value.all { it is String && it in option.choices } &&
+            value.filterIsInstance<String>().groupingBy { it }.eachCount()
+                .all { (item, count) -> count <= (option.maxCounts[item] ?: 0) }
     }
 
     fun isModified(current: Map<String, Any>, preset: Map<String, Any>): Boolean = current != preset

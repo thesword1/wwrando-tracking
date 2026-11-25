@@ -11,7 +11,8 @@ Status: `done`, `in progress`, `planned`, `blocked`. One squash-merged PR per it
 | 3 | Real run: SAF ISO picker + copy, foreground service, cancel mid-run | done (PRs #49–#52) |
 | 4 | Outputs: generated-ISO list, spoiler log viewer, Delete old, Play -> Dolphin `content://` link | done (PR #53) |
 | 5 | [Settings: presets + generated settings screens (5a), permalink share, seed history (5b), Android UI cleanup (5c)](../PLAN.md) | done (PRs #54–#56) |
-| 6 | Later: `.aptww` import, Chaquopy fallback if Termux limits bite, signed Android release asset | planned |
+| 6 | [Android UI redesign (6a): nav rail, startup Self-Check, Home/Logic/Tweaks/Starting items, preset scope (PLAN §6)](../PLAN.md) | in progress |
+| 7 | Later: `.aptww` import, Chaquopy fallback if Termux limits bite, signed Android release asset | planned |
 
 ## Shipped: offline mode + in-game tracker
 

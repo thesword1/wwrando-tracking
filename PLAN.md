@@ -182,3 +182,29 @@ for any new android_run.py mode. scripts/test-quiet.sh green.
 Acceptance (device, per milestone): sections/rail as above on the Y700; offline self-check OK;
 preset save/load restores Logic/Tweaks/Starting items and leaves seed + Customize untouched;
 starting items empty by default and spoiler log matches what was added.
+
+## 6a decisions (2026-11-25)
+
+1. **Hints**: keep all 10 hint options (hoho/fishmen/korl, num_item/location/barren/path_hints,
+   cryptic, prioritize_remote, hint_importance) in their own "Hints" section on the Tweaks screen.
+   Defaults unchanged.
+2. **Option dependencies**: copy the desktop rules from
+   `wwr_ui/randomizer_window.py ensure_valid_combination_of_options()`, but HIDE dependent options
+   instead of greying them out, and put each dependent option directly under its parent.
+   - `required_bosses` only when `progression_dungeons`; `num_required_bosses` / `included_dungeons` /
+     `excluded_dungeons` appear right below it only when it is on.
+   - `randomize_secret_cave_inner_entrances` only when both `progression_puzzle_secret_caves` and
+     `progression_combat_secret_caves` are on.
+   - `mix_entrances` only when a dungeon-type and a non-dungeon entrance option are both on.
+   - `prioritize_remote_hints` only when `num_location_hints > 0`.
+   - A hidden option sends its default (false for toggles, as desktop unchecks them).
+   - Sword mode `Swordless` / `No Starting Sword` / `Swords Optional` removes `Hurricane Spin` /
+     `Progressive Sword` from the starting-items picker and the current list.
+   - Unit-test these rules.
+3. **Starting items screen**: KEEP the desktop "Starting Health and Items" number options
+   (`starting_hcs` default 3, `starting_pohs` default 0, `num_extra_starting_items` default 0) plus a
+   current-health label like desktop. Do NOT route hearts through the picker. The item picker uses
+   exactly `wwr_ui/inventory.py` `INVENTORY_ITEMS` (progressive items countable up to their count
+   there); starting + randomized must always equal `INVENTORY_ITEMS` like desktop.
+4. **No .aptww/Archipelago anything.** `randomize_enemies` goes into Logic > Advanced settings with a
+   visible warning that it can produce unbeatable/broken seeds (it is hidden+unbeatable on desktop).

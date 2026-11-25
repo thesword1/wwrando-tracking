@@ -12,6 +12,7 @@ class SettingsLogicTest {
         OptionDef.Enum("b", "g", "d", true, "x", listOf("x", "y"), listOf("X", "Y")),
         OptionDef.IntOption("c", "g", "d", true, 5, 0, 10),
         OptionDef.Multi("m", "g", "d", true, emptyList(), listOf("p", "q")),
+        OptionDef.ItemList("gear", "g", "d", true, emptyList(), listOf("Bombs", "Progressive Bow"), mapOf("Bombs" to 1, "Progressive Bow" to 3)),
     )
     private val defaults = SettingsLogic.defaults(schema)
 
@@ -68,5 +69,8 @@ class SettingsLogicTest {
         assertFalse(SettingsLogic.isValidValue(schema[2], 11))
         assertTrue(SettingsLogic.isValidValue(schema[3], listOf("p")))
         assertFalse(SettingsLogic.isValidValue(schema[3], listOf("p", "r")))
+        assertTrue(SettingsLogic.isValidValue(schema[4], listOf("Bombs", "Progressive Bow", "Progressive Bow")))
+        assertFalse(SettingsLogic.isValidValue(schema[4], listOf("Bombs", "Bombs")))
+        assertFalse(SettingsLogic.isValidValue(schema[4], listOf("Progressive Bow", "Progressive Bow", "Progressive Bow", "Progressive Bow")))
     }
 }

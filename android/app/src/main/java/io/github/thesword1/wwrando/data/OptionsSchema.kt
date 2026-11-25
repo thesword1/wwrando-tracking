@@ -46,6 +46,17 @@ sealed interface OptionDef {
         val default: List<String>,
         val choices: List<String>,
     ) : OptionDef
+
+    /** A list option whose values are items with per-item max counts (progressive items). */
+    data class ItemList(
+        override val name: String,
+        override val group: String,
+        override val description: String,
+        override val permalink: Boolean,
+        val default: List<String>,
+        val choices: List<String>,
+        val maxCounts: Map<String, Int>,
+    ) : OptionDef
 }
 
 /** Parses the committed `options_schema.json` asset (org.json) into [OptionDef]s. Pure: no Android types. */
@@ -79,6 +90,12 @@ object OptionsSchema {
                     toStringList(obj.optJSONArray("default") ?: JSONArray()),
                     toStringList(obj.getJSONArray("choices")),
                 )
+                "itemlist" -> OptionDef.ItemList(
+                    name, group, description, permalink,
+                    toStringList(obj.optJSONArray("default") ?: JSONArray()),
+                    toStringList(obj.getJSONArray("choices")),
+                    toCountMap(obj.getJSONObject("max_counts")),
+                )
                 else -> throw IllegalArgumentException("unknown option type for $name")
             }
         }
@@ -87,4 +104,10 @@ object OptionsSchema {
 
     private fun toStringList(array: JSONArray): List<String> =
         (0 until array.length()).map { array.getString(it) }
+
+    private fun toCountMap(obj: JSONObject): Map<String, Int> {
+        val out = LinkedHashMap<String, Int>()
+        obj.keys().forEach { key -> out[key] = obj.getInt(key) }
+        return out
+    }
 }

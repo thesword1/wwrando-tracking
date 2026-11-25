@@ -20,11 +20,15 @@ Developer docs index: `docs/dev/README.md`.
 - `gclib/` — git submodule (LagoLunatic/gclib); optional C speedups have pure-Python fallbacks.
 - `android/` — standalone Gradle project (Kotlin/Compose, `io.github.thesword1.wwrando`); debug APK built
   from same-commit Python sources; Termux bridge under `android/app/src/main/java/.../data/`.
-  Settings screen data: `data/OptionsSchema.kt` (org.json parse of the schema asset), `data/SettingsLogic.kt`
+  Rail/settings data: `data/OptionsSchema.kt` (org.json parse of the schema asset), `data/SettingsLogic.kt`
   (pure diff/merge/validation), `data/SettingsStore.kt` (`filesDir/settings/` current.json + presets +
-  app.json for the tracker toggle), `data/AppSettingsLogic.kt` (pure app-settings serialization);
-  `ui/SettingsScreen.kt` + `ui/SettingsViewModel.kt` render the generated settings UI (plus an "App"
-  group for the tracker toggle). Setup decision: `data/SetupLogic.kt` (commit-based install check).
+  `customize.json`; presets cover Logic + Tweaks + Starting items only), `data/RailSections.kt`
+  (pure rail section layout), `data/OptionDependencies.kt` (desktop hide/sanitize rules),
+  `data/StartingItemsLogic.kt` (item picker counts + health label), `data/SelfCheckLogic.kt` (startup
+  self-check aggregation), `data/SeedNameGenerator.kt` (desktop seed-name mirror);
+  `ui/AppScaffold.kt` (navigation rail) hosts `ui/HomeScreen.kt`, `ui/LogicScreen.kt`,
+  `ui/TweaksScreen.kt`, `ui/StartingItemsScreen.kt` (Customize/Advanced are placeholders until 6b/6c);
+  shared widgets in `ui/OptionWidgets.kt`. Setup decision: `data/SetupLogic.kt` (commit-based install check).
   History: `data/HistoryStore.kt` (`filesDir/history.jsonl`, capped at 100), `ui/HistoryScreen.kt` +
   `ui/HistoryViewModel.kt`.
 - `test/` — pytest suite; `test/fixtures/aptww/` `.aptww` fixtures; `test/tracker_c_host.py` builds the

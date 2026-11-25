@@ -58,6 +58,15 @@ def _type_name_and_payload(tp, field):
     return None, None, None, None, None
 
 
+def _itemlist_payload():
+    """Allowed items and per-item max counts for starting_gear (mirrors wwr_ui.inventory)."""
+    from wwr_ui.inventory import INVENTORY_ITEMS
+
+    choices = sorted(set(INVENTORY_ITEMS))
+    max_counts = {item: INVENTORY_ITEMS.count(item) for item in choices}
+    return choices, max_counts
+
+
 def _field_source_lines():
     from options.wwrando_options import Options
 
@@ -92,8 +101,22 @@ def build_schema():
     skipped = []
     for field in Options.all():
         name = field.name
-        if field.hidden:
+        if field.hidden and name != "randomize_enemies":
             skipped.append(name)
+            continue
+        if name == "starting_gear":
+            choices, max_counts = _itemlist_payload()
+            entry = {
+                "name": name,
+                "group": _group_for_field(lines, _field_line_index(lines, name)),
+                "type": "itemlist",
+                "default": defaults[name],
+                "description": clean_html(field.description or ""),
+                "choices": choices,
+                "max_counts": max_counts,
+                "permalink": bool(field.permalink),
+            }
+            options.append(entry)
             continue
         type_name, choices, choice_descriptions, minimum, maximum = _type_name_and_payload(field.type, field)
         if type_name is None:

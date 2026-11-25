@@ -139,8 +139,17 @@ val writeTreeHash by tasks.registering {
     }
 }
 
+// The "New seed" button mirrors seedgen.make_random_seed_name() in Kotlin, so the same word lists
+// are shipped as plain assets (they are also inside wwrando.tgz, which the app cannot read directly).
+val copySeedWordLists by tasks.registering(Copy::class) {
+    from(rootProject.layout.projectDirectory.dir("../seedgen")) {
+        include("adjectives.txt", "nouns.txt", "names.txt")
+    }
+    into(project.layout.buildDirectory.dir("generated/assets/seedgen"))
+}
+
 tasks.named("preBuild") {
-    dependsOn(copyRandomizerPython, writeTreeHash)
+    dependsOn(copyRandomizerPython, writeTreeHash, copySeedWordLists)
 }
 
 kotlin {
@@ -155,6 +164,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
     implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.compose.ui.tooling)
 

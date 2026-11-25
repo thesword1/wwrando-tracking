@@ -20,7 +20,11 @@ class OptionsSchemaTest {
              "default": 15, "description": "d", "minimum": 0, "maximum": 15, "permalink": true},
             {"name": "included_dungeons", "group": "Modes", "type": "multi",
              "default": [], "description": "d", "permalink": true,
-             "choices": ["Earth Temple", "Wind Temple"]}
+             "choices": ["Earth Temple", "Wind Temple"]},
+            {"name": "starting_gear", "group": "Starting items", "type": "itemlist",
+             "default": [], "description": "d", "permalink": true,
+             "choices": ["Bombs", "Progressive Bow"],
+             "max_counts": {"Bombs": 1, "Progressive Bow": 3}}
           ],
           "skipped": ["custom_player_model"]
         }
@@ -30,7 +34,7 @@ class OptionsSchemaTest {
     fun `parses a small fixture into sealed option defs`() {
         val schema = OptionsSchema.parse(fixture)
 
-        assertEquals(4, schema.size)
+        assertEquals(5, schema.size)
         val dungeons = schema[0] as OptionDef.Bool
         assertTrue(dungeons.default)
         val sword = schema[1] as OptionDef.Enum
@@ -42,6 +46,10 @@ class OptionsSchemaTest {
         val included = schema[3] as OptionDef.Multi
         assertEquals(listOf("Earth Temple", "Wind Temple"), included.choices)
         assertEquals(emptyList<String>(), included.default)
+        val gear = schema[4] as OptionDef.ItemList
+        assertEquals(3, gear.maxCounts["Progressive Bow"])
+        assertEquals(1, gear.maxCounts["Bombs"])
+        assertEquals(emptyList<String>(), gear.default)
     }
 
     @Test

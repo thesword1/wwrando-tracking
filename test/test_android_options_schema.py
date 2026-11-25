@@ -17,6 +17,8 @@ SCHEMA_PATH = REPO_ROOT / "android" / "app" / "src" / "main" / "assets" / "optio
 
 
 def _expected_type(field):
+    if field.name == "starting_gear":
+        return "itemlist"
     tp = field.type
     origin = typing.get_origin(tp)
     args = typing.get_args(tp)
@@ -58,6 +60,11 @@ def test_schema_covers_every_non_skipped_field_with_the_right_type_and_group():
 
     for field in Options.all():
         expected = _expected_type(field)
+        if field.name == "randomize_enemies":
+            # hidden+unbeatable on desktop, but surfaced on the Android Logic screen with a warning.
+            assert field.name in by_name, field.name
+            assert by_name[field.name]["type"] == "bool", field.name
+            continue
         if field.hidden or expected is None:
             assert field.name in schema["skipped"], field.name
             assert field.name not in by_name, field.name
@@ -66,9 +73,14 @@ def test_schema_covers_every_non_skipped_field_with_the_right_type_and_group():
         entry = by_name[field.name]
         assert entry["type"] == expected, field.name
         assert entry["group"] == _expected_group(field.name), field.name
+        if entry["type"] == "itemlist":
+            assert entry["choices"], field.name
+            assert entry["max_counts"], field.name
+            assert all(isinstance(n, int) for n in entry["max_counts"].values()), field.name
+            assert set(entry["max_counts"]) == set(entry["choices"]), field.name
 
     assert schema["skipped"] == [
-        "randomize_enemies", "randomized_gear", "starting_gear",
+        "randomized_gear",
         "custom_player_model", "custom_color_preset", "custom_colors",
     ]
 

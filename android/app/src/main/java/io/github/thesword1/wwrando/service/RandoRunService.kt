@@ -164,12 +164,11 @@ class RandoRunService : Service() {
             return START_NOT_STICKY
         }
         val seed = intent?.getStringExtra(EXTRA_SEED) ?: ""
-        val tracker = intent?.getBooleanExtra(EXTRA_TRACKER, true) ?: true
         val permalink = intent?.getStringExtra(EXTRA_PERMALINK) ?: ""
         ensureChannel()
         startForegroundCompat(buildNotification("Starting...", 0, 0))
         RunState.set(RunStateValue.Running(0, 0, "Starting"))
-        scope.launch { runReal(seed, tracker, permalink) }
+        scope.launch { runReal(seed, permalink) }
         return START_NOT_STICKY
     }
 
@@ -178,7 +177,7 @@ class RandoRunService : Service() {
         super.onDestroy()
     }
 
-    private suspend fun runReal(seed: String, tracker: Boolean, permalink: String) {
+    private suspend fun runReal(seed: String, permalink: String) {
         val prefs = RandoPrefs(this)
         val iso = prefs.loadIso()
         val outTree = prefs.loadOutputTree()
@@ -202,6 +201,7 @@ class RandoRunService : Service() {
         val settingsStore = SettingsStore(this)
         val presetName = settingsStore.activePresetName()
         val settingsModified = settingsStore.isModified()
+        val tracker = settingsStore.inGameTrackerEnabled()
         val localBridge = LoopbackBridge(
             treeBytes,
             isoSource = AndroidIsoSource(contentResolver, iso.uri, iso.size),
@@ -228,7 +228,7 @@ class RandoRunService : Service() {
             val command = "cat > '${RandoBridge.WWRANDO_DIR}/run.sh' && " +
                 "chmod +x '${RandoBridge.WWRANDO_DIR}/run.sh' && " +
                 "'${RandoBridge.WWRANDO_DIR}/run.sh' ${localBridge.port} ${localBridge.token} " +
-                "${iso.size} ${IsoVerify.CLEAN_ISO_MD5} ${shellQuote(seed)} ${if (tracker) "1" else "0"} " +
+                "${iso.size} ${IsoVerify.CLEAN_ISO_MD5} ${shellQuote(seed)} " +
                 shellQuote(permalink)
             val result = RandoCommandRunner.run(
                 context = this,
@@ -409,7 +409,6 @@ class RandoRunService : Service() {
     companion object {
         const val ACTION_CANCEL = "io.github.thesword1.wwrando.action.CANCEL_RUN"
         const val EXTRA_SEED = "seed"
-        const val EXTRA_TRACKER = "tracker"
         const val EXTRA_PERMALINK = "permalink"
 
         private const val CHANNEL_ID = "randomizer_run"

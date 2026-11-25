@@ -12,6 +12,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,19 +22,24 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import io.github.thesword1.wwrando.data.RandoBridge
+import io.github.thesword1.wwrando.data.SelfCheckInput
+import io.github.thesword1.wwrando.data.SelfCheckLogic
+import io.github.thesword1.wwrando.ui.AppScaffold
 import io.github.thesword1.wwrando.ui.HistoryScreen
 import io.github.thesword1.wwrando.ui.HistoryViewModel
-import io.github.thesword1.wwrando.ui.HomeScreen
+import io.github.thesword1.wwrando.ui.IsoStatus
 import io.github.thesword1.wwrando.ui.OutputsViewModel
 import io.github.thesword1.wwrando.ui.RandoViewModel
-import io.github.thesword1.wwrando.ui.SettingsScreen
 import io.github.thesword1.wwrando.ui.SettingsViewModel
 
 /**
- * Thin host for the home screen: it checks Termux health, drives the RUN_COMMAND and notification
- * permission requests, and hands all setup/run state to [RandoViewModel].
+ * Thin host for the rail shell: it runs startup self-check/setup, drives the RUN_COMMAND and
+ * notification permission requests, and overlays the run history. All setup/run state lives in the
+ * ViewModels.
  */
 class MainActivity : ComponentActivity() {
     private val viewModel: RandoViewModel by viewModels()
@@ -45,13 +53,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 var permissionDenials by remember { mutableIntStateOf(prefs.getInt("run_command_denials", 0)) }
-                var granted by remember { mutableStateOf(RandoBridge.hasRunCommandPermission(this)) }
                 var termuxStatus by remember { mutableStateOf(RandoBridge.status(this)) }
+                var showHistory by remember { mutableStateOf(false) }
 
                 val permissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
                 ) { isGranted ->
-                    granted = isGranted
                     permissionDenials = if (isGranted) 0 else permissionDenials + 1
                     prefs.edit().putInt("run_command_denials", permissionDenials).apply()
                     termuxStatus = RandoBridge.status(this)
@@ -63,50 +70,58 @@ class MainActivity : ComponentActivity() {
                 ) { _ -> }
 
                 LaunchedEffect(Unit) {
-                    if (termuxStatus.installed && !granted && permissionDenials < 2) {
+                    if (termuxStatus.installed && !termuxStatus.runCommandGranted && permissionDenials < 2) {
                         permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND)
                     }
-                    // Ask before the first run; denial must not block the run (the service still works).
                     val canNotify = ContextCompat.checkSelfPermission(
                         this@MainActivity, Manifest.permission.POST_NOTIFICATIONS,
                     ) == PackageManager.PERMISSION_GRANTED
                     if (!canNotify) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
 
-                var showSettings by remember { mutableStateOf(false) }
-                var showHistory by remember { mutableStateOf(false) }
-                BackHandler(enabled = showSettings) { showSettings = false }
                 BackHandler(enabled = showHistory) { showHistory = false }
-                when {
-                    showSettings -> {
-                        SettingsScreen(viewModel = settingsViewModel, onBack = { showSettings = false })
+
+                if (showHistory) {
+                    HistoryScreen(viewModel = historyViewModel, onBack = { showHistory = false })
+                } else if (viewModel.setup.running) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
                     }
-                    showHistory -> {
-                        HistoryScreen(
-                            viewModel = historyViewModel,
-                            onBack = { showHistory = false },
-                        )
-                    }
-                    else -> {
-                        HomeScreen(
-                            termuxStatus = termuxStatus,
-                            permissionDenials = permissionDenials,
-                            viewModel = viewModel,
-                            outputsViewModel = outputsViewModel,
-                            settingsViewModel = settingsViewModel,
-                            onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
-                            onOpenAppSettings = {
-                                startActivity(
-                                    Intent(
-                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        Uri.parse("package:$packageName"),
-                                    ),
-                                )
-                            },
-                            onEditSettings = { showSettings = true },
-                            onOpenHistory = { showHistory = true },
-                        )
-                    }
+                } else {
+                    val selfCheck = SelfCheckLogic.issues(
+                        SelfCheckInput(
+                            termuxInstalled = termuxStatus.installed,
+                            termuxNewEnough = termuxStatus.newEnough,
+                            runCommandGranted = termuxStatus.runCommandGranted,
+                            setupReady = viewModel.setupInstalled,
+                            setupRunning = viewModel.setup.running,
+                            setupError = viewModel.setup.error,
+                            isoPicked = viewModel.iso.name != null,
+                            isoVerified = viewModel.iso.status == IsoStatus.Verified,
+                            outputPicked = viewModel.outputFolder != null,
+                        ),
+                    )
+                    AppScaffold(
+                        selfCheck = selfCheck,
+                        permissionDenials = permissionDenials,
+                        viewModel = viewModel,
+                        outputsViewModel = outputsViewModel,
+                        settingsViewModel = settingsViewModel,
+                        onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
+                        onInstallTermux = { openTermuxStore() },
+                        onOpenAppSettings = {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:$packageName"),
+                                ),
+                            )
+                        },
+                        onOpenHistory = {
+                            historyViewModel.refresh()
+                            showHistory = true
+                        },
+                    )
                 }
             }
         }
@@ -116,5 +131,11 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // A fresh install (or a stale bundle) sets itself up; idempotent and skipped once Ready.
         viewModel.ensureSetup()
+    }
+
+    private fun openTermuxStore() {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.termux")))
+        }
     }
 }

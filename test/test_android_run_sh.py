@@ -103,7 +103,7 @@ def _run_run_sh(
     if extra_env:
         env.update(extra_env)
     return subprocess.run(
-        ["sh", str(RUN_SH), "12345", "t" * 32, str(ISO_SIZE), ISO_MD5, "", "1", permalink],
+        ["sh", str(RUN_SH), "12345", "t" * 32, str(ISO_SIZE), ISO_MD5, "", permalink],
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,

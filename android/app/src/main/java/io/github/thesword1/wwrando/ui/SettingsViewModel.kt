@@ -6,23 +6,29 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import io.github.thesword1.wwrando.data.OptionDef
+import io.github.thesword1.wwrando.data.OptionDependencies
 import io.github.thesword1.wwrando.data.SettingsLogic
 import io.github.thesword1.wwrando.data.SettingsStore
 
-/** Owns the generated options schema and the current/preset settings diff for the settings screen. */
+/** Owns the generated options schema and the current/preset settings diff for Logic/Tweaks/Starting items. */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val store = SettingsStore(application)
     private val defaults = SettingsLogic.defaults(store.schema)
 
     val schema: List<OptionDef> = store.schema
+    val schemaByName: Map<String, OptionDef> = store.schema.associateBy { it.name }
 
     /** Bumped on every mutation so composables re-read the store's plain getters. */
     var version by mutableIntStateOf(0)
         private set
 
-    // Every getter reads `version` so each composable that shows a value recomposes on any store change.
-    fun effective(name: String): Any { version; return store.current()[name] ?: defaults.getValue(name) }
+    fun effective(name: String): Any { version; return store.effective(name) }
+
+    fun effectiveAll(): Map<String, Any> {
+        version
+        return defaults + store.current()
+    }
 
     fun set(name: String, value: Any) {
         store.set(name, value)
@@ -52,11 +58,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         version++
     }
 
-    fun trackerEnabled(): Boolean { version; return store.trackerEnabled() }
-
-    fun setTrackerEnabled(enabled: Boolean) {
-        store.setTrackerEnabled(enabled)
-        version++
+    fun isVisible(name: String): Boolean {
+        version
+        return OptionDependencies.isVisible(name, effectiveAll())
     }
 
     val activePresetName: String get() { version; return store.activePresetName() }

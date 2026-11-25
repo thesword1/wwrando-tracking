@@ -13,6 +13,7 @@ import io.github.thesword1.wwrando.data.ProgressEvent
 import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.data.RandoPrefs
 import io.github.thesword1.wwrando.data.RandoSetup
+import io.github.thesword1.wwrando.data.SeedNameGenerator
 import io.github.thesword1.wwrando.service.RandoRunService
 import io.github.thesword1.wwrando.service.RunState
 import io.github.thesword1.wwrando.service.RunStateValue
@@ -70,6 +71,8 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var outputFolder: Uri? by mutableStateOf(null)
         private set
+    var seed by mutableStateOf("")
+        private set
 
     val runState: StateFlow<RunStateValue> get() = RunState.state
     val setupInstalled: Boolean
@@ -86,6 +89,25 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         outputFolder = prefs.loadOutputTree()?.takeIf { tree ->
             application.contentResolver.persistedUriPermissions.any { it.uri == tree && it.isWritePermission }
         }
+        seed = prefs.loadSeed()
+    }
+
+    fun onSeedChanged(value: String) {
+        seed = value
+        prefs.saveSeed(value)
+    }
+
+    fun newSeed() {
+        val adjectives = readWordList("adjectives.txt")
+        val nouns = readWordList("nouns.txt")
+        val names = readWordList("names.txt")
+        val next = if (adjectives.size >= 2 && nouns.isNotEmpty() && names.isNotEmpty()) {
+            SeedNameGenerator.generate(adjectives, nouns, names)
+        } else {
+            "Seed${System.currentTimeMillis()}"
+        }
+        seed = next
+        prefs.saveSeed(next)
     }
 
     fun runSetup() {
@@ -155,11 +177,11 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         outputFolder = uri
     }
 
-    fun startRealRun(tracker: Boolean) {
+    fun startRealRun(seed: String) {
         // Clear the previous run's result/error immediately so it never lingers on screen.
         RunState.set(RunStateValue.Running(0, 0, "Starting"))
         val intent = Intent(getApplication(), RandoRunService::class.java)
-            .putExtra(RandoRunService.EXTRA_TRACKER, tracker)
+            .putExtra(RandoRunService.EXTRA_SEED, seed)
         getApplication<Application>().startForegroundService(intent)
     }
 
@@ -168,6 +190,14 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
             Intent(getApplication(), RandoRunService::class.java).setAction(RandoRunService.ACTION_CANCEL),
         )
     }
+
+    private fun readWordList(name: String): List<String> =
+        runCatching {
+            getApplication<Application>().assets.open("seedgen/$name")
+                .bufferedReader(Charsets.UTF_8).use { reader ->
+                    reader.readLines().filter { it.isNotBlank() }
+                }
+        }.getOrDefault(emptyList())
 
     private suspend fun computeMd5(uri: Uri, onProgress: (Long) -> Unit): String? =
         withContext(Dispatchers.IO) {

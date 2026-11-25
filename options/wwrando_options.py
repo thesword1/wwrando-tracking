@@ -3,7 +3,7 @@ from enum import StrEnum
 
 from options.base_options import BaseOptions, option
 
-from wwr_ui.inventory import DEFAULT_STARTING_ITEMS, DEFAULT_RANDOMIZED_ITEMS
+from wwr_ui.inventory import DEFAULT_STARTING_ITEMS, DEFAULT_RANDOMIZED_ITEMS, INVENTORY_ITEMS
 
 class SwordMode(StrEnum):
   START_WITH_SWORD = "Start with Hero's Sword"
@@ -473,6 +473,7 @@ class Options(BaseOptions):
   )
   starting_gear: list[str] = option(
     default_factory=lambda: sorted(DEFAULT_STARTING_ITEMS),
+    choices=INVENTORY_ITEMS,
     description="Items that will be in your inventory at the start of a new game.",
   )
   num_starting_triforce_shards: int = option(

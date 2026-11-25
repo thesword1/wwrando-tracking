@@ -56,6 +56,12 @@ class RandoPrefs(context: Context) {
 
     fun loadOutputTree(): Uri? = prefs.getString(KEY_OUT_TREE, null)?.let { Uri.parse(it) }
 
+    fun saveSeed(seed: String) {
+        prefs.edit().putString(KEY_SEED, seed).apply()
+    }
+
+    fun loadSeed(): String = prefs.getString(KEY_SEED, "") ?: ""
+
     companion object {
         private const val KEY_ISO_URI = "iso_uri"
         private const val KEY_ISO_NAME = "iso_name"
@@ -64,6 +70,7 @@ class RandoPrefs(context: Context) {
         private const val KEY_ISO_VERIFIED = "iso_verified"
         private const val KEY_ISO_VERIFIED_FOR = "iso_verified_for"
         private const val KEY_OUT_TREE = "out_tree_uri"
+        private const val KEY_SEED = "seed"
 
         private fun verificationKey(uri: Uri, size: Long, lastModified: Long): String =
             "${uri}|$size|$lastModified"
