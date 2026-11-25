@@ -281,3 +281,42 @@ the model; colors/model persist across app restart and are untouched by preset l
    dropdown keeps showing the user preset name (stored as a UI-only field in customize.json). Editing a color
    switches to Custom as before. User presets are not part of Home presets. Kotlin tests: save/overwrite/delete,
    reserved name refused, selection -> settings diff.
+
+## 6c design — Advanced: About + permalink (2026-11-25; refines 6 item 6)
+1. **Rail**: new last section **Advanced** (`AdvancedScreen.kt`), two cards: Permalink, About.
+2. **Python** (`android_run.py`, no bridge needed — results go back on stdout via the RUN_COMMAND bundle,
+   like `--sync-models`): two exit-early modes, JSON in on stdin, one JSON line out, exit 0/1.
+   - `--encode-permalink`: stdin `{"seed": str, "settings": {name: value}}` (settings = the same diff
+     `--settings-json` takes). Options built exactly as `build_randomizer_kwargs` (settings.txt, then the
+     diff via a shared helper — refactor, don't copy). Blank seed -> `seedgen.make_random_seed_name()`.
+     Out: `{"ok": true, "permalink": str, "seed": str}` (seed after `sanitize_seed`).
+   - `--decode-permalink`: stdin `{"permalink": str}`. `WWRandomizer.decode_permalink(p, Options())`
+     (commit check stays on). Out: `{"ok": true, "seed": str, "settings": {name: value}}` with only
+     `permalink=True` options, values JSON-ready (enums -> `.value`, lists as lists) and accepted back by
+     `apply_settings_json`. Errors: `{"ok": false, "step": "permalink", "error": "<message>"}`, exit 1.
+   - Must not need `--port/--token`. imagequant stub still installed.
+3. **Kotlin**: `PermalinkRunner` (data/) calls the venv python + `~/wwrando/current/android_run.py` through
+   `RandoCommandRunner.run(stdin=…)`, timeout 60 s, parses the JSON line (last non-blank stdout line);
+   needs setup done (else "Run setup first", via the existing self-check state).
+   - **Permalink card**: read-only field with the permalink for current Logic/Tweaks/Starting items +
+     Home seed (`SettingsStore.current()` sanitized, no Customize — not permalink options anyway), button
+     "Generate" (spinner while running; never auto-runs Termux on screen open), "Copy" (clipboard).
+     If the seed was blank, the returned seed is written to the Home seed field so the run matches.
+     The shown permalink is cleared when any setting or the seed changes (stale = hidden).
+   - **Paste**: text field + "Load" (validate `^[A-Za-z0-9+/=]{4,2000}$` with the existing 5b regex),
+     confirm dialog "Replace Logic, Tweaks and Starting items with the permalink's settings?", then decode:
+     current settings := decoded settings minus defaults (so the change count/“modified” stay right),
+     preset label -> modified/none as when editing by hand, Home seed := decoded seed. Customize untouched.
+     Decode error text shown under the field (e.g. "different version/commit").
+   - **About card**: app versionName, bundled build commit (`RandoSetup.bundledCommit()`, short 7 + full
+     on tap/copy), installed tree commit if known, Termux version, links (this repo, upstream wwrando)
+     opened via ACTION_VIEW.
+4. **Tests**: Python `test/test_android_run.py`: encode->decode round trip (seed + a changed option +
+   starting items), blank seed generates one, bad permalink -> ok false exit 1, decode output accepted by
+   `apply_settings_json`, encode of the decoded settings == original permalink. Kotlin: decoded-settings ->
+   stored diff (defaults dropped, non-scoped names ignored), JSON line parsing (noise before it, ok false),
+   regex reuse. `scripts/test-quiet.sh` green; CI builds the APK.
+5. **Acceptance (device)**: Generate shows a permalink; pasting it into desktop wwrando gives the same
+   settings and seed hash; pasting a desktop permalink (same commit) loads settings + seed and the run's
+   seed hash matches desktop; bad/other-commit permalink shows an error and changes nothing; About shows
+   version + commit and links open.
