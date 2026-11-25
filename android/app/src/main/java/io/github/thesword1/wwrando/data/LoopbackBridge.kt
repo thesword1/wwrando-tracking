@@ -134,7 +134,8 @@ class LoopbackBridge(
         output.flush()
     }
 
-    private fun writeIso(output: OutputStream) {        val source = isoSource
+    private fun writeIso(output: OutputStream) {
+        val source = isoSource
         if (source == null) {
             writeStatus(output, 404, "Not Found")
             return
