@@ -16,35 +16,27 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import io.github.thesword1.wwrando.data.Permalink
 import io.github.thesword1.wwrando.service.RunStateValue
 
 /**
  * Real-run section: SAF ISO picker with in-app MD5 verification, SAF output-folder picker, and the
- * seed/tracker/cancel controls that drive the foreground service. Kept separate from HomeScreen.
+ * Randomize/cancel controls that drive the foreground service. Runs always autoseed; the tracker
+ * toggle lives in Settings and is passed in as [trackerEnabled]. Kept separate from HomeScreen.
  */
 @Composable
-fun RunSection(viewModel: RandoViewModel) {
+fun RunSection(viewModel: RandoViewModel, trackerEnabled: Boolean) {
     val iso = viewModel.iso
     val outputFolder = viewModel.outputFolder
-    val permalink = viewModel.permalink
+    val ready = viewModel.setupInstalled
     val runState by viewModel.runState.collectAsState()
-    var seed by remember { mutableStateOf("") }
-    var tracker by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
     val isoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -75,13 +67,8 @@ fun RunSection(viewModel: RandoViewModel) {
             state = runState,
             isoVerified = iso.status == IsoStatus.Verified,
             outputPicked = outputFolder != null,
-            seed = seed,
-            onSeedChange = { seed = it },
-            tracker = tracker,
-            onTrackerChange = { tracker = it },
-            permalink = permalink,
-            onPermalinkChange = viewModel::updatePermalink,
-            onRun = { viewModel.startRealRun(seed, tracker, permalink) },
+            ready = ready,
+            onRun = { viewModel.startRealRun(trackerEnabled) },
             onCancel = viewModel::cancelRealRun,
         )
     }
@@ -135,46 +122,17 @@ private fun RealRunCard(
     state: RunStateValue,
     isoVerified: Boolean,
     outputPicked: Boolean,
-    seed: String,
-    onSeedChange: (String) -> Unit,
-    tracker: Boolean,
-    onTrackerChange: (Boolean) -> Unit,
-    permalink: String,
-    onPermalinkChange: (String) -> Unit,
+    ready: Boolean,
     onRun: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val permalinkSet = permalink.isNotBlank()
-    val permalinkValid = !permalinkSet || Permalink.isValid(permalink)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Randomize", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = seed,
-                onValueChange = onSeedChange,
-                label = { Text(if (permalinkSet) "Seed (from permalink)" else "Seed (blank = autoseed)") },
-                singleLine = true,
-                enabled = state !is RunStateValue.Running && !permalinkSet,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = permalink,
-                onValueChange = onPermalinkChange,
-                label = { Text("Permalink (paste to use)") },
-                singleLine = true,
-                enabled = state !is RunStateValue.Running,
-                isError = !permalinkValid,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Tracker", modifier = Modifier.weight(1f))
-                Switch(checked = tracker, onCheckedChange = onTrackerChange, enabled = state !is RunStateValue.Running)
-            }
 
             // The Randomize button stays above the result/status text so it never moves when the
             // run transitions between idle / running / done states.
-            val enabled = isoVerified && outputPicked && state !is RunStateValue.Running && permalinkValid
+            val enabled = isoVerified && outputPicked && ready && state !is RunStateValue.Running
             Button(onClick = onRun, enabled = enabled) { Text("Randomize") }
 
             when (state) {
@@ -190,15 +148,6 @@ private fun RealRunCard(
                 }
                 is RunStateValue.Done -> {
                     Text("Seed hash: ${state.seedHash}")
-                    if (state.permalink.isNotBlank()) {
-                        Text("Permalink: ${state.permalink}")
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            TextButton(onClick = { sharePermalink(context, state.permalink, state.seedHash) }) { Text("Share") }
-                            TextButton(onClick = {
-                                copyPermalinkShare(context, state.permalink, state.seedHash)
-                            }) { Text("Copy") }
-                        }
-                    }
                     Text("Output: ${state.outputFolder}")
                 }
                 is RunStateValue.Failed -> Text(state.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -207,9 +156,9 @@ private fun RealRunCard(
             }
 
             when {
+                !ready -> Text("Setup is not ready yet.", style = MaterialTheme.typography.bodySmall)
                 !isoVerified -> Text("Pick and verify a clean ISO first.", style = MaterialTheme.typography.bodySmall)
                 !outputPicked -> Text("Pick an output folder first.", style = MaterialTheme.typography.bodySmall)
-                !permalinkValid -> Text("Fix the permalink first.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

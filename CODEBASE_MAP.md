@@ -21,10 +21,12 @@ Developer docs index: `docs/dev/README.md`.
 - `android/` — standalone Gradle project (Kotlin/Compose, `io.github.thesword1.wwrando`); debug APK built
   from same-commit Python sources; Termux bridge under `android/app/src/main/java/.../data/`.
   Settings screen data: `data/OptionsSchema.kt` (org.json parse of the schema asset), `data/SettingsLogic.kt`
-  (pure diff/merge/validation), `data/SettingsStore.kt` (`filesDir/settings/` current.json + presets);
-  `ui/SettingsScreen.kt` + `ui/SettingsViewModel.kt` render the generated settings UI. Permalink/history:
-  `data/Permalink.kt` (permalink regex + share text), `data/HistoryStore.kt` (`filesDir/history.jsonl`,
-  capped at 100), `ui/HistoryScreen.kt` + `ui/HistoryViewModel.kt`, `ui/ShareActions.kt` (ACTION_SEND/clipboard).
+  (pure diff/merge/validation), `data/SettingsStore.kt` (`filesDir/settings/` current.json + presets +
+  app.json for the tracker toggle), `data/AppSettingsLogic.kt` (pure app-settings serialization);
+  `ui/SettingsScreen.kt` + `ui/SettingsViewModel.kt` render the generated settings UI (plus an "App"
+  group for the tracker toggle). Setup decision: `data/SetupLogic.kt` (commit-based install check).
+  History: `data/HistoryStore.kt` (`filesDir/history.jsonl`, capped at 100), `ui/HistoryScreen.kt` +
+  `ui/HistoryViewModel.kt`.
 - `test/` — pytest suite; `test/fixtures/aptww/` `.aptww` fixtures; `test/tracker_c_host.py` builds the
   tracker C runtime for host unit tests; `test_android_*` cover the shim, run.sh, and schema generator.
 - `tools/` — `devkitppc/` (assembler container), `dolphin/` (Dolphin automation harness),

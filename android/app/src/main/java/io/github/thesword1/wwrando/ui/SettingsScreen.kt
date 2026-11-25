@@ -53,10 +53,35 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
             Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
         }
 
+        AppGroupCard(viewModel = viewModel, runActive = runActive)
+
         PresetCard(viewModel = viewModel, runActive = runActive)
 
         viewModel.schema.groupBy { it.group }.forEach { (group, options) ->
             GroupSection(group = group, options = options, viewModel = viewModel, runActive = runActive)
+        }
+    }
+}
+
+@Composable
+private fun AppGroupCard(viewModel: SettingsViewModel, runActive: Boolean) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("App", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Tracker", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Generate the in-game tracker with each run.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = viewModel.trackerEnabled(),
+                    onCheckedChange = viewModel::setTrackerEnabled,
+                    enabled = !runActive,
+                )
+            }
         }
     }
 }

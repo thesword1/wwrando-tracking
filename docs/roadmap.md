@@ -10,7 +10,7 @@ Status: `done`, `in progress`, `planned`, `blocked`. One squash-merged PR per it
 | 2 | Android: first-run setup + headless dry run (loopback bridge, Py 3.14 via gclib fork, build commit in bundle) | done (PRs #44–#47) |
 | 3 | Real run: SAF ISO picker + copy, foreground service, cancel mid-run | done (PRs #49–#52) |
 | 4 | Outputs: generated-ISO list, spoiler log viewer, Delete old, Play -> Dolphin `content://` link | done (PR #53) |
-| 5 | [Settings: presets + generated settings screens (5a), permalink share, seed history (5b)](../PLAN.md) | done (PRs #54–#55) |
+| 5 | [Settings: presets + generated settings screens (5a), permalink share, seed history (5b), Android UI cleanup (5c)](../PLAN.md) | done (PRs #54–#56) |
 | 6 | Later: `.aptww` import, Chaquopy fallback if Termux limits bite, signed Android release asset | planned |
 
 ## Shipped: offline mode + in-game tracker

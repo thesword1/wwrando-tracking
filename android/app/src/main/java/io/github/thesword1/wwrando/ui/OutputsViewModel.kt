@@ -60,17 +60,6 @@ class OutputsViewModel(application: Application) : AndroidViewModel(application)
         notice = DolphinLauncher.launch(context, uri)
     }
 
-    fun share(context: Context, output: SeedOutput) {
-        val permalink = output.meta?.permalink?.takeIf { it.isNotBlank() } ?: return
-        sharePermalink(context, permalink, output.meta?.seedHash.orEmpty())
-    }
-
-    fun copyShare(context: Context, output: SeedOutput) {
-        val permalink = output.meta?.permalink?.takeIf { it.isNotBlank() } ?: return
-        copyPermalinkShare(context, permalink, output.meta?.seedHash.orEmpty())
-        notice = "Copied."
-    }
-
     fun delete(output: SeedOutput) {
         viewModelScope.launch {
             repo.delete(output.folderUri)

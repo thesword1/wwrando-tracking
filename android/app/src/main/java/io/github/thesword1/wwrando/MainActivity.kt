@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,7 +42,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("rando", MODE_PRIVATE)
-
         setContent {
             MaterialTheme {
                 var permissionDenials by remember { mutableIntStateOf(prefs.getInt("run_command_denials", 0)) }
@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
                     permissionDenials = if (isGranted) 0 else permissionDenials + 1
                     prefs.edit().putInt("run_command_denials", permissionDenials).apply()
                     termuxStatus = RandoBridge.status(this)
+                    if (isGranted) viewModel.ensureSetup()
                 }
 
                 val notificationLauncher = rememberLauncherForActivityResult(
@@ -74,6 +75,8 @@ class MainActivity : ComponentActivity() {
 
                 var showSettings by remember { mutableStateOf(false) }
                 var showHistory by remember { mutableStateOf(false) }
+                BackHandler(enabled = showSettings) { showSettings = false }
+                BackHandler(enabled = showHistory) { showHistory = false }
                 when {
                     showSettings -> {
                         SettingsScreen(viewModel = settingsViewModel, onBack = { showSettings = false })
@@ -82,10 +85,6 @@ class MainActivity : ComponentActivity() {
                         HistoryScreen(
                             viewModel = historyViewModel,
                             onBack = { showHistory = false },
-                            onUsePermalink = { permalink ->
-                                viewModel.updatePermalink(permalink)
-                                showHistory = false
-                            },
                         )
                     }
                     else -> {
@@ -111,5 +110,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // A fresh install (or a stale bundle) sets itself up; idempotent and skipped once Ready.
+        viewModel.ensureSetup()
     }
 }

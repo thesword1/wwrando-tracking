@@ -42,7 +42,7 @@ import io.github.thesword1.wwrando.service.RunStateValue
 
 /**
  * Generated-seed list shown once an output tree is granted: refresh, Delete old, and per-seed
- * Play / Logs / Copy permalink / Delete. Kept out of HomeScreen and RandoViewModel for size.
+ * Play / Logs / Delete. Kept out of HomeScreen and RandoViewModel for size.
  */
 @Composable
 fun OutputsSection(viewModel: RandoViewModel, outputsViewModel: OutputsViewModel) {
@@ -88,8 +88,6 @@ fun OutputsSection(viewModel: RandoViewModel, outputsViewModel: OutputsViewModel
                     output = output,
                     onPlay = { outputsViewModel.play(context, output) },
                     onLogs = { outputsViewModel.openLogs(output) },
-                    onShare = { outputsViewModel.share(context, output) },
-                    onCopy = { outputsViewModel.copyShare(context, output) },
                     onDelete = { pendingDelete = output },
                 )
             }
@@ -136,8 +134,6 @@ private fun SeedOutputCard(
     output: SeedOutput,
     onPlay: () -> Unit,
     onLogs: () -> Unit,
-    onShare: () -> Unit,
-    onCopy: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
@@ -158,10 +154,6 @@ private fun SeedOutputCard(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Button(onClick = onPlay, enabled = output.isoUri != null) { Text("Play") }
                 Button(onClick = onLogs, enabled = output.logs.isNotEmpty()) { Text("Logs") }
-                if (!output.meta?.permalink.isNullOrBlank()) {
-                    Button(onClick = onShare) { Text("Share") }
-                    Button(onClick = onCopy) { Text("Copy") }
-                }
                 TextButton(onClick = onDelete) { Text("Delete") }
             }
         }

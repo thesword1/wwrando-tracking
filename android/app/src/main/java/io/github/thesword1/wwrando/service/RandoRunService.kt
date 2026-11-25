@@ -26,6 +26,7 @@ import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.data.RandoPrefs
 import io.github.thesword1.wwrando.data.RunOutputSink
 import io.github.thesword1.wwrando.data.SettingsStore
+import io.github.thesword1.wwrando.data.SetupLogic
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -189,10 +190,10 @@ class RandoRunService : Service() {
             failRun("ISO is not verified.")
             return
         }
-        val installed = getSharedPreferences("rando", MODE_PRIVATE).getString("installed_sha256", null)
-        val bundled = readAssetText("wwrando.sha256").trim()
-        if (installed != bundled) {
-            failRun("Run setup first.")
+        val installedCommit = getSharedPreferences("rando", MODE_PRIVATE).getString("installed_commit", null)
+        val bundledCommit = readAssetText("build_commit.txt").trim()
+        if (SetupLogic.setupNeeded(installedCommit, bundledCommit)) {
+            failRun("Setup is not ready yet.")
             return
         }
 

@@ -16,6 +16,7 @@ class SettingsStore(context: Context) {
     private val presetsDir = File(dir, "presets")
     private val currentFile = File(dir, "current.json")
     private val activeFile = File(dir, "active.txt")
+    private val appFile = File(dir, "app.json")
 
     val schema: List<OptionDef> = OptionsSchema.parse(readAsset())
     private val defaults: Map<String, Any> = SettingsLogic.defaults(schema)
@@ -90,6 +91,16 @@ class SettingsStore(context: Context) {
 
     fun changesCount(): Int = current().size
 
+    /** App-level settings, kept out of presets and the randomizer diff (see [AppSettingsLogic]). */
+    fun trackerEnabled(): Boolean = readAppSettings().tracker
+
+    fun setTrackerEnabled(enabled: Boolean) {
+        val current = readAppSettings()
+        if (current.tracker == enabled) return
+        appFile.parentFile?.mkdirs()
+        appFile.writeText(AppSettingsLogic.toJson(current.copy(tracker = enabled)), Charsets.UTF_8)
+    }
+
     /** The diff as JSON for the loopback bridge's GET /settings route. */
     fun currentDiffJson(): String = JSONObject(current()).toString()
 
@@ -121,6 +132,11 @@ class SettingsStore(context: Context) {
             }
         }
         return out
+    }
+
+    private fun readAppSettings(): AppSettings {
+        if (!appFile.isFile) return AppSettingsLogic.defaults()
+        return AppSettingsLogic.parse(appFile.readText(Charsets.UTF_8))
     }
 
     private fun loadActivePreset(): String? {

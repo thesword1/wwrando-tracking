@@ -52,6 +52,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         version++
     }
 
+    fun trackerEnabled(): Boolean { version; return store.trackerEnabled() }
+
+    fun setTrackerEnabled(enabled: Boolean) {
+        store.setTrackerEnabled(enabled)
+        version++
+    }
+
     val activePresetName: String get() { version; return store.activePresetName() }
     val isModified: Boolean get() { version; return store.isModified() }
     val changesCount: Int get() { version; return store.changesCount() }

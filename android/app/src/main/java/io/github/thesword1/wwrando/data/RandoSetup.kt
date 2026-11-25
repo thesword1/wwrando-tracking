@@ -25,16 +25,18 @@ class RandoSetup(
         bridge = null
     }
 
-    fun installedHash(): String? =
-        context.getSharedPreferences("rando", Context.MODE_PRIVATE).getString("installed_sha256", null)
+    fun installedCommit(): String? =
+        context.getSharedPreferences("rando", Context.MODE_PRIVATE).getString("installed_commit", null)
 
-    fun saveInstalledHash(hash: String) {
-        context.getSharedPreferences("rando", Context.MODE_PRIVATE).edit().putString("installed_sha256", hash).apply()
+    fun saveInstalledCommit(commit: String) {
+        context.getSharedPreferences("rando", Context.MODE_PRIVATE).edit().putString("installed_commit", commit).apply()
     }
 
     fun bundledHash(): String = readAssetText("wwrando.sha256").trim()
 
-    fun isSetupCurrent(): Boolean = !ScriptHash.installNeeded(bundledHash(), installedHash())
+    fun bundledCommit(): String = readAssetText("build_commit.txt").trim()
+
+    fun isSetupCurrent(): Boolean = !SetupLogic.setupNeeded(installedCommit(), bundledCommit())
 
     /** Runs setup.sh in Termux; returns the final /done event (synthetic on timeout or Termux failure). */
     suspend fun runSetup(onEvent: (ProgressEvent) -> Unit): ProgressEvent.Done = withContext(Dispatchers.IO) {

@@ -129,4 +129,8 @@ included.
 4. Outputs: generated-ISO list, spoiler log / tracker hints viewer, Delete old, Play -> Dolphin
    content:// link.
 5. Settings: presets + generated settings screens, permalink share, seed history.
-6. Later: `.aptww` import, Chaquopy fallback if Termux limits bite, signed Android release asset.
+6. UI cleanup (PLAN §5c): seed/permalink fields and Share/Copy/Use-permalink removed (runs always
+   autoseed), tracker toggle moved into a Settings "App" group (persisted in app settings, outside
+   presets), automatic setup on start/resume with a Ready / Failed + Retry status card, and system
+   back on Settings/History/Logs returning to Home.
+7. Later: `.aptww` import, Chaquopy fallback if Termux limits bite, signed Android release asset.

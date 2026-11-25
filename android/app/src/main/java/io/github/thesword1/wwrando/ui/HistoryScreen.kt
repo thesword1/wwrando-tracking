@@ -21,17 +21,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.thesword1.wwrando.data.HistoryEntry
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Full-screen run history: newest first, with Use permalink / Share per entry and Clear history. */
+/** Full-screen run history: newest first, with Clear history. */
 @Composable
-fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, onUsePermalink: (String) -> Unit) {
-    val context = LocalContext.current
+fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit) {
     var confirmClear by remember { mutableStateOf(false) }
 
     Column(
@@ -59,11 +57,7 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, onUsePermalin
         }
 
         viewModel.entries.forEach { entry ->
-            HistoryCard(
-                entry = entry,
-                onUsePermalink = { onUsePermalink(entry.permalink) },
-                onShare = { sharePermalink(context, entry.permalink, entry.seedHash) },
-            )
+            HistoryCard(entry = entry)
         }
     }
 
@@ -84,7 +78,7 @@ fun HistoryScreen(viewModel: HistoryViewModel, onBack: () -> Unit, onUsePermalin
 }
 
 @Composable
-private fun HistoryCard(entry: HistoryEntry, onUsePermalink: () -> Unit, onShare: () -> Unit) {
+private fun HistoryCard(entry: HistoryEntry) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -111,12 +105,6 @@ private fun HistoryCard(entry: HistoryEntry, onUsePermalink: () -> Unit, onShare
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (entry.permalink.isNotBlank()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TextButton(onClick = onUsePermalink) { Text("Use permalink") }
-                    TextButton(onClick = onShare) { Text("Share") }
-                }
-            }
         }
     }
 }

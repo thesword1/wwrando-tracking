@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.thesword1.wwrando.data.IsoVerify
 import io.github.thesword1.wwrando.data.ProgressEvent
+import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.data.RandoPrefs
 import io.github.thesword1.wwrando.data.RandoSetup
 import io.github.thesword1.wwrando.service.RandoRunService
@@ -69,11 +70,13 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var outputFolder: Uri? by mutableStateOf(null)
         private set
-    var permalink by mutableStateOf("")
-        private set
 
     val runState: StateFlow<RunStateValue> get() = RunState.state
-    val setupInstalled: Boolean get() = engine.isSetupCurrent()
+    val setupInstalled: Boolean
+        get() {
+            setup // keep the returned value tied to setup state so the UI refreshes once setup finishes
+            return engine.isSetupCurrent()
+        }
 
     init {
         prefs.loadIso()?.let { pick ->
@@ -91,9 +94,20 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
             setup = SetupUiState(running = true)
             val done = engine.runSetup { event -> onSetupEvent(event) }
             if (!setup.running) return@launch // cancelled
-            if (done.ok) engine.saveInstalledHash(engine.bundledHash())
+            if (done.ok) engine.saveInstalledCommit(engine.bundledCommit())
             setup = setup.copy(running = false, finished = true, error = if (done.ok) null else done.body)
         }
+    }
+
+    /**
+     * Starts setup when it is needed and not already running or failed. Called on activity start and
+     * resume (and after the RUN_COMMAND permission is granted), so a fresh install sets itself up.
+     */
+    fun ensureSetup() {
+        if (setup.running || setup.error != null) return
+        if (engine.isSetupCurrent()) return
+        if (!RandoBridge.hasRunCommandPermission(getApplication())) return
+        runSetup()
     }
 
     fun runDryRun(seed: String) {
@@ -141,17 +155,11 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         outputFolder = uri
     }
 
-    fun updatePermalink(value: String) {
-        permalink = value.filterNot { it.isWhitespace() }
-    }
-
-    fun startRealRun(seed: String, tracker: Boolean, permalink: String) {
+    fun startRealRun(tracker: Boolean) {
         // Clear the previous run's result/error immediately so it never lingers on screen.
         RunState.set(RunStateValue.Running(0, 0, "Starting"))
         val intent = Intent(getApplication(), RandoRunService::class.java)
-            .putExtra(RandoRunService.EXTRA_SEED, seed.ifBlank { "" })
             .putExtra(RandoRunService.EXTRA_TRACKER, tracker)
-            .putExtra(RandoRunService.EXTRA_PERMALINK, permalink.ifBlank { "" })
         getApplication<Application>().startForegroundService(intent)
     }
 

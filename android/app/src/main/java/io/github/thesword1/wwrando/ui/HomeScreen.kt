@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
 import io.github.thesword1.wwrando.data.TermuxStatus
 
 /**
- * The home screen: Termux health, first-run setup, and the real-run section. MainActivity only hosts
- * it; state lives in [RandoViewModel] (and the real run lives in RandoRunService).
+ * The home screen: Termux health, automatic setup status, and the real-run section. MainActivity only
+ * hosts it; state lives in [RandoViewModel] (and the real run lives in RandoRunService).
  */
 @Composable
 fun HomeScreen(
@@ -53,11 +53,11 @@ fun HomeScreen(
             onOpenAppSettings = onOpenAppSettings,
         )
 
-        SetupCard(setup = viewModel.setup, installed = viewModel.setupInstalled, onRun = viewModel::runSetup)
+        SetupStatusCard(setup = viewModel.setup, ready = viewModel.setupInstalled, onRetry = viewModel::runSetup)
 
-        SettingsCard(viewModel = settingsViewModel, permalink = viewModel.permalink, onEditSettings = onEditSettings)
+        SettingsCard(viewModel = settingsViewModel, onEditSettings = onEditSettings)
 
-        RunSection(viewModel = viewModel)
+        RunSection(viewModel = viewModel, trackerEnabled = settingsViewModel.trackerEnabled())
 
         OutputsSection(viewModel = viewModel, outputsViewModel = outputsViewModel)
     }
@@ -95,45 +95,49 @@ private fun TermuxCard(
 }
 
 @Composable
-private fun SetupCard(setup: SetupUiState, installed: Boolean, onRun: () -> Unit) {
+private fun SetupStatusCard(setup: SetupUiState, ready: Boolean, onRetry: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("First-run setup", style = MaterialTheme.typography.titleMedium)
-            Text(if (installed) "Installed and up to date." else "Randomizer sources are not installed yet.")
-            if (setup.running) {
-                if (setup.stepTotal > 0) {
-                    LinearProgressIndicator(
-                        progress = { setup.stepIndex.toFloat() / setup.stepTotal },
-                        modifier = Modifier.fillMaxWidth(),
+            Text("Setup", style = MaterialTheme.typography.titleMedium)
+            when {
+                setup.error != null -> {
+                    Text(
+                        "Failed: ${setup.error}",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
                     )
+                    Button(onClick = onRetry) { Text("Retry") }
                 }
-                Text(setup.stepLabel.ifBlank { "Working..." })
+                setup.running -> {
+                    if (setup.stepTotal > 0) {
+                        LinearProgressIndicator(
+                            progress = { setup.stepIndex.toFloat() / setup.stepTotal },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Text(setup.stepLabel.ifBlank { "Setting up..." })
+                    setup.log.takeLast(6).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                }
+                ready -> Text("Ready")
+                else -> Text("Setup required.")
             }
-            setup.log.takeLast(6).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-            if (setup.error != null) {
-                Text(setup.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-            Button(onClick = onRun, enabled = !setup.running) { Text(if (installed) "Re-run setup" else "Run setup") }
         }
     }
 }
 
 @Composable
-private fun SettingsCard(viewModel: SettingsViewModel, permalink: String, onEditSettings: () -> Unit) {
+private fun SettingsCard(viewModel: SettingsViewModel, onEditSettings: () -> Unit) {
     viewModel.version // Re-read the plain getters whenever the store changes.
     val preset = viewModel.activePresetName
     val modified = viewModel.isModified
     val changes = viewModel.changesCount
+    val tracker = viewModel.trackerEnabled()
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Settings", style = MaterialTheme.typography.titleMedium)
             Text(
-                if (permalink.isNotBlank()) {
-                    "From permalink (settings ignored)"
-                } else {
-                    "Preset: $preset${if (modified) " (modified)" else ""} · $changes ${if (changes == 1) "change" else "changes"}"
-                },
+                "Preset: $preset${if (modified) " (modified)" else ""} · $changes ${if (changes == 1) "change" else "changes"} · tracker ${if (tracker) "on" else "off"}",
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(onClick = onEditSettings) { Text("Edit settings") }
