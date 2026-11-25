@@ -70,7 +70,7 @@ class AdvancedViewModel(application: Application) : AndroidViewModel(application
             if (result.ok) {
                 permalink = result.permalink
                 generatedSettings = settings
-                generatedSeed = seed
+                generatedSeed = if (seed.isBlank()) result.seed else seed
                 // A blank Home seed gets the generated one so the next run reproduces the link.
                 if (seed.isBlank() && result.seed.isNotBlank()) onSeed(result.seed)
             } else {
