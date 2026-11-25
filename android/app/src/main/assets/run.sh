@@ -221,9 +221,9 @@ for i, model in enumerate(models):
 json.dump(manifest, sys.stdout)
 PYEOF
   "$PY" "$WW/current/android_run.py" --sync-models "$MODELS_DIR" "$MODEL_MANIFEST" >>"$LOG" 2>&1 || fail "models" "model sync failed"
-elif [ -n "$(ls -A "$MODELS_DIR" 2>/dev/null)" ]; then
-  : > "$MODEL_MANIFEST"
-  "$PY" "$WW/current/android_run.py" --sync-models "$MODELS_DIR" "$MODEL_MANIFEST" >>"$LOG" 2>&1 || fail "models" "model sync failed"
+else
+  # GET /models failed (the bridge always answers at least "[]"): keep installed models as they are.
+  echo "models: list unavailable, keeping installed models" >>"$LOG"
 fi
 
 # 2. Randomize without /done: android_run.py --no-done prints the result JSON to stdout instead.
