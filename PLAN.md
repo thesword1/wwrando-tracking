@@ -85,3 +85,50 @@ permalink, and sees a history of past runs that survives deleting the output fol
   shows those settings; save preset, reset, load preset -> values restored; settings survive app restart.
 - 5b: paste a desktop permalink -> device seed hash matches desktop; Share opens the share sheet;
   history lists runs incl. a failed one and survives deleting outputs; "Use permalink" re-runs same hash.
+
+## 5c Design — Android UI cleanup (user feedback after 5b device test)
+
+Dropped from the Android UI (record this in `docs/android-app-plan.md` and CHANGELOG): seed field,
+permalink field, Share/Copy (run result, outputs list, history), "Use permalink". Runs always autoseed.
+Backend stays: `run.sh` `<seed>`/`<permalink>` args and `android_run.py --permalink` (tests keep passing),
+the app just always sends empty values. Remove Kotlin that becomes unused (Permalink.kt/ShareActions.kt
+and their tests) rather than leaving dead code.
+
+1. **Home**: ISO/output pickers, settings card, setup status, Randomize, outputs list, History. No seed,
+   permalink or tracker controls.
+2. **Tracker** toggle moves to the Settings screen (an "App" group at the top), persisted with the other
+   settings in `SettingsStore` (not part of presets' randomizer options unless that is simpler; say which in
+   the PR). The settings card summary may mention "tracker on".
+3. **System back**: Android back (gesture/button) from Settings, History, Logs viewer and any other
+   sub-screen returns to the previous screen (Compose `BackHandler` or nav back stack); only Home exits.
+4. **Automatic setup**: no "First-run setup"/"Run setup" button. On app start and on resume, if Termux
+   setup is missing or the installed bundle's build commit differs from the APK's `build_commit.txt`,
+   the app starts setup itself (at most one at a time) and shows a status card: Setting up (step text) /
+   Ready / Failed: <error> + "Retry" (Retry is the only setup button, and only on failure). Randomize is
+   disabled until Ready. Missing RUN_COMMAND permission keeps the existing guidance card.
+   History records nothing for setup.
+
+Tests: Kotlin unit test for the setup-needed decision (missing / commit mismatch / current) and for
+tracker persistence; existing Python tests unchanged and green.
+
+Acceptance (device): fresh APK install -> app runs setup by itself and shows Ready; Home shows no seed,
+permalink or tracker; tracker toggle in Settings survives restart and still produces the tracker output;
+back gesture from Settings/History/Logs returns to Home; back on Home exits.
+
+## 5d Design — starting items, custom player models and colors (spec, implement after 5c)
+
+Currently skipped by `android_options_schema.py`: `starting_gear`, `randomized_gear`, `custom_player_model`,
+`custom_color_preset`, `custom_colors` (`randomize_enemies` stays skipped).
+1. **Starting items**: schema emits `starting_gear` as an item-list type with the same allowed items and
+   per-item max counts (progressive items) the desktop UI uses; mirror how the desktop UI keeps
+   `randomized_gear` consistent (find it in the desktop UI code, don't guess). Settings screen: a
+   "Starting items" sub-screen with +/- counts per item; diff/presets/`--settings-json` carry the list.
+2. **Custom models**: Settings "Player model" sub-screen: "Import model (.zip)" via SAF; the app keeps
+   zips in `filesDir/models/<name>.zip`, reads `metadata.txt` + `color_masks/` names from the zip in
+   Kotlin to list the model's color presets and custom color names. Bridge route `GET /models` (name +
+   md5 list) and `GET /models/<name>.zip`; `run.sh` syncs changed zips into persistent `~/wwrando/models/`
+   (Python zipfile, not `unzip`), and setup links `~/wwrando/current/models` to it so upgrades keep models.
+   Model/preset/custom colors (hex editor per color name) go through `--settings-json`. Default Link and
+   its presets work with no import.
+Acceptance (device): start with e.g. Grappling Hook + 2 heart containers -> spoiler log shows them;
+import a model zip, pick it + a color preset, run -> Dolphin shows the model; preset save/load keeps both.
