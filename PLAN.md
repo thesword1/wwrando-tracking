@@ -132,3 +132,53 @@ Currently skipped by `android_options_schema.py`: `starting_gear`, `randomized_g
    its presets work with no import.
 Acceptance (device): start with e.g. Grappling Hook + 2 heart containers -> spoiler log shows them;
 import a model zip, pick it + a color preset, run -> Dolphin shows the model; preset save/load keeps both.
+
+## 6 Design — Android UI redesign (user spec 2026-11-25, after 5c device test; supersedes 5c's tracker/"App" group and 5d's UI parts)
+
+Model the shell on GameHub Manager (local clone `/media/storage/y700-tools/gamehub-manager`, read-only
+reference): a **left navigation rail** with sections, in this order:
+
+0. **Startup / Self-Check.** On launch show only a loading indicator while setup/self-check runs (no
+   other page content). Afterwards the top of Home has a **Self-Check** card: either a list of what
+   failed (Termux missing, RUN_COMMAND denied, setup failed: <error>, ISO not verified, output folder
+   not picked, ...) each with its fix action, or a single "Everything is OK" row with a green check.
+   Setup must not need the network once it has succeeded online once (no pip/curl to the internet on
+   a current bundle); self-check must pass offline.
+1. **Home**: preset selector at the top (load/switch, "Save preset" after setting things up, delete);
+   ISO path; output folder path; seed text box with a "New seed" button (random seed name the same way
+   the desktop randomizer makes one); Randomize; outputs list; History entry point.
+2. **Logic**: all logic groups — Progression locations, Modes, Difficulty, Entrance randomizer, Other
+   randomizers — plus number of starting Triforce shards (as on desktop). An **Advanced settings**
+   expandable at the bottom for less-used logic settings, matching the desktop's advanced options.
+3. **Tweaks**: Meta, In-game tracker (the tracker toggle lives ONLY here, remove the "App" group),
+   Convenience tweaks, Hints.
+4. **Starting items**: whole screen listing the current starting items (empty by default; nothing
+   starts unless added) with add (picker/dropdown of allowed items, counts for progressive items) and
+   remove. Heart pieces and heart containers are added through this picker (mapped to the
+   randomizer's starting PoH/HC count options). Remove the "random extra starting items" option and
+   the separate heart piece/container controls from the UI; send 0 for the extra-items option.
+5. **Customize** (6b): as close as possible to the desktop Player Customization tab — rendered model
+   preview (preview image with color masks applied, recoloured live), "Import model (.zip)", model
+   selection, casual clothes switch, custom voice and custom items toggles, color preset select/save,
+   "Randomize colors (orderly)" and "(chaotic)" like desktop, and a color picker for every color.
+   Model import/sync as in 5d item 2.
+6. **Advanced** (6c): About (version, build commit, links) and **Permalink**: show the permalink for
+   the current settings and allow pasting one, which loads its settings into Logic/Tweaks/Starting
+   items (decode via Termux `android_run.py`, e.g. a `--decode-permalink` mode returning settings
+   JSON over the bridge, so Kotlin needs no permalink codec). Seed field on Home is filled from it.
+
+**Presets** (Home): cover Logic + Tweaks + Starting items only. NOT the permalink, the seed, or any
+Customize setting. Customize settings (model, colors, toggles) persist on their own across runs and
+app restarts. Seed stays across restarts but is not in presets.
+
+Desktop UI source to mirror: `wwr_ui/randomizer_window.ui`, `wwr_ui/` (CosmeticTab), the option
+groups in `options/wwrando_options.py`. Read them; don't guess labels or groupings.
+
+Milestones: **6a** = rail shell, startup loading + Self-Check, Home, Logic, Tweaks, Starting items,
+preset scope. **6b** = Customize (+ 5d item 2 model import). **6c** = Advanced/About/permalink.
+Tests: Kotlin unit tests for self-check aggregation, preset scope (excludes seed/customize),
+starting-items mapping (hearts -> PoH/HC, progressive counts), extra-items forced 0; Python test
+for any new android_run.py mode. scripts/test-quiet.sh green.
+Acceptance (device, per milestone): sections/rail as above on the Y700; offline self-check OK;
+preset save/load restores Logic/Tweaks/Starting items and leaves seed + Customize untouched;
+starting items empty by default and spoiler log matches what was added.
