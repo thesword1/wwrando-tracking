@@ -70,7 +70,7 @@ private fun PresetCard(viewModel: SettingsViewModel, runActive: Boolean) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                "Preset: $active${if (viewModel.isModified) " (modified)" else ""} · ${viewModel.changesCount} changes",
+                "Preset: $active${if (viewModel.isModified) " (modified)" else ""} · ${viewModel.changesCount} ${if (viewModel.changesCount == 1) "change" else "changes"}",
                 style = MaterialTheme.typography.titleMedium,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

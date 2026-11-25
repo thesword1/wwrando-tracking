@@ -21,7 +21,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     var version by mutableIntStateOf(0)
         private set
 
-    fun effective(name: String): Any = store.current()[name] ?: defaults.getValue(name)
+    // Every getter reads `version` so each composable that shows a value recomposes on any store change.
+    fun effective(name: String): Any { version; return store.current()[name] ?: defaults.getValue(name) }
 
     fun set(name: String, value: Any) {
         store.set(name, value)
@@ -33,7 +34,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         version++
     }
 
-    fun listPresets(): List<String> = listOf(SettingsLogic.DEFAULT_PRESET_NAME) + store.listPresets()
+    fun listPresets(): List<String> { version; return listOf(SettingsLogic.DEFAULT_PRESET_NAME) + store.listPresets() }
 
     fun savePreset(name: String): String? {
         val saved = store.savePreset(name)
@@ -51,7 +52,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         version++
     }
 
-    val activePresetName: String get() = store.activePresetName()
-    val isModified: Boolean get() = store.isModified()
-    val changesCount: Int get() = store.changesCount()
+    val activePresetName: String get() { version; return store.activePresetName() }
+    val isModified: Boolean get() { version; return store.isModified() }
+    val changesCount: Int get() { version; return store.changesCount() }
 }
