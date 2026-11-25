@@ -142,7 +142,7 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updatePermalink(value: String) {
-        permalink = value
+        permalink = value.filterNot { it.isWhitespace() }
     }
 
     fun startRealRun(seed: String, tracker: Boolean, permalink: String) {
