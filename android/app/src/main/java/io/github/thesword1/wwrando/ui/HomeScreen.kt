@@ -2,6 +2,7 @@ package io.github.thesword1.wwrando.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,7 +14,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.thesword1.wwrando.data.TermuxStatus
@@ -32,12 +35,16 @@ fun HomeScreen(
     onRequestPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onEditSettings: () -> Unit,
+    onOpenHistory: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("WW Randomizer", style = MaterialTheme.typography.headlineSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("WW Randomizer", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = onOpenHistory) { Text("History") }
+        }
 
         TermuxCard(
             status = termuxStatus,
@@ -48,7 +55,7 @@ fun HomeScreen(
 
         SetupCard(setup = viewModel.setup, installed = viewModel.setupInstalled, onRun = viewModel::runSetup)
 
-        SettingsCard(viewModel = settingsViewModel, onEditSettings = onEditSettings)
+        SettingsCard(viewModel = settingsViewModel, permalink = viewModel.permalink, onEditSettings = onEditSettings)
 
         RunSection(viewModel = viewModel)
 
@@ -112,7 +119,7 @@ private fun SetupCard(setup: SetupUiState, installed: Boolean, onRun: () -> Unit
 }
 
 @Composable
-private fun SettingsCard(viewModel: SettingsViewModel, onEditSettings: () -> Unit) {
+private fun SettingsCard(viewModel: SettingsViewModel, permalink: String, onEditSettings: () -> Unit) {
     viewModel.version // Re-read the plain getters whenever the store changes.
     val preset = viewModel.activePresetName
     val modified = viewModel.isModified
@@ -122,7 +129,11 @@ private fun SettingsCard(viewModel: SettingsViewModel, onEditSettings: () -> Uni
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Settings", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Preset: $preset${if (modified) " (modified)" else ""} · $changes ${if (changes == 1) "change" else "changes"}",
+                if (permalink.isNotBlank()) {
+                    "From permalink (settings ignored)"
+                } else {
+                    "Preset: $preset${if (modified) " (modified)" else ""} · $changes ${if (changes == 1) "change" else "changes"}"
+                },
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(onClick = onEditSettings) { Text("Edit settings") }

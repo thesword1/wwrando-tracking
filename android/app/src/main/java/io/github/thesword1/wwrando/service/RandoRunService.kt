@@ -16,6 +16,8 @@ import androidx.core.app.NotificationCompat
 import io.github.thesword1.wwrando.MainActivity
 import io.github.thesword1.wwrando.data.IsoSource
 import io.github.thesword1.wwrando.data.IsoVerify
+import io.github.thesword1.wwrando.data.HistoryEntry
+import io.github.thesword1.wwrando.data.HistoryStore
 import io.github.thesword1.wwrando.data.LoopbackBridge
 import io.github.thesword1.wwrando.data.OutputsLogic
 import io.github.thesword1.wwrando.data.ProgressEvent
@@ -162,10 +164,11 @@ class RandoRunService : Service() {
         }
         val seed = intent?.getStringExtra(EXTRA_SEED) ?: ""
         val tracker = intent?.getBooleanExtra(EXTRA_TRACKER, true) ?: true
+        val permalink = intent?.getStringExtra(EXTRA_PERMALINK) ?: ""
         ensureChannel()
         startForegroundCompat(buildNotification("Starting...", 0, 0))
         RunState.set(RunStateValue.Running(0, 0, "Starting"))
-        scope.launch { runReal(seed, tracker) }
+        scope.launch { runReal(seed, tracker, permalink) }
         return START_NOT_STICKY
     }
 
@@ -174,7 +177,7 @@ class RandoRunService : Service() {
         super.onDestroy()
     }
 
-    private suspend fun runReal(seed: String, tracker: Boolean) {
+    private suspend fun runReal(seed: String, tracker: Boolean, permalink: String) {
         val prefs = RandoPrefs(this)
         val iso = prefs.loadIso()
         val outTree = prefs.loadOutputTree()
@@ -196,6 +199,8 @@ class RandoRunService : Service() {
         val treeBytes = readAssetBytes("wwrando.tgz")
         val localSink = AndroidRunOutputSink(contentResolver, outTree)
         val settingsStore = SettingsStore(this)
+        val presetName = settingsStore.activePresetName()
+        val settingsModified = settingsStore.isModified()
         val localBridge = LoopbackBridge(
             treeBytes,
             isoSource = AndroidIsoSource(contentResolver, iso.uri, iso.size),
@@ -222,7 +227,8 @@ class RandoRunService : Service() {
             val command = "cat > '${RandoBridge.WWRANDO_DIR}/run.sh' && " +
                 "chmod +x '${RandoBridge.WWRANDO_DIR}/run.sh' && " +
                 "'${RandoBridge.WWRANDO_DIR}/run.sh' ${localBridge.port} ${localBridge.token} " +
-                "${iso.size} ${IsoVerify.CLEAN_ISO_MD5} ${shellQuote(seed)} ${if (tracker) "1" else "0"}"
+                "${iso.size} ${IsoVerify.CLEAN_ISO_MD5} ${shellQuote(seed)} ${if (tracker) "1" else "0"} " +
+                shellQuote(permalink)
             val result = RandoCommandRunner.run(
                 context = this,
                 path = RandoBridge.SHELL,
@@ -241,7 +247,7 @@ class RandoRunService : Service() {
                 )
                 else -> ProgressEvent.Done(false, """{"ok":false,"error":"no final status from run"}""")
             }
-            finishRun(final, tracker)
+            finishRun(final, tracker, permalink, presetName, settingsModified)
         } finally {
             collector.cancel()
             closeBridge()
@@ -249,23 +255,36 @@ class RandoRunService : Service() {
         }
     }
 
-    private fun finishRun(done: ProgressEvent.Done, tracker: Boolean) {
+    private fun finishRun(
+        done: ProgressEvent.Done,
+        tracker: Boolean,
+        permalink: String,
+        preset: String,
+        modified: Boolean,
+    ) {
         if (cancelled) {
             RunState.set(RunStateValue.Cancelled)
             stopSelf()
             return
         }
         val json = runCatching { JSONObject(done.body) }.getOrNull()
+        val time = System.currentTimeMillis()
         if (done.ok && json != null) {
             val seed = json.optString("seed", "")
             val seedHash = json.optString("seed_hash", "")
-            val permalink = json.optString("permalink", "")
+            val resultPermalink = json.optString("permalink", "").ifBlank { permalink }
             val outputFolder = json.optString("output_folder", "")
-            writeRunMeta(seed, seedHash, permalink, tracker)
-            RunState.set(RunStateValue.Done(seed, seedHash, permalink, outputFolder))
+            writeRunMeta(seed, seedHash, resultPermalink, tracker)
+            HistoryStore(this).append(
+                HistoryEntry(time, true, seed, seedHash, resultPermalink, preset, modified, "", outputFolder),
+            )
+            RunState.set(RunStateValue.Done(seed, seedHash, resultPermalink, outputFolder))
             notify("Done: $seedHash")
         } else {
             val error = json?.optString("error")?.takeIf { it.isNotBlank() } ?: done.body
+            HistoryStore(this).append(
+                HistoryEntry(time, false, "", "", permalink, preset, modified, error, ""),
+            )
             RunState.set(RunStateValue.Failed(error))
             notify("Randomizer failed")
         }
@@ -390,6 +409,7 @@ class RandoRunService : Service() {
         const val ACTION_CANCEL = "io.github.thesword1.wwrando.action.CANCEL_RUN"
         const val EXTRA_SEED = "seed"
         const val EXTRA_TRACKER = "tracker"
+        const val EXTRA_PERMALINK = "permalink"
 
         private const val CHANNEL_ID = "randomizer_run"
         private const val CHANNEL_NAME = "Randomizer run"

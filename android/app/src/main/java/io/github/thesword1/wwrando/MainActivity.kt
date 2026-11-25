@@ -20,6 +20,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import io.github.thesword1.wwrando.data.RandoBridge
+import io.github.thesword1.wwrando.ui.HistoryScreen
+import io.github.thesword1.wwrando.ui.HistoryViewModel
 import io.github.thesword1.wwrando.ui.HomeScreen
 import io.github.thesword1.wwrando.ui.OutputsViewModel
 import io.github.thesword1.wwrando.ui.RandoViewModel
@@ -34,6 +36,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: RandoViewModel by viewModels()
     private val outputsViewModel: OutputsViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
+    private val historyViewModel: HistoryViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,26 +73,41 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var showSettings by remember { mutableStateOf(false) }
-                if (showSettings) {
-                    SettingsScreen(viewModel = settingsViewModel, onBack = { showSettings = false })
-                } else {
-                    HomeScreen(
-                        termuxStatus = termuxStatus,
-                        permissionDenials = permissionDenials,
-                        viewModel = viewModel,
-                        outputsViewModel = outputsViewModel,
-                        settingsViewModel = settingsViewModel,
-                        onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
-                        onOpenAppSettings = {
-                            startActivity(
-                                Intent(
-                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.parse("package:$packageName"),
-                                ),
-                            )
-                        },
-                        onEditSettings = { showSettings = true },
-                    )
+                var showHistory by remember { mutableStateOf(false) }
+                when {
+                    showSettings -> {
+                        SettingsScreen(viewModel = settingsViewModel, onBack = { showSettings = false })
+                    }
+                    showHistory -> {
+                        HistoryScreen(
+                            viewModel = historyViewModel,
+                            onBack = { showHistory = false },
+                            onUsePermalink = { permalink ->
+                                viewModel.updatePermalink(permalink)
+                                showHistory = false
+                            },
+                        )
+                    }
+                    else -> {
+                        HomeScreen(
+                            termuxStatus = termuxStatus,
+                            permissionDenials = permissionDenials,
+                            viewModel = viewModel,
+                            outputsViewModel = outputsViewModel,
+                            settingsViewModel = settingsViewModel,
+                            onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
+                            onOpenAppSettings = {
+                                startActivity(
+                                    Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.parse("package:$packageName"),
+                                    ),
+                                )
+                            },
+                            onEditSettings = { showSettings = true },
+                            onOpenHistory = { showHistory = true },
+                        )
+                    }
                 }
             }
         }

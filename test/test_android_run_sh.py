@@ -89,7 +89,13 @@ exit 0
     return home, bin_dir
 
 
-def _run_run_sh(home: Path, bin_dir: Path, capture: Path, extra_env: dict | None = None) -> subprocess.CompletedProcess:
+def _run_run_sh(
+    home: Path,
+    bin_dir: Path,
+    capture: Path,
+    extra_env: dict | None = None,
+    permalink: str = "",
+) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["HOME"] = str(home)
     env["PATH"] = str(bin_dir) + os.pathsep + env["PATH"]
@@ -97,7 +103,7 @@ def _run_run_sh(home: Path, bin_dir: Path, capture: Path, extra_env: dict | None
     if extra_env:
         env.update(extra_env)
     return subprocess.run(
-        ["sh", str(RUN_SH), "12345", "t" * 32, str(ISO_SIZE), ISO_MD5, "", "1"],
+        ["sh", str(RUN_SH), "12345", "t" * 32, str(ISO_SIZE), ISO_MD5, "", "1", permalink],
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,
@@ -177,3 +183,49 @@ def test_settings_fetch_failure_fails_with_step_settings(tmp_path):
     body = capture.read_text(encoding="utf-8")
     assert '"step": "settings"' in body, body
     assert "settings fetch failed" in body, body
+
+
+def test_permalink_passed_and_seed_ignored(tmp_path):
+    home, bin_dir = _write_fake_home(tmp_path)
+    _write_capturing_fake_run(home)
+    capture = tmp_path / "done.json"
+    args_file = tmp_path / "args.txt"
+
+    proc = _run_run_sh(
+        home, bin_dir, capture,
+        extra_env={"CAPTURE_ARGS": str(args_file)},
+        permalink="QUJDREVGR0g=",
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    args = args_file.read_text(encoding="utf-8")
+    assert "--permalink" in args, args
+    assert "QUJDREVGR0g=" in args, args
+    assert "--seed" not in args, args
+    assert "--autoseed" not in args, args
+
+
+def test_bad_permalink_fails_with_step_permalink(tmp_path):
+    home, bin_dir = _write_fake_home(tmp_path)
+    _write_capturing_fake_run(home)
+    capture = tmp_path / "done.json"
+
+    proc = _run_run_sh(home, bin_dir, capture, permalink="not!valid")
+
+    assert proc.returncode == 1, proc.stderr
+    body = capture.read_text(encoding="utf-8")
+    assert '"step": "permalink"' in body, body
+    assert "bad permalink characters" in body, body
+
+
+def test_short_permalink_fails_with_step_permalink(tmp_path):
+    home, bin_dir = _write_fake_home(tmp_path)
+    _write_capturing_fake_run(home)
+    capture = tmp_path / "done.json"
+
+    proc = _run_run_sh(home, bin_dir, capture, permalink="ab")
+
+    assert proc.returncode == 1, proc.stderr
+    body = capture.read_text(encoding="utf-8")
+    assert '"step": "permalink"' in body, body
+    assert "bad permalink length" in body, body

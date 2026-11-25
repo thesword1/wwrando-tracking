@@ -1,6 +1,6 @@
 #!/bin/sh
 # WW Randomizer real run, piped into Termux over RUN_COMMAND by the app's foreground service.
-# Usage: run.sh <bridge-port> <bridge-token> <iso-size> <iso-md5> <seed> <tracker-flag>
+# Usage: run.sh <bridge-port> <bridge-token> <iso-size> <iso-md5> <seed> <tracker-flag> <permalink>
 # Copies the picked ISO over GET /iso (cached under ~/wwrando/input), runs android_run.py in the
 # installed venv with --no-done, uploads every produced file via POST /output, and owns the final
 # /done so the app never has to guess the run result from the process exit code alone.
@@ -12,6 +12,7 @@ ISO_SIZE="${3:?}"
 ISO_MD5="${4:?}"
 SEED="${5:-}"
 TRACKER="${6:-}"
+PERMALINK_IN="${7:-}"
 
 BASE="http://127.0.0.1:${PORT}"
 WW="$HOME/wwrando"
@@ -169,9 +170,20 @@ curl -fsS "$BASE/settings?t=$TOKEN" -o "$SETTINGS_FILE" >>"$LOG" 2>&1 || fail "s
 
 # 2. Randomize without /done: android_run.py --no-done prints the result JSON to stdout instead.
 step "Randomizing"
+if [ -n "$PERMALINK_IN" ]; then
+  case "$PERMALINK_IN" in
+    *[!A-Za-z0-9+/=]*) fail "permalink" "bad permalink characters" ;;
+  esac
+  permalink_len=${#PERMALINK_IN}
+  if [ "$permalink_len" -lt 4 ] || [ "$permalink_len" -gt 2000 ]; then
+    fail "permalink" "bad permalink length"
+  fi
+fi
 set -- "$PY" "$WW/current/android_run.py" --clean-iso "$ISO_CACHE" --output-folder "$OUT_DIR" \
   --port "$PORT" --token "$TOKEN" --no-done --settings-json "$SETTINGS_FILE"
-if [ -n "$SEED" ]; then
+if [ -n "$PERMALINK_IN" ]; then
+  set -- "$@" --permalink "$PERMALINK_IN"
+elif [ -n "$SEED" ]; then
   set -- "$@" --seed "$SEED"
 else
   set -- "$@" --autoseed

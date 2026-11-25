@@ -1,8 +1,6 @@
 package io.github.thesword1.wwrando.ui
 
 import android.app.Application
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import androidx.compose.runtime.getValue
@@ -62,11 +60,15 @@ class OutputsViewModel(application: Application) : AndroidViewModel(application)
         notice = DolphinLauncher.launch(context, uri)
     }
 
-    fun copyPermalink(context: Context, output: SeedOutput) {
+    fun share(context: Context, output: SeedOutput) {
         val permalink = output.meta?.permalink?.takeIf { it.isNotBlank() } ?: return
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Permalink", permalink))
-        notice = "Permalink copied."
+        sharePermalink(context, permalink, output.meta?.seedHash.orEmpty())
+    }
+
+    fun copyShare(context: Context, output: SeedOutput) {
+        val permalink = output.meta?.permalink?.takeIf { it.isNotBlank() } ?: return
+        copyPermalinkShare(context, permalink, output.meta?.seedHash.orEmpty())
+        notice = "Copied."
     }
 
     fun delete(output: SeedOutput) {

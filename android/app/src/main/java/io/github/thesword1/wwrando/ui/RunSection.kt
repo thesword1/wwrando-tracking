@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import io.github.thesword1.wwrando.data.Permalink
 import io.github.thesword1.wwrando.service.RunStateValue
 
 /**
@@ -39,6 +41,7 @@ import io.github.thesword1.wwrando.service.RunStateValue
 fun RunSection(viewModel: RandoViewModel) {
     val iso = viewModel.iso
     val outputFolder = viewModel.outputFolder
+    val permalink = viewModel.permalink
     val runState by viewModel.runState.collectAsState()
     var seed by remember { mutableStateOf("") }
     var tracker by remember { mutableStateOf(true) }
@@ -76,7 +79,9 @@ fun RunSection(viewModel: RandoViewModel) {
             onSeedChange = { seed = it },
             tracker = tracker,
             onTrackerChange = { tracker = it },
-            onRun = { viewModel.startRealRun(seed, tracker) },
+            permalink = permalink,
+            onPermalinkChange = viewModel::updatePermalink,
+            onRun = { viewModel.startRealRun(seed, tracker, permalink) },
             onCancel = viewModel::cancelRealRun,
         )
     }
@@ -134,18 +139,32 @@ private fun RealRunCard(
     onSeedChange: (String) -> Unit,
     tracker: Boolean,
     onTrackerChange: (Boolean) -> Unit,
+    permalink: String,
+    onPermalinkChange: (String) -> Unit,
     onRun: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val permalinkSet = permalink.isNotBlank()
+    val permalinkValid = !permalinkSet || Permalink.isValid(permalink)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Randomize", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
                 value = seed,
                 onValueChange = onSeedChange,
-                label = { Text("Seed (blank = autoseed)") },
+                label = { Text(if (permalinkSet) "Seed (from permalink)" else "Seed (blank = autoseed)") },
+                singleLine = true,
+                enabled = state !is RunStateValue.Running && !permalinkSet,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = permalink,
+                onValueChange = onPermalinkChange,
+                label = { Text("Permalink (paste to use)") },
                 singleLine = true,
                 enabled = state !is RunStateValue.Running,
+                isError = !permalinkValid,
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -155,7 +174,7 @@ private fun RealRunCard(
 
             // The Randomize button stays above the result/status text so it never moves when the
             // run transitions between idle / running / done states.
-            val enabled = isoVerified && outputPicked && state !is RunStateValue.Running
+            val enabled = isoVerified && outputPicked && state !is RunStateValue.Running && permalinkValid
             Button(onClick = onRun, enabled = enabled) { Text("Randomize") }
 
             when (state) {
@@ -171,7 +190,15 @@ private fun RealRunCard(
                 }
                 is RunStateValue.Done -> {
                     Text("Seed hash: ${state.seedHash}")
-                    if (state.permalink.isNotBlank()) Text("Permalink: ${state.permalink}")
+                    if (state.permalink.isNotBlank()) {
+                        Text("Permalink: ${state.permalink}")
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TextButton(onClick = { sharePermalink(context, state.permalink, state.seedHash) }) { Text("Share") }
+                            TextButton(onClick = {
+                                copyPermalinkShare(context, state.permalink, state.seedHash)
+                            }) { Text("Copy") }
+                        }
+                    }
                     Text("Output: ${state.outputFolder}")
                 }
                 is RunStateValue.Failed -> Text(state.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -182,6 +209,7 @@ private fun RealRunCard(
             when {
                 !isoVerified -> Text("Pick and verify a clean ISO first.", style = MaterialTheme.typography.bodySmall)
                 !outputPicked -> Text("Pick an output folder first.", style = MaterialTheme.typography.bodySmall)
+                !permalinkValid -> Text("Fix the permalink first.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

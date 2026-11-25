@@ -88,7 +88,8 @@ fun OutputsSection(viewModel: RandoViewModel, outputsViewModel: OutputsViewModel
                     output = output,
                     onPlay = { outputsViewModel.play(context, output) },
                     onLogs = { outputsViewModel.openLogs(output) },
-                    onCopy = { outputsViewModel.copyPermalink(context, output) },
+                    onShare = { outputsViewModel.share(context, output) },
+                    onCopy = { outputsViewModel.copyShare(context, output) },
                     onDelete = { pendingDelete = output },
                 )
             }
@@ -135,6 +136,7 @@ private fun SeedOutputCard(
     output: SeedOutput,
     onPlay: () -> Unit,
     onLogs: () -> Unit,
+    onShare: () -> Unit,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -157,7 +159,8 @@ private fun SeedOutputCard(
                 Button(onClick = onPlay, enabled = output.isoUri != null) { Text("Play") }
                 Button(onClick = onLogs, enabled = output.logs.isNotEmpty()) { Text("Logs") }
                 if (!output.meta?.permalink.isNullOrBlank()) {
-                    Button(onClick = onCopy) { Text("Copy permalink") }
+                    Button(onClick = onShare) { Text("Share") }
+                    Button(onClick = onCopy) { Text("Copy") }
                 }
                 TextButton(onClick = onDelete) { Text("Delete") }
             }

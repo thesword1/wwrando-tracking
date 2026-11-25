@@ -69,6 +69,8 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var outputFolder: Uri? by mutableStateOf(null)
         private set
+    var permalink by mutableStateOf("")
+        private set
 
     val runState: StateFlow<RunStateValue> get() = RunState.state
     val setupInstalled: Boolean get() = engine.isSetupCurrent()
@@ -139,12 +141,17 @@ class RandoViewModel(application: Application) : AndroidViewModel(application) {
         outputFolder = uri
     }
 
-    fun startRealRun(seed: String, tracker: Boolean) {
+    fun updatePermalink(value: String) {
+        permalink = value
+    }
+
+    fun startRealRun(seed: String, tracker: Boolean, permalink: String) {
         // Clear the previous run's result/error immediately so it never lingers on screen.
         RunState.set(RunStateValue.Running(0, 0, "Starting"))
         val intent = Intent(getApplication(), RandoRunService::class.java)
             .putExtra(RandoRunService.EXTRA_SEED, seed.ifBlank { "" })
             .putExtra(RandoRunService.EXTRA_TRACKER, tracker)
+            .putExtra(RandoRunService.EXTRA_PERMALINK, permalink.ifBlank { "" })
         getApplication<Application>().startForegroundService(intent)
     }
 
