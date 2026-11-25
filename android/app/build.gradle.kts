@@ -148,8 +148,18 @@ val copySeedWordLists by tasks.registering(Copy::class) {
     into(project.layout.buildDirectory.dir("generated/assets/seedgen"))
 }
 
+// The built-in Link model is parsed from the same metadata and preview PNGs the desktop uses; they
+// are copied into APK assets at build time (no checked-in duplicates) and read straight from assets.
+val copyLinkAssets by tasks.registering(Copy::class) {
+    from(rootProject.layout.projectDirectory.dir("../assets")) {
+        include("link_metadata.txt")
+        include("link_preview/**")
+    }
+    into(project.layout.buildDirectory.dir("generated/assets/link"))
+}
+
 tasks.named("preBuild") {
-    dependsOn(copyRandomizerPython, writeTreeHash, copySeedWordLists)
+    dependsOn(copyRandomizerPython, writeTreeHash, copySeedWordLists, copyLinkAssets)
 }
 
 kotlin {
@@ -171,4 +181,5 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.json)
     testImplementation(libs.kotlinx.coroutines.test)
+    implementation(libs.snakeyaml)
 }

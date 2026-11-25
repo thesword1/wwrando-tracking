@@ -19,6 +19,14 @@ class RailSectionsTest {
     }
 
     @Test
+    fun `non-schema customize keys can never enter presets`() {
+        // custom_player_model / custom_color_preset / custom_colors are not schema options, so the
+        // preset-scoped current.json (which only stores schema-validated options) can never hold them.
+        val nonSchema = setOf("custom_player_model", "custom_color_preset", "custom_colors")
+        assertTrue(nonSchema.all { it !in names })
+    }
+
+    @Test
     fun `every schema option is assigned to exactly one section`() {
         val assigned = RailSections.allAssigned()
         assertEquals(assigned.size, assigned.toSet().size)

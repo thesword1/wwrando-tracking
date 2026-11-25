@@ -30,6 +30,8 @@ class LoopbackBridge(
     private val isoSource: IsoSource? = null,
     private val outputSink: RunOutputSink? = null,
     private val settingsProvider: (() -> ByteArray)? = null,
+    private val modelsListProvider: (() -> ByteArray)? = null,
+    private val modelZipProvider: ((String) -> ByteArray?)? = null,
 ) : Closeable {
 
     private val serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
@@ -112,6 +114,9 @@ class LoopbackBridge(
             method == "GET" && path == "/tree" -> writeTree(output)
             method == "GET" && path == "/settings" -> writeSettings(output)
             method == "GET" && path == "/iso" -> writeIso(output)
+            method == "GET" && path == "/models" -> writeModelsList(output)
+            method == "GET" && path.startsWith("/models/") && path.endsWith(".zip") ->
+                writeModelZip(output, path)
             method == "POST" && path == "/output" -> handleOutput(input, output, target, contentLength)
             method == "POST" && path == "/progress" -> handleProgress(input, output, contentLength)
             method == "POST" && path == "/done" -> handleDone(input, output, contentLength)
@@ -127,6 +132,40 @@ class LoopbackBridge(
         }
         val header = "HTTP/1.1 200 OK\r\n" +
             "Content-Type: application/json; charset=utf-8\r\n" +
+            "Content-Length: ${body.size}\r\n" +
+            "Connection: close\r\n\r\n"
+        output.write(header.toByteArray())
+        output.write(body)
+        output.flush()
+    }
+
+    private fun writeModelsList(output: OutputStream) {
+        val body = modelsListProvider?.invoke() ?: "[]".toByteArray(Charsets.UTF_8)
+        writeBody(output, "application/json; charset=utf-8", body)
+    }
+
+    private fun writeModelZip(output: OutputStream, path: String) {
+        val provider = modelZipProvider
+        if (provider == null) {
+            writeStatus(output, 404, "Not Found")
+            return
+        }
+        val name = BridgeRoutes.urlDecode(path.removePrefix("/models/").removeSuffix(".zip"))
+        if (!ModelZip.isValidModelName(name)) {
+            writeStatus(output, 403, "Forbidden")
+            return
+        }
+        val body = provider(name)
+        if (body == null) {
+            writeStatus(output, 404, "Not Found")
+            return
+        }
+        writeBody(output, "application/zip", body)
+    }
+
+    private fun writeBody(output: OutputStream, contentType: String, body: ByteArray) {
+        val header = "HTTP/1.1 200 OK\r\n" +
+            "Content-Type: $contentType\r\n" +
             "Content-Length: ${body.size}\r\n" +
             "Connection: close\r\n\r\n"
         output.write(header.toByteArray())

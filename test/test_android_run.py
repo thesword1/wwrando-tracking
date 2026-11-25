@@ -13,6 +13,8 @@ import tempfile
 import threading
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SHIM = REPO_ROOT / "android_run.py"
 
@@ -208,6 +210,41 @@ def test_settings_json_changes_an_option():
 
     assert kwargs["options"].progression_tingle_chests is True
     assert kwargs["options"].sword_mode == SwordMode.SWORDLESS
+
+
+def test_settings_json_applies_customize_str_and_dict_options():
+    import android_run
+
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as f:
+        json.dump(
+            {
+                "custom_player_model": "Some Model",
+                "custom_color_preset": "Dark Link",
+                "custom_colors": {"Hair": [255, 0, 0], "Eyes": [0, 255, 0]},
+                "player_in_casual_clothes": True,
+            },
+            f,
+        )
+        f.flush()
+        kwargs = android_run.build_randomizer_kwargs(_args(settings_json=f.name, seed="test"))
+
+    assert kwargs["options"].custom_player_model == "Some Model"
+    assert kwargs["options"].custom_color_preset == "Dark Link"
+    assert kwargs["options"].custom_colors == {"Hair": [255, 0, 0], "Eyes": [0, 255, 0]}
+    assert kwargs["options"].player_in_casual_clothes is True
+
+
+def test_settings_json_rejects_bad_custom_colors_shape():
+    import android_run
+    from options.wwrando_options import Options
+
+    options = Options()
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as f:
+        json.dump({"custom_colors": {"Hair": [255, 0]}}, f)
+        f.flush()
+        with pytest.raises(android_run.SettingsError, match="must be"):
+            android_run.apply_settings_json(options, f.name)
+
 
 
 def test_permalink_still_wins_over_settings_json():

@@ -19,6 +19,7 @@ import io.github.thesword1.wwrando.data.IsoVerify
 import io.github.thesword1.wwrando.data.HistoryEntry
 import io.github.thesword1.wwrando.data.HistoryStore
 import io.github.thesword1.wwrando.data.LoopbackBridge
+import io.github.thesword1.wwrando.data.ModelStore
 import io.github.thesword1.wwrando.data.OutputsLogic
 import io.github.thesword1.wwrando.data.ProgressEvent
 import io.github.thesword1.wwrando.data.RandoCommandRunner
@@ -39,6 +40,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Process-wide run state observed by the ViewModel (no service binding). */
@@ -199,6 +201,7 @@ class RandoRunService : Service() {
         val treeBytes = readAssetBytes("wwrando.tgz")
         val localSink = AndroidRunOutputSink(contentResolver, outTree)
         val settingsStore = SettingsStore(this)
+        val modelStore = ModelStore.from(this)
         val presetName = settingsStore.activePresetName()
         val settingsModified = settingsStore.isModified()
         val tracker = settingsStore.inGameTrackerEnabled()
@@ -207,6 +210,14 @@ class RandoRunService : Service() {
             isoSource = AndroidIsoSource(contentResolver, iso.uri, iso.size),
             outputSink = localSink,
             settingsProvider = { settingsStore.currentDiffJsonBytes() },
+            modelsListProvider = {
+                val array = JSONArray()
+                modelStore.modelInfos().forEach { info ->
+                    array.put(JSONObject().put("name", info.name).put("md5", info.md5))
+                }
+                array.toString().toByteArray(Charsets.UTF_8)
+            },
+            modelZipProvider = { name -> modelStore.zipFile(name).takeIf { it.isFile }?.readBytes() },
         )
         bridge = localBridge
         sink = localSink

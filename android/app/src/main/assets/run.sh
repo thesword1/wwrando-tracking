@@ -1,9 +1,10 @@
 #!/bin/sh
 # WW Randomizer real run, piped into Termux over RUN_COMMAND by the app's foreground service.
 # Usage: run.sh <bridge-port> <bridge-token> <iso-size> <iso-md5> <seed> <permalink>
-# Copies the picked ISO over GET /iso (cached under ~/wwrando/input), runs android_run.py in the
-# installed venv with --no-done, uploads every produced file via POST /output, and owns the final
-# /done so the app never has to guess the run result from the process exit code alone.
+# Copies the picked ISO over GET /iso (cached under ~/wwrando/input), syncs installed custom
+# player models over GET /models, runs android_run.py in the installed venv with --no-done,
+# uploads every produced file via POST /output, and owns the final /done so the app never has
+# to guess the run result from the process exit code alone.
 set -u
 
 PORT="${1:?}"
@@ -23,9 +24,12 @@ OUT_BASE="$WW/out"
 OUT_DIR="$OUT_BASE/run_$$"
 RUN_DIR="$WW/run"
 SETTINGS_FILE="$RUN_DIR/settings.json"
+MODELS_DIR="$WW/models"
+MODEL_SYNC="$RUN_DIR/model_sync"
 LOG="$WW/run.log"
 PY="$WW/venv/bin/python"
 STEP=0
+TOTAL=6
 RESULT_JSON=""
 SEED_NAME=""
 PERMALINK=""
@@ -43,7 +47,7 @@ progress() { printf '%s\n' "$1" | post progress; }
 
 step() {
   STEP=$((STEP + 1))
-  progress "STEP $STEP/5 $1"
+  progress "STEP $STEP/$TOTAL $1"
 }
 
 fail() {
@@ -167,6 +171,61 @@ fi
 step "Settings"
 curl -fsS "$BASE/settings?t=$TOKEN" -o "$SETTINGS_FILE" >>"$LOG" 2>&1 || fail "settings" "settings fetch failed"
 
+# 1c. Sync custom player models: fetch the app's installed model list over GET /models, download
+# any whose zip md5 changed into a temp dir, then let android_run.py install them (skip unchanged,
+# prune removed). Offline or no models: the list is empty, so this just prunes stale model dirs.
+step "Models"
+mkdir -p "$MODELS_DIR" "$MODEL_SYNC"
+MODELS_JSON="$RUN_DIR/models.json"
+MODEL_MANIFEST="$RUN_DIR/models_manifest.json"
+curl -fsS "$BASE/models?t=$TOKEN" -o "$MODELS_JSON" >>"$LOG" 2>&1 || { : > "$MODELS_JSON"; }
+if [ -s "$MODELS_JSON" ]; then
+  "$PY" - "$BASE" "$TOKEN" "$MODELS_DIR" "$MODEL_SYNC" "$MODELS_JSON" > "$MODEL_MANIFEST" <<'PYEOF' || fail "models" "model download failed"
+import hashlib
+import json
+import os
+import shutil
+import sys
+import urllib.parse
+import urllib.request
+
+base, token, models_dir, sync_dir, models_json = sys.argv[1:6]
+with open(models_json, encoding="utf-8") as f:
+    models = json.load(f)
+if not isinstance(models, list):
+    raise SystemExit("models response is not a JSON array")
+manifest = []
+for i, model in enumerate(models):
+    name = model.get("name") if isinstance(model, dict) else None
+    md5 = (model.get("md5") or "") if isinstance(model, dict) else ""
+    if not name:
+        raise SystemExit("model entry without a name")
+    md5_file = os.path.join(models_dir, name, ".md5")
+    if os.path.isfile(md5_file):
+        with open(md5_file, encoding="utf-8") as f:
+            if f.read().strip() == md5:
+                manifest.append({"name": name, "md5": md5, "path": ""})
+                continue
+    url = "%s/models/%s.zip?t=%s" % (base, urllib.parse.quote(name, safe=""), token)
+    out = os.path.join(sync_dir, "%d.zip" % i)
+    with urllib.request.urlopen(url, timeout=300) as resp, open(out, "wb") as fh:
+        shutil.copyfileobj(resp, fh)
+    if md5:
+        digest = hashlib.md5()
+        with open(out, "rb") as fh:
+            for chunk in iter(lambda: fh.read(65536), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != md5:
+            raise SystemExit("md5 mismatch for model %s" % name)
+    manifest.append({"name": name, "md5": md5, "path": out})
+json.dump(manifest, sys.stdout)
+PYEOF
+  "$PY" "$WW/current/android_run.py" --sync-models "$MODELS_DIR" "$MODEL_MANIFEST" >>"$LOG" 2>&1 || fail "models" "model sync failed"
+elif [ -n "$(ls -A "$MODELS_DIR" 2>/dev/null)" ]; then
+  : > "$MODEL_MANIFEST"
+  "$PY" "$WW/current/android_run.py" --sync-models "$MODELS_DIR" "$MODEL_MANIFEST" >>"$LOG" 2>&1 || fail "models" "model sync failed"
+fi
+
 # 2. Randomize without /done: android_run.py --no-done prints the result JSON to stdout instead.
 step "Randomizing"
 if [ -n "$PERMALINK_IN" ]; then
@@ -202,7 +261,7 @@ step "Uploading"
 for file in "$OUT_DIR"/*; do
   [ -f "$file" ] || continue
   name=$(sanitize "$(basename "$file")")
-  progress "STEP 4/5 Upload $name"
+  progress "STEP $STEP/$TOTAL Upload $name"
   encoded_name=$(urlencode "$name")
   encoded_dir=$(urlencode "$SUBFOLDER")
   curl -fsS --data-binary @"$file" "$BASE/output?t=$TOKEN&name=$encoded_name&dir=$encoded_dir" \

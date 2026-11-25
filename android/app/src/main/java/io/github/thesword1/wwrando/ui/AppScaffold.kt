@@ -46,6 +46,7 @@ fun AppScaffold(
     viewModel: RandoViewModel,
     outputsViewModel: OutputsViewModel,
     settingsViewModel: SettingsViewModel,
+    customizeViewModel: CustomizeViewModel,
     onRequestPermission: () -> Unit,
     onInstallTermux: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -81,7 +82,7 @@ fun AppScaffold(
                     Section.Logic -> LogicScreen(viewModel = settingsViewModel)
                     Section.Tweaks -> TweaksScreen(viewModel = settingsViewModel)
                     Section.StartingItems -> StartingItemsScreen(viewModel = settingsViewModel)
-                    Section.Customize -> PlaceholderScreen("Customize", "Player customization arrives in 6b.")
+                    Section.Customize -> CustomizeScreen(viewModel = customizeViewModel)
                     Section.Advanced -> PlaceholderScreen("Advanced", "About and permalink arrive in 6c.")
                 }
             }

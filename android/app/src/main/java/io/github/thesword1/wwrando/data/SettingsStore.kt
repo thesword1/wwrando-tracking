@@ -17,8 +17,9 @@ class SettingsStore(context: Context) {
     private val dir = File(appContext.filesDir, "settings")
     private val presetsDir = File(dir, "presets")
     private val currentFile = File(dir, "current.json")
-    private val customizeFile = File(dir, "customize.json")
     private val activeFile = File(dir, "active.txt")
+
+    private val customizeStore = CustomizeStore(appContext)
 
     val schema: List<OptionDef> = OptionsSchema.parse(readAsset())
     private val schemaByName: Map<String, OptionDef> = schema.associateBy { it.name }
@@ -102,20 +103,14 @@ class SettingsStore(context: Context) {
 
     fun changesCount(): Int = current().size
 
-    /** Customize settings, kept out of presets and merged into the run diff (see PLAN 6). */
-    fun customize(): Map<String, Any> = readMap(customizeFile, RailSections::isCustomize)
+    /**
+     * Customize settings (including the non-schema player model, colour preset and custom colours)
+     * are kept out of presets and merged into the run diff unchanged (see PLAN 6b).
+     */
+    fun customize(): Map<String, Any> = customizeStore.all()
 
-    fun setCustomize(name: String, value: Any) {
-        if (!RailSections.isCustomize(name)) return
-        val option = schemaByName[name] ?: return
-        if (!SettingsLogic.isValidValue(option, value)) return
-        val diff = customize().toMutableMap()
-        if (defaults[name] == value) diff.remove(name) else diff[name] = value
-        writeMap(customizeFile, diff)
-    }
-
-    /** The complete run diff: preset-scoped settings plus Customize settings. */
-    fun runDiff(): Map<String, Any> = sanitize(current() + customize())
+    /** The complete run diff: preset-scoped settings plus the full Customize payload. */
+    fun runDiff(): Map<String, Any> = sanitize(current()) + customizeStore.all()
 
     fun inGameTrackerEnabled(): Boolean = effective("in_game_tracker") as Boolean
 

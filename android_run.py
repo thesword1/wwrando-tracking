@@ -15,12 +15,14 @@ gclib/gclib/texture_utils.py imports it unconditionally. A Pillow-quantize stub 
 import inspect
 import json
 import os
+import shutil
 import sys
 import time
 import traceback
 import types
 import typing
 import urllib.request
+import zipfile
 from enum import StrEnum
 
 # Match wwrando.py: put the bundled gclib submodule on sys.path before any randomizer import.
@@ -82,6 +84,22 @@ def _convert_settings_value(field, value):
     if field.maximum is not None and value > field.maximum:
       raise SettingsError("bad value for %s: %d above maximum %d" % (name, value, field.maximum))
     return value
+  if tp is str:
+    if not isinstance(value, str):
+      raise SettingsError("bad value for %s: expected a string" % name)
+    return value
+  if origin is dict:
+    # custom_colors: {color name: [r, g, b]}. Validated structurally here; the
+    # randomizer applies only colors whose names are valid for the selected model.
+    if not isinstance(value, dict):
+      raise SettingsError("bad value for %s: expected an object" % name)
+    for key, color in value.items():
+      if not isinstance(key, str):
+        raise SettingsError("bad value for %s: color names must be strings" % name)
+      if not isinstance(color, list) or len(color) != 3 or \
+          not all(isinstance(channel, int) and not isinstance(channel, bool) and 0 <= channel <= 255 for channel in color):
+        raise SettingsError("bad value for %s: color %r must be [r, g, b]" % (name, key))
+    return value
   if origin is list and args == (str,):
     if field.choices is None:
       return None
@@ -113,6 +131,98 @@ def apply_settings_json(options, path):
     if converted is None:
       continue
     options[name] = converted
+
+
+def _safe_extract_zip(zip_path, dest_dir):
+  """Extract a normalized model zip into dest_dir, rejecting zip-slip entries."""
+  os.makedirs(dest_dir, exist_ok=True)
+  with zipfile.ZipFile(zip_path) as zf:
+    for info in zf.infolist():
+      name = info.filename
+      if name.startswith("/") or name.startswith("\\") or os.path.isabs(name):
+        raise ValueError("absolute path in model zip: %r" % name)
+      if name != "/" and "\\" in name:
+        raise ValueError("backslash path in model zip: %r" % name)
+      norm = os.path.normpath(name)
+      if norm == ".." or norm.startswith(".." + os.sep):
+        raise ValueError("path escape in model zip: %r" % name)
+      # Normalized model zips contain only regular files and directories.
+      mode = (info.external_attr >> 16) & 0o170000
+      if mode == 0o120000:
+        raise ValueError("symlink in model zip: %r" % name)
+      target = os.path.join(dest_dir, name)
+      if info.is_dir():
+        os.makedirs(target, exist_ok=True)
+        continue
+      os.makedirs(os.path.dirname(target), exist_ok=True)
+      with zf.open(info) as src, open(target, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+
+
+def _valid_model_dir_name(name):
+  if not name or name in ("Link", "Random", "Random (exclude Link)"):
+    return False
+  if "/" in name or "\\" in name or ".." in name or os.path.isabs(name):
+    return False
+  return True
+
+
+def sync_models(models_dir, manifest_path):
+  """Apply the model manifest produced by run.sh into models_dir.
+
+  manifest_path is a JSON array of {"name": str, "md5": str, "path": str}; "path" is
+  the local zip for changed models and "" when the installed copy already matches.
+  Each changed model is extracted zip-slip-safe into <name>.tmp and renamed over
+  <name>/, then <name>/.md5 records the zip md5. Model dirs absent from the manifest
+  are deleted. Returns the number of models that ended up installed.
+  """
+  with open(manifest_path, encoding="utf-8") as f:
+    manifest = json.load(f)
+  if not isinstance(manifest, list):
+    raise ValueError("model manifest must be a JSON array")
+
+  os.makedirs(models_dir, exist_ok=True)
+  kept_names = set()
+  for entry in manifest:
+    if not isinstance(entry, dict):
+      raise ValueError("model manifest entries must be objects")
+    name = entry.get("name")
+    md5 = entry.get("md5") or ""
+    zip_path = entry.get("path") or ""
+    if not _valid_model_dir_name(name):
+      raise ValueError("invalid model name in manifest: %r" % (name,))
+    kept_names.add(name)
+
+    target = os.path.join(models_dir, name)
+    md5_file = os.path.join(target, ".md5")
+    if os.path.isfile(md5_file):
+      with open(md5_file, encoding="utf-8") as f:
+        if f.read().strip() == md5:
+          continue
+
+    if not zip_path or not os.path.isfile(zip_path):
+      raise ValueError("no zip for changed model %r" % (name,))
+
+    tmp_dir = os.path.join(models_dir, name + ".tmp")
+    if os.path.exists(tmp_dir):
+      shutil.rmtree(tmp_dir, ignore_errors=True)
+    _safe_extract_zip(zip_path, tmp_dir)
+    if os.path.exists(target):
+      shutil.rmtree(target, ignore_errors=True)
+    os.rename(tmp_dir, target)
+    with open(md5_file, "w", encoding="utf-8") as f:
+      f.write(md5)
+
+  # Prune model dirs that are no longer present in the manifest (plus any stale .tmp).
+  for entry in os.listdir(models_dir):
+    path = os.path.join(models_dir, entry)
+    if entry.endswith(".tmp") and os.path.isdir(path):
+      shutil.rmtree(path, ignore_errors=True)
+      continue
+    if os.path.isdir(path) and entry not in kept_names:
+      shutil.rmtree(path, ignore_errors=True)
+
+  return len(kept_names)
 
 
 def _post(port, token, path, body):
@@ -236,8 +346,8 @@ def make_argparser():
   # (dry, nologs, tracker, disassemble, exportfolder, bulk, ...), then add the bridge extras.
   from wwrando import make_argparser as wwrando_argparser
   parser = wwrando_argparser()
-  parser.add_argument("--port", type=int, required=True, help="Loopback bridge port.")
-  parser.add_argument("--token", required=True, help="Loopback bridge token.")
+  parser.add_argument("--port", type=int, help="Loopback bridge port.")
+  parser.add_argument("--token", help="Loopback bridge token.")
   parser.add_argument(
     "--settings-json", type=str, metavar="PATH",
     help="Apply a {name: value} settings diff on top of settings.txt (permalink still wins).",
@@ -247,12 +357,27 @@ def make_argparser():
     action="store_true",
     help="Print the final result JSON to stdout instead of POSTing /done (run.sh owns /done).",
   )
+  parser.add_argument(
+    "--sync-models", nargs=2, metavar=("MODELS_DIR", "MANIFEST"),
+    help="Sync custom player models from a run.sh manifest and exit (no randomizer run).",
+  )
   return parser
 
 
 def main(argv=None):
   install_imagequant_stub()
   args = make_argparser().parse_args(argv)
+  if args.sync_models:
+    try:
+      count = sync_models(args.sync_models[0], args.sync_models[1])
+    except Exception as e:
+      print(json.dumps({"ok": False, "step": "models", "error": str(e)}))
+      return 1
+    print(json.dumps({"ok": True, "models": count}))
+    return 0
+  if args.port is None or args.token is None:
+    print(json.dumps({"ok": False, "step": "bridge", "error": "--port and --token are required"}))
+    return 1
   return run(args)
 
 

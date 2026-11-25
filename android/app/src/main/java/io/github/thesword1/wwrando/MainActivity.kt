@@ -35,6 +35,7 @@ import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.data.SelfCheckInput
 import io.github.thesword1.wwrando.data.SelfCheckLogic
 import io.github.thesword1.wwrando.ui.AppScaffold
+import io.github.thesword1.wwrando.ui.CustomizeViewModel
 import io.github.thesword1.wwrando.ui.HistoryScreen
 import io.github.thesword1.wwrando.ui.HistoryViewModel
 import io.github.thesword1.wwrando.ui.IsoStatus
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: RandoViewModel by viewModels()
     private val outputsViewModel: OutputsViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
+    private val customizeViewModel: CustomizeViewModel by viewModels()
     private val historyViewModel: HistoryViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -122,6 +124,7 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel,
                         outputsViewModel = outputsViewModel,
                         settingsViewModel = settingsViewModel,
+                        customizeViewModel = customizeViewModel,
                         onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
                         onInstallTermux = { openTermuxStore() },
                         onOpenAppSettings = {

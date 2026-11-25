@@ -112,8 +112,12 @@ do
   fi
 done
 
-# 5. Atomically point "current" at the new release and record the installed hash.
+# 5. Point the release at the shared models dir (so upgrades keep installed models), atomically
+# point "current" at the new release, and record the installed hash.
 step "Finishing install"
+mkdir -p "$WW/models"
+rm -rf "$DEST/models"
+ln -s "$WW/models" "$DEST/models"
 rm -f "$WW/current.new"
 ln -s "$DEST" "$WW/current.new"
 mv -fT "$WW/current.new" "$WW/current"

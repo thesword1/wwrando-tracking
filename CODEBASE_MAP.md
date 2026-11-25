@@ -7,7 +7,8 @@ Developer docs index: `docs/dev/README.md`.
 ## Layout
 
 - `wwrando.py` — CLI entry point (`--noui`, `--aptww`, `--clean-iso`, `--output-folder`, `--tracker`).
-- `android_run.py` — headless Termux shim driving `WWRandomizer` over the loopback bridge.
+- `android_run.py` — headless Termux shim driving `WWRandomizer` over the loopback bridge; also
+  `--sync-models <models_dir> <manifest.json>` for run.sh model sync (zip-slip-safe, skip/prune).
 - `android_options_schema.py` — generates `android/app/src/main/assets/options_schema.json` (committed); `--check` fails on a stale file.
 - `randomizer.py`, `tweaks.py`, `aptww.py` — randomizer core, game patching, `.aptww` (Archipelago) loader.
 - `options/`, `logic/`, `randomizers/` — option definitions, logic files, offline item fill.
@@ -27,10 +28,20 @@ Developer docs index: `docs/dev/README.md`.
   `data/StartingItemsLogic.kt` (item picker counts + health label), `data/SelfCheckLogic.kt` (startup
   self-check aggregation), `data/SeedNameGenerator.kt` (desktop seed-name mirror);
   `ui/AppScaffold.kt` (navigation rail) hosts `ui/HomeScreen.kt`, `ui/LogicScreen.kt`,
-  `ui/TweaksScreen.kt`, `ui/StartingItemsScreen.kt` (Customize/Advanced are placeholders until 6b/6c);
-  shared widgets in `ui/OptionWidgets.kt`. Setup decision: `data/SetupLogic.kt` (commit-based install check).
+  `ui/TweaksScreen.kt`, `ui/StartingItemsScreen.kt`, `ui/CustomizeScreen.kt` (Advanced is a placeholder
+  until 6c); shared widgets in `ui/OptionWidgets.kt`. Setup decision: `data/SetupLogic.kt` (commit-based install check).
   History: `data/HistoryStore.kt` (`filesDir/history.jsonl`, capped at 100), `ui/HistoryScreen.kt` +
   `ui/HistoryViewModel.kt`.
+- Customize (6b): `data/ModelStore.kt` (`filesDir/models/<name>.zip`, SAF import/delete, zip reads),
+  `data/ModelZip.kt` (pure import plan/validation), `data/ModelMetadata.kt` (SnakeYAML metadata parse,
+  old-format/tab fixes, `link/` asset for Link), `data/ColorLogic.kt` (pure ports of gclib
+  `color_exchange`/`hsv_shift_color`), `data/CustomizeLogic.kt` (pure get_color/set_color/preset/randomize
+  mirror), `data/CustomizeStore.kt` (`customize.json`, kept out of presets, merged into the run diff);
+  `ui/CustomizeViewModel.kt` + `ui/CustomizeScreen.kt` + `ui/PreviewRenderer.kt` (debounced preview).
+  Bridge also serves `GET /models` and `GET /models/<name>.zip`; run.sh syncs them via
+  `android_run.py --sync-models` before each run; setup.sh symlinks `~/wwrando/models` into each release.
+  Kotlin colour fixtures: `android/tools/gen_color_fixtures.py` (one-shot) ->
+  `android/app/src/test/resources/color_fixtures.json`.
 - `test/` — pytest suite; `test/fixtures/aptww/` `.aptww` fixtures; `test/tracker_c_host.py` builds the
   tracker C runtime for host unit tests; `test_android_*` cover the shim, run.sh, and schema generator.
 - `tools/` — `devkitppc/` (assembler container), `dolphin/` (Dolphin automation harness),
