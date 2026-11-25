@@ -208,3 +208,11 @@ starting items empty by default and spoiler log matches what was added.
    there); starting + randomized must always equal `INVENTORY_ITEMS` like desktop.
 4. **No .aptww/Archipelago anything.** `randomize_enemies` goes into Logic > Advanced settings with a
    visible warning that it can produce unbeatable/broken seeds (it is hidden+unbeatable on desktop).
+5. **Color scheme**: copy GameHub Manager's dark palette (primary `#4FA3FF`, background `#101216`,
+   surface `#161A21`, surfaceContainer `#1B2029`, outline `#3A4250`, error `#FF6B6B`); dark-only, no
+   white backgrounds (rail, cards, dialogs, loading screen).
+6. **Home order** (top to bottom): Self-Check, ISO + output folder, Randomize, Preset, Seed,
+   current/generated seeds (outputs list).
+7. **Clean ISO + output folder** share one row as two side-by-side compact fields/buttons.
+8. **Randomize** is centered, large, primary, clearly the main action.
+9. **Startup loading screen**: app icon + "Wind Waker Randomizer" title above the progress indicator.

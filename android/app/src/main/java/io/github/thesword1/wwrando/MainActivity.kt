@@ -12,10 +12,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -24,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.data.SelfCheckInput
@@ -35,6 +41,7 @@ import io.github.thesword1.wwrando.ui.IsoStatus
 import io.github.thesword1.wwrando.ui.OutputsViewModel
 import io.github.thesword1.wwrando.ui.RandoViewModel
 import io.github.thesword1.wwrando.ui.SettingsViewModel
+import io.github.thesword1.wwrando.ui.theme.WwRandoTheme
 
 /**
  * Thin host for the rail shell: it runs startup self-check/setup, drives the RUN_COMMAND and
@@ -51,7 +58,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("rando", MODE_PRIVATE)
         setContent {
-            MaterialTheme {
+            WwRandoTheme {
                 var permissionDenials by remember { mutableIntStateOf(prefs.getInt("run_command_denials", 0)) }
                 var termuxStatus by remember { mutableStateOf(RandoBridge.status(this)) }
                 var showHistory by remember { mutableStateOf(false) }
@@ -85,7 +92,15 @@ class MainActivity : ComponentActivity() {
                     HistoryScreen(viewModel = historyViewModel, onBack = { showHistory = false })
                 } else if (viewModel.setup.running) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_launcher_foreground),
+                                contentDescription = null,
+                                modifier = Modifier.size(96.dp),
+                            )
+                            Text("Wind Waker Randomizer", style = MaterialTheme.typography.headlineSmall)
+                            CircularProgressIndicator()
+                        }
                     }
                 } else {
                     val selfCheck = SelfCheckLogic.issues(

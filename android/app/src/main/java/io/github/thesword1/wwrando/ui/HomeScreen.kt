@@ -25,7 +25,9 @@ import io.github.thesword1.wwrando.data.SelfCheckFix
 import io.github.thesword1.wwrando.data.SelfCheckIssue
 import io.github.thesword1.wwrando.service.RunStateValue
 
-/** Home rail section: Self-Check, preset selector, seed/ISO/output, Randomize, outputs, History. */
+/**
+ * Home rail section, in order: Self-Check, ISO + output folder, Randomize, Preset, Seed, outputs.
+ */
 @Composable
 fun HomeScreen(
     selfCheck: List<SelfCheckIssue>,
@@ -87,15 +89,28 @@ fun HomeScreen(
             onOpenAppSettings = onOpenAppSettings,
         )
 
+        IsoOutputRow(
+            iso = viewModel.iso,
+            outputSelected = viewModel.outputFolder != null,
+            onPickIso = { isoPicker.launch(arrayOf("*/*")) },
+            onPickOutput = { folderPicker.launch(null) },
+        )
+
+        RandomizeCard(
+            state = runState,
+            isoVerified = viewModel.iso.status == IsoStatus.Verified,
+            outputPicked = viewModel.outputFolder != null,
+            ready = viewModel.setupInstalled,
+            onRun = { viewModel.startRealRun(viewModel.seed) },
+            onCancel = viewModel::cancelRealRun,
+        )
+
         PresetCard(viewModel = settingsViewModel, runActive = runActive)
 
-        RunSection(
-            viewModel = viewModel,
+        SeedCard(
             seed = viewModel.seed,
             onSeedChanged = viewModel::onSeedChanged,
             onNewSeed = viewModel::newSeed,
-            onPickIso = { isoPicker.launch(arrayOf("*/*")) },
-            onPickOutput = { folderPicker.launch(null) },
         )
 
         OutputsSection(viewModel = viewModel, outputsViewModel = outputsViewModel)
