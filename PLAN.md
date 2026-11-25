@@ -216,3 +216,55 @@ starting items empty by default and spoiler log matches what was added.
 7. **Clean ISO + output folder** share one row as two side-by-side compact fields/buttons.
 8. **Randomize** is centered, large, primary, clearly the main action.
 9. **Startup loading screen**: app icon + "Wind Waker Randomizer" title above the progress indicator.
+
+## 6b design — Customize (2026-11-25; refines 6 item 5 + 5d item 2)
+
+Desktop source to mirror (read, don't guess): `wwr_ui/cosmetic_tab.py` (whole file: get_color/set_color,
+preset logic, randomize, install zip, disable_invalid_cosmetic_options), `customizer.py`
+get_model_metadata / get_model_preview_image, `gclib/gclib/texture_utils.py` color_exchange (pure-Python
+path, `validate_mask_colors=False`) and hsv_shift_color, `wwr_ui/randomizer_window.ui` cosmetic tab labels.
+
+1. **Model storage (Kotlin)**: "Import model (.zip)" via SAF. Validate like desktop install_custom_model_zip
+   (single model dir, or a pack with `<top>/models/<name>/`; each needs `Link.arc` + `metadata.txt`).
+   Store each model as a normalized zip `filesDir/models/<name>.zip` (entries relative to the model dir;
+   packs are split). Re-import of a name replaces it. Reject names `Link`, `Random`, `Random (exclude Link)`,
+   names with `/` or `..`, and any entry that is absolute or contains `..` (zip slip). Also "Delete model".
+   Kotlin reads metadata.txt, `preview/*.png`, `sound/JaiInit.aaf`+`sound/voice_0.aw` presence straight from
+   the zip (java.util.zip.ZipFile); no extraction on the Android side.
+2. **Metadata parse**: SnakeYAML (org.yaml:snakeyaml, pinned) after the same old-format and tab regex
+   fixes as get_model_metadata; hero/casual_custom_colors, hero/casual_color_presets,
+   disable_casual_clothes. Parse error -> model listed with its error, colors hidden.
+   Default Link: gradle copies repo `assets/link_metadata.txt` + `assets/link_preview/` into APK assets
+   (`link/`) at build time (no checked-in copies).
+3. **Preview**: Kotlin port of color_exchange (only red FF0000FF mask pixels change; HSV int truncation
+   exactly like Python colorsys + int()) applied per changed color on `preview_<hero|casual>.png` with
+   `preview_<prefix>_<color>.png` masks; skip colors equal to base. Render off the main thread, debounce
+   ~150 ms, newest request wins. No preview (placeholder text) for Random or missing preview files.
+4. **Customize screen** (desktop order/labels): preview; Player model dropdown (Link, installed models
+   sorted, plus Random / Random (exclude Link) only if any are installed); Import model; Delete model;
+   "Casual clothes" (off+disabled if disable_casual_clothes); "Disable custom voice" (enabled only if the
+   model has both sound files, or Random); "Disable custom items" (disabled for Link); Color preset
+   dropdown (Default, Custom, model presets; reserved names ignored); "Save colors…" / "Load colors…" via
+   SAF .txt in the desktop YAML format (model_name, colors as 0xRRGGBB, is_casual; load refuses
+   uninstalled models, like desktop); "Randomize colors (orderly)" = randomize_all_custom_colors_together,
+   "(chaotic)" = randomize_all_custom_colors_separately; per color: swatch -> color picker dialog
+   (hue/sat/value sliders + hex field), randomize-one, reset-one. Preset/Custom semantics, model switch and
+   hero/casual switch behave exactly like get_color/set_color/update_color_presets_list. Colors hidden for
+   Random models.
+5. **Persistence**: customize.json holds custom_player_model, player_in_casual_clothes,
+   disable_custom_player_voice, disable_custom_player_items, custom_color_preset, custom_colors
+   ({name: [r,g,b]}) and goes into `--settings-json` unchanged; still excluded from presets. A stored model
+   that no longer exists falls back to Link.
+6. **Sync to Termux**: bridge `GET /models` -> `[{"name","md5"}]`, `GET /models/<url-encoded name>.zip`.
+   run.sh, before the run: fetch the list, download changed zips to a temp dir, then
+   `android_run.py --sync-models <models_dir> <manifest.json>` (manifest = name, md5, local zip path):
+   extracts each into `<models_dir>/<name>.tmp` with zipfile (zip-slip checks), renames over
+   `<name>/`, writes `<name>/.md5`; deletes model dirs not in the manifest; unchanged md5 = skip.
+   setup.sh: `mkdir -p ~/wwrando/models` and make `$DEST/models` a symlink to it (upgrades keep models).
+   Offline/no models: list is empty, sync just prunes; self-check unaffected.
+Tests: Kotlin — metadata parse (Link asset + an old-format sample), zip import (single, pack, missing
+file, zip slip, reserved name), color_exchange + hsv_shift parity against values generated once with the
+Python code (fixtures committed), color save/load round trip, customize not in presets. Python —
+sync_models (install, skip same md5, replace, prune, zip slip rejected). scripts/test-quiet.sh green, CI APK.
+Acceptance (device): Link preview recolors live; import a model zip, pick it + a preset, run -> Dolphin shows
+the model; colors/model persist across app restart and are untouched by preset load.
