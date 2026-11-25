@@ -46,6 +46,16 @@ class SettingsStore(context: Context) {
         writeMap(currentFile, emptyMap())
     }
 
+    /**
+     * Replaces the preset-scoped current diff with decoded permalink settings (defaults dropped,
+     * non-preset/unknown names ignored), and clears the active preset so the label reads modified.
+     */
+    fun applyDecoded(decoded: Map<String, Any>) {
+        writeMap(currentFile, sanitize(AdvancedLogic.decodedDiff(decoded, schemaByName, defaults)))
+        activePreset = null
+        writeActivePreset(null)
+    }
+
     fun listPresets(): List<String> =
         presetsDir.listFiles()
             ?.mapNotNull { file ->

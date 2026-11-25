@@ -297,3 +297,110 @@ def test_bad_enum_value_fails_with_step_settings():
     assert result.get("step") == "settings"
     assert "sword_mode" in result.get("error", "")
 
+
+def _run_permalink(mode, payload):
+    proc = subprocess.run(
+        [sys.executable, str(SHIM), mode],
+        cwd=REPO_ROOT,
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    return proc, result
+
+
+def test_encode_decode_permalink_round_trip():
+    payload = {
+        "seed": "testseed",
+        "settings": {
+            "progression_tingle_chests": True,
+            "sword_mode": "Swordless",
+            "starting_gear": ["Bombs", "Bait Bag"],
+        },
+    }
+    proc, encoded = _run_permalink("--encode-permalink", payload)
+    assert proc.returncode == 0, proc.stderr
+    assert encoded.get("ok") is True
+    assert encoded.get("seed") == "testseed"
+    assert encoded.get("permalink")
+
+    proc, decoded = _run_permalink("--decode-permalink", {"permalink": encoded["permalink"]})
+    assert proc.returncode == 0, proc.stderr
+    assert decoded.get("ok") is True
+    assert decoded.get("seed") == "testseed"
+    settings = decoded.get("settings")
+    assert settings["progression_tingle_chests"] is True
+    assert settings["sword_mode"] == "Swordless"
+    assert "Bombs" in settings["starting_gear"]
+    assert "Bait Bag" in settings["starting_gear"]
+    assert "randomized_gear" not in settings
+
+
+def test_encode_permalink_blank_seed_generates_one():
+    proc, encoded = _run_permalink("--encode-permalink", {"seed": "", "settings": {}})
+    assert proc.returncode == 0, proc.stderr
+    assert encoded.get("ok") is True
+    assert encoded.get("permalink")
+    assert encoded.get("seed")
+
+
+def test_decode_permalink_bad_input_fails_exit_1():
+    proc, result = _run_permalink("--decode-permalink", {"permalink": "!!!!"})
+    assert proc.returncode == 1, proc.stderr
+    assert result.get("ok") is False
+    assert result.get("step") == "permalink"
+    assert result.get("error")
+
+
+def test_decoded_settings_accepted_by_apply_settings_json():
+    import android_run
+
+    proc, encoded = _run_permalink(
+        "--encode-permalink",
+        {"seed": "s", "settings": {"sword_mode": "Swordless", "progression_tingle_chests": True}},
+    )
+    assert proc.returncode == 0, proc.stderr
+
+    proc, decoded = _run_permalink("--decode-permalink", {"permalink": encoded["permalink"]})
+    assert proc.returncode == 0, proc.stderr
+    settings = decoded["settings"]
+
+    from options.wwrando_options import Options, SwordMode
+
+    options = Options()
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as f:
+        json.dump(settings, f)
+        f.flush()
+        android_run.apply_settings_json(options, f.name)
+
+    assert options.sword_mode == SwordMode.SWORDLESS
+    assert options.progression_tingle_chests is True
+
+
+def test_encode_of_decoded_settings_matches_original_permalink():
+    proc, encoded = _run_permalink(
+        "--encode-permalink",
+        {
+            "seed": "roundtrip",
+            "settings": {
+                "progression_dungeons": False,
+                "sword_mode": "Swords Optional",
+                "starting_gear": ["Hookshot", "Bombs"],
+                "starting_hcs": 5,
+            },
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+
+    proc, decoded = _run_permalink("--decode-permalink", {"permalink": encoded["permalink"]})
+    assert proc.returncode == 0, proc.stderr
+
+    proc, reencoded = _run_permalink(
+        "--encode-permalink",
+        {"seed": decoded["seed"], "settings": decoded["settings"]},
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert reencoded["permalink"] == encoded["permalink"]
+

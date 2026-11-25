@@ -1,8 +1,6 @@
 package io.github.thesword1.wwrando.ui
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -14,7 +12,6 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
@@ -26,7 +23,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import io.github.thesword1.wwrando.data.SelfCheckIssue
 
 enum class Section(val label: String, val icon: ImageVector) {
@@ -47,6 +43,7 @@ fun AppScaffold(
     outputsViewModel: OutputsViewModel,
     settingsViewModel: SettingsViewModel,
     customizeViewModel: CustomizeViewModel,
+    advancedViewModel: AdvancedViewModel,
     onRequestPermission: () -> Unit,
     onInstallTermux: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -83,20 +80,13 @@ fun AppScaffold(
                     Section.Tweaks -> TweaksScreen(viewModel = settingsViewModel)
                     Section.StartingItems -> StartingItemsScreen(viewModel = settingsViewModel)
                     Section.Customize -> CustomizeScreen(viewModel = customizeViewModel)
-                    Section.Advanced -> PlaceholderScreen("Advanced", "About and permalink arrive in 6c.")
+                    Section.Advanced -> AdvancedScreen(
+                        settingsViewModel = settingsViewModel,
+                        viewModel = viewModel,
+                        advancedViewModel = advancedViewModel,
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(title: String, message: String) {
-    Column(
-        Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
-        Text(message, style = MaterialTheme.typography.bodyMedium)
     }
 }

@@ -40,6 +40,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         version++
     }
 
+    /** The stored preset-scoped diff (what --settings-json takes); non-default values only. */
+    fun currentDiff(): Map<String, Any> {
+        version
+        return store.current()
+    }
+
+    /** Replaces the current diff with decoded permalink settings (see SettingsStore.applyDecoded). */
+    fun applyDecoded(decoded: Map<String, Any>) {
+        store.applyDecoded(decoded)
+        version++
+    }
+
     fun listPresets(): List<String> { version; return listOf(SettingsLogic.DEFAULT_PRESET_NAME) + store.listPresets() }
 
     fun savePreset(name: String): String? {

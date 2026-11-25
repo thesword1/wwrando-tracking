@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 import io.github.thesword1.wwrando.data.RandoBridge
 import io.github.thesword1.wwrando.data.SelfCheckInput
 import io.github.thesword1.wwrando.data.SelfCheckLogic
+import io.github.thesword1.wwrando.ui.AdvancedViewModel
 import io.github.thesword1.wwrando.ui.AppScaffold
 import io.github.thesword1.wwrando.ui.CustomizeViewModel
 import io.github.thesword1.wwrando.ui.HistoryScreen
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private val outputsViewModel: OutputsViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
     private val customizeViewModel: CustomizeViewModel by viewModels()
+    private val advancedViewModel: AdvancedViewModel by viewModels()
     private val historyViewModel: HistoryViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -125,6 +127,7 @@ class MainActivity : ComponentActivity() {
                         outputsViewModel = outputsViewModel,
                         settingsViewModel = settingsViewModel,
                         customizeViewModel = customizeViewModel,
+                        advancedViewModel = advancedViewModel,
                         onRequestPermission = { permissionLauncher.launch(RandoBridge.PERMISSION_RUN_COMMAND) },
                         onInstallTermux = { openTermuxStore() },
                         onOpenAppSettings = {

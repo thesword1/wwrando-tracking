@@ -112,12 +112,8 @@ def _convert_settings_value(field, value):
   return None
 
 
-def apply_settings_json(options, path):
+def apply_settings_diff(options, data):
   """Apply a {name: value} settings diff on top of the current options. Unknown names are ignored."""
-  if not path:
-    return
-  with open(path, encoding="utf-8") as f:
-    data = json.load(f)
   if not isinstance(data, dict):
     raise SettingsError("settings JSON must be an object")
   by_name = options.by_name()
@@ -131,6 +127,15 @@ def apply_settings_json(options, path):
     if converted is None:
       continue
     options[name] = converted
+
+
+def apply_settings_json(options, path):
+  """Apply a {name: value} settings diff from a JSON file on top of the current options."""
+  if not path:
+    return
+  with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+  apply_settings_diff(options, data)
 
 
 def _safe_extract_zip(zip_path, dest_dir):
@@ -242,10 +247,13 @@ def _post_json(port, token, path, payload):
   _post(port, token, path, json.dumps(payload))
 
 
-def build_randomizer_kwargs(args):
-  """Mirror wwrando.run_no_ui's option loading and seed/ISO/output resolution."""
+def load_options(args, diff=None):
+  """Build Options from settings.txt, then apply a {name: value} diff on top.
+
+  [diff], when given, is the diff dict itself; otherwise the --settings-json file is applied.
+  Returns (seed, options, settings) where seed is settings.txt's seed (may be None).
+  """
   from options.wwrando_options import Options
-  from randomizer import WWRandomizer
   from ruamel.yaml import YAML
   from wwrando_paths import SETTINGS_PATH
 
@@ -262,10 +270,22 @@ def build_randomizer_kwargs(args):
       continue
     options[option_name] = option_value
 
-  # App-supplied settings override settings.txt (and are in turn overridden by --permalink below).
-  apply_settings_json(options, getattr(args, "settings_json", None))
+  if diff is None:
+    apply_settings_json(options, getattr(args, "settings_json", None))
+  else:
+    apply_settings_diff(options, diff)
 
-  seed = settings.get("seed")
+  return settings.get("seed"), options, settings
+
+
+def build_randomizer_kwargs(args):
+  """Mirror wwrando.run_no_ui's option loading and seed/ISO/output resolution."""
+  from randomizer import WWRandomizer
+
+  seed, options, settings = load_options(args)
+
+  # A pasted permalink overrides settings.txt and the --settings-json diff, and is in turn
+  # overridden by --seed below.
   if args.permalink:
     seed, options = WWRandomizer.decode_permalink(args.permalink, options)
   if args.seed:
@@ -285,6 +305,66 @@ def build_randomizer_kwargs(args):
     "options": options,
     "cmd_line_args": args,
   }
+
+
+def _read_stdin_json():
+  try:
+    return json.load(sys.stdin)
+  except Exception:
+    return None
+
+
+def _to_json_setting_value(option, value):
+  """Serialize one decoded option value for the JSON response (enums -> .value, lists as lists)."""
+  if _is_enum_type(option.type):
+    return value.value
+  if typing.get_origin(option.type) is list:
+    return list(value)
+  return value
+
+
+def encode_permalink(args):
+  """Encode a permalink for the settings diff read on stdin. No bridge needed."""
+  from randomizer import WWRandomizer
+
+  data = _read_stdin_json()
+  if not isinstance(data, dict):
+    return {"ok": False, "step": "permalink", "error": "input must be a JSON object"}
+  seed = data.get("seed") or ""
+  diff = data.get("settings") or {}
+  try:
+    _, options, _ = load_options(args, diff=diff)
+  except SettingsError as e:
+    return {"ok": False, "step": "permalink", "error": str(e)}
+  if not seed:
+    from seedgen import seedgen
+    seed = seedgen.make_random_seed_name()
+  permalink = WWRandomizer.encode_permalink(seed, options)
+  return {"ok": True, "permalink": permalink, "seed": WWRandomizer.sanitize_seed(seed)}
+
+
+def decode_permalink_mode(args):
+  """Decode a permalink from stdin JSON into {seed, settings}. No bridge needed."""
+  from options.wwrando_options import Options
+  from randomizer import WWRandomizer
+
+  data = _read_stdin_json()
+  if not isinstance(data, dict):
+    return {"ok": False, "step": "permalink", "error": "input must be a JSON object"}
+  permalink = data.get("permalink") or ""
+  try:
+    seed, options = WWRandomizer.decode_permalink(permalink, Options())
+  except Exception as e:
+    return {"ok": False, "step": "permalink", "error": str(e)}
+
+  settings = {}
+  for option in Options.all():
+    if not option.permalink:
+      continue
+    if option.name == "randomized_gear":
+      continue  # derived from starting_gear, not an independent setting
+    settings[option.name] = _to_json_setting_value(option, options[option.name])
+  return {"ok": True, "seed": seed, "settings": settings}
 
 
 def run(args):
@@ -361,6 +441,16 @@ def make_argparser():
     "--sync-models", nargs=2, metavar=("MODELS_DIR", "MANIFEST"),
     help="Sync custom player models from a run.sh manifest and exit (no randomizer run).",
   )
+  parser.add_argument(
+    "--encode-permalink",
+    action="store_true",
+    help="Encode a permalink from stdin JSON {seed, settings} and exit (no bridge needed).",
+  )
+  parser.add_argument(
+    "--decode-permalink",
+    action="store_true",
+    help="Decode a permalink from stdin JSON {permalink} and exit (no bridge needed).",
+  )
   return parser
 
 
@@ -375,6 +465,14 @@ def main(argv=None):
       return 1
     print(json.dumps({"ok": True, "models": count}))
     return 0
+  if args.encode_permalink:
+    result = encode_permalink(args)
+    print(json.dumps(result))
+    return 0 if result.get("ok") else 1
+  if args.decode_permalink:
+    result = decode_permalink_mode(args)
+    print(json.dumps(result))
+    return 0 if result.get("ok") else 1
   if args.port is None or args.token is None:
     print(json.dumps({"ok": False, "step": "bridge", "error": "--port and --token are required"}))
     return 1
