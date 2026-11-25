@@ -22,7 +22,7 @@ interface RunOutputSink : Closeable {
     /** Deletes a partially-written document after a short body or I/O error. */
     fun delete(subfolder: String, name: String)
 
-    /** Called on cancel: removes the in-progress document and an empty subfolder. */
+    /** Called on cancel: removes the in-progress document and this run's subfolder. */
     fun abort()
 }
 

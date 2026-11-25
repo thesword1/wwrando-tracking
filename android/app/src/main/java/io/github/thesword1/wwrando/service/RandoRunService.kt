@@ -98,6 +98,10 @@ class AndroidRunOutputSink(
     override fun abort() {
         currentUri?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } }
         currentUri = null
+        // A cancelled run leaves nothing behind: drop this run's subfolder and any files already in it.
+        folderUri?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } }
+        folderUri = null
+        folderName = null
     }
 
     override fun close() = Unit
